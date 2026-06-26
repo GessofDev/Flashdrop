@@ -1,0 +1,31 @@
+{
+  "name": "nodejs",
+  "version": "1.0.0",
+  "description": "Backend de la aplicacion delivery",
+  "main": "server.js.js",
+  "scripts": {
+    "start": "node server.js.js",
+    "check": "node --check server.js.js",
+    "test": "npm run check"
+  },
+  "keywords": [
+    "flutte",
+    "delivery",
+    "nodejs"
+  ],
+  "author": "gessof",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "uuid": "^11.1.0"
+  }
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flash Drop Admin</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">FD</span>
+        <div>
+          <strong>Flash Drop</strong>
+          <small>Panel administrador</small>
+        </div>
+      </div>
+      <nav>
+        <a href="#productos">Productos</a>
+        <a href="#pedidos">Pedidos</a>
+        <a href="#rutas">Rutas</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h1>Administracion delivery</h1>
+          <p>Gestiona productos, revisa pedidos y controla las rutas del prototipo.</p>
+        </div>
+        <button id="refreshBtn">Actualizar</button>
+      </header>
+
+      <section class="stats">
+        <article>
+          <span id="productCount">0</span>
+          <small>Productos</small>
+        </article>
+        <article>
+          <span id="orderCount">0</span>
+          <small>Pedidos</small>
+        </article>
+        <article>
+          <span id="routeCount">0</span>
+          <small>Rutas</small>
+        </article>
+      </section>
+
+      <section id="productos" class="grid two">
+        <article class="panel">
+          <h2>Subir producto</h2>
+          <p class="hint">Al guardar, abre la app y toca actualizar en Catalogo para verlo.</p>
+          <form id="productForm">
+            <label>
+              Nombre
+              <input name="name" required placeholder="Burger doble">
+            </label>
+            <label>
+              Descripcion
+              <textarea name="description" placeholder="Doble carne, queso y salsa de la casa"></textarea>
+            </label>
+            <div class="row">
+              <label>
+                Precio
+                <input name="price" required type="number" min="1" placeholder="8990">
+              </label>
+              <label>
+                Categoria
+                <select name="category_id" id="categorySelect" required></select>
+              </label>
+            </div>
+            <label>
+              Restaurante
+              <select name="restaurant_id" id="restaurantSelect" required></select>
+            </label>
+            <label>
+              Imagen URL o asset
+              <input name="image" placeholder="assets/img/burger1.png">
+            </label>
+            <button type="submit">Guardar producto</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <h2>Catalogo</h2>
+          <div id="productList" class="list"></div>
+        </article>
+      </section>
+
+      <section id="pedidos" class="panel">
+        <h2>Pedidos recientes</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Codigo</th>
+                <th>Cliente</th>
+                <th>Restaurante</th>
+                <th>Destino</th>
+                <th>Estado</th>
+                <th>Total</th>
+                <th><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="ordersTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="rutas" class="panel">
+        <h2>Rutas de repartidor</h2>
+        <div id="routesList" class="list"></div>
+      </section>
+    </main>
+
+    <dialog id="orderDialog" aria-labelledby="orderDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <span class="eyebrow">Detalle del pedido</span>
+          <h2 id="orderDialogTitle">Cargando...</h2>
+        </div>
+        <button class="icon-button" id="closeOrderDialog" type="button" title="Cerrar" aria-label="Cerrar">X</button>
+      </div>
+      <div id="orderDetail" class="order-detail"></div>
+    </dialog>
+
+    <script src="/admin/app.js"></script>
+  </body>
+</html>
