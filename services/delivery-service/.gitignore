@@ -1,0 +1,27 @@
+.gradle/
+build/
+bin/
+out/
+*.class
+
+# Track wrapper artifacts (gradle-wrapper.jar is needed to bootstrap the wrapper)
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.jar
+
+# But ignore other jars
+*.jar
+*.war
+!gradle/wrapper/*.jar
+
+.env
+*.env
+!.env.example
+
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+
+gradle-app.setting
+.gradletasknamecache
