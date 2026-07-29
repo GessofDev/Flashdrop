@@ -1,0 +1,61 @@
+server:
+  port: 3000
+  host: 0.0.0.0
+
+redis:
+  url: redis://redis-cache:6379
+  onFailure: open
+
+logging:
+  level: info
+
+metrics:
+  enabled: true
+  path: /metrics
+
+# Health aggregation: el gateway consulta <target>/actuator/health en paralelo
+# para cada ruta. auth, catalog, orders y delivery exponen /actuator/health
+# vía Spring Boot Actuator.
+health:
+  enabled: true
+  path: /health
+  backendPath: /actuator/health
+  timeoutMs: 2000
+
+# CORS permisivo en dev — ajustar orígenes en prod
+cors:
+  enabled: true
+  origins: ["*"]
+  methods: [GET, POST, PUT, DELETE, OPTIONS]
+  allowedHeaders: [Content-Type, Authorization]
+  maxAge: 86400
+
+routes:
+  # === AUTH ===
+  - prefix: /auth
+    target: http://auth-service:8081
+    stripPrefix: false
+    backendName: auth-service
+
+  # === CATALOG ===
+  - prefix: /catalog
+    target: http://catalog-service:8082
+    stripPrefix: false
+    backendName: catalog-service
+
+  # === ORDERS (2 prefijos distintos, mismo target) ===
+  - prefix: /api/orders
+    target: http://orders-service:8083
+    stripPrefix: false
+    backendName: orders-service
+
+  - prefix: /api/delivery
+    target: http://delivery-service:8084
+    stripPrefix: false
+    backendName: delivery-service
+
+  # === DELIVERY ===
+  - prefix: /delivery
+    target: http://delivery-service:8084
+    stripPrefix: false
+    backendName: delivery-service
