@@ -31,7 +31,7 @@ public class OrderServiceClientAdapter implements OrderServicePort {
         }
         String inList = orderIds.stream().map(String::valueOf).collect(Collectors.joining(","));
         OrderRow[] rows = supabase.get()
-                .uri("/orders?id=in.({ids})&select=id,client_id,restaurant_id,delivery_id,status,address", inList)
+                .uri("/orders?id=in.({ids})&select=id,client_id,restaurant_id,delivery_id,status,address,code", inList)
                 .retrieve()
                 .body(OrderRow[].class);
         if (rows == null || rows.length == 0) {
@@ -93,6 +93,6 @@ public class OrderServiceClientAdapter implements OrderServicePort {
                     : restaurant.address();
         }
         String delivery = row.address() != null ? row.address() : "";
-        return new OrderInfo(row.id(), row.restaurantId(), pickup, delivery);
+        return new OrderInfo(row.id(), row.restaurantId(), pickup, delivery, row.code());
     }
 }

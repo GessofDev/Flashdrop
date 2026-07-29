@@ -1,6 +1,7 @@
 package com.flashdrop.delivery.application.usecase;
 
 import com.flashdrop.delivery.application.dto.RouteResponse;
+import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
@@ -28,11 +29,14 @@ class ListDeliveryRoutesUseCaseImplTest {
     @Mock
     private RouteRepository routeRepository;
 
+    @Mock
+    private OrderServicePort orderServicePort;
+
     private ListDeliveryRoutesUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new ListDeliveryRoutesUseCaseImpl(routeRepository);
+        useCase = new ListDeliveryRoutesUseCaseImpl(routeRepository, orderServicePort);
     }
 
     private DeliveryRoute newRoute(Long id, Long orderId, String pickup, String delivery) {
@@ -47,25 +51,33 @@ class ListDeliveryRoutesUseCaseImplTest {
     class Execute {
 
         @Test
-        @DisplayName("TC1: null deliveryPersonId — returns all routes")
+        @DisplayName("TC1: null deliveryPersonId — returns all routes with code from OrderServicePort")
         void nullDeliveryPersonId_returnsAllRoutes() {
-            when(routeRepository.findAll()).thenReturn(List.of(newRoute(1L, 101L, "Pickup", "Delivery")));
+            DeliveryRoute route = newRoute(1L, 101L, "Pickup", "Delivery");
+            when(routeRepository.findAll()).thenReturn(List.of(route));
+            when(orderServicePort.getOrdersByIds(List.of(101L)))
+                    .thenReturn(List.of(new OrderServicePort.OrderInfo(101L, 10L, "Pickup", "Delivery", "ORD-001")));
 
             List<RouteResponse> result = useCase.execute(null);
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0).id()).isEqualTo(1L);
+            assertThat(result.get(0).code()).isEqualTo("ORD-001");
         }
 
         @Test
         @DisplayName("TC2: deliveryPersonId provided — param is ignored, returns all routes")
         void withDeliveryPersonId_returnsAllRoutes() {
-            when(routeRepository.findAll()).thenReturn(List.of(newRoute(2L, 102L, "Pickup2", "Delivery2")));
+            DeliveryRoute route = newRoute(2L, 102L, "Pickup2", "Delivery2");
+            when(routeRepository.findAll()).thenReturn(List.of(route));
+            when(orderServicePort.getOrdersByIds(List.of(102L)))
+                    .thenReturn(List.of(new OrderServicePort.OrderInfo(102L, 10L, "Pickup2", "Delivery2", "ORD-002")));
 
             List<RouteResponse> result = useCase.execute(42L);
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0).id()).isEqualTo(2L);
+            assertThat(result.get(0).code()).isEqualTo("ORD-002");
         }
 
         @Test

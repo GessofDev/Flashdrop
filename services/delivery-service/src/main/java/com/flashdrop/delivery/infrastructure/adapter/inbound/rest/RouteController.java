@@ -1,5 +1,6 @@
 package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
+import com.flashdrop.delivery.application.dto.ApiResponse;
 import com.flashdrop.delivery.application.dto.RouteResponse;
 import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/delivery")
+@RequestMapping(value = {"/delivery", "/api/delivery"})
 public class RouteController {
 
     private static final Logger log = LoggerFactory.getLogger(RouteController.class);
@@ -34,19 +35,19 @@ public class RouteController {
     }
 
     @GetMapping("/routes")
-    public ResponseEntity<List<RouteResponse>> listRoutes(
-            @RequestParam Long deliveryPersonId) {
+    public ResponseEntity<ApiResponse<List<RouteResponse>>> listRoutes(
+            @RequestParam(required = false) Long deliveryPersonId) {
         log.info("GET /delivery/routes - Listing routes (deliveryPersonId={}, ignored: no column in DB)", deliveryPersonId);
         List<RouteResponse> routes = listDeliveryRoutesUseCase.execute(deliveryPersonId);
-        return ResponseEntity.ok(routes);
+        return ResponseEntity.ok(ApiResponse.success("Routes retrieved successfully", routes));
     }
 
     @PutMapping("/routes/{routeId}/status")
-    public ResponseEntity<RouteResponse> updateRouteStatus(
+    public ResponseEntity<ApiResponse<RouteResponse>> updateRouteStatus(
             @PathVariable Long routeId,
             @Valid @RequestBody UpdateRouteStatusRequest request) {
         log.info("PUT /delivery/routes/{}/status - Updating status to: {}", routeId, request.status());
         RouteResponse response = updateRouteStatusUseCase.execute(routeId, request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success("Route status updated", response));
     }
 }

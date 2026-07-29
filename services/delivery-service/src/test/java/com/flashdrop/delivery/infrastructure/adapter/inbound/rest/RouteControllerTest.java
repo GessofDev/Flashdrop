@@ -39,7 +39,7 @@ class RouteControllerTest {
     private RouteResponse makeRouteResponse(Long id, String status) {
         return new RouteResponse(id, 101L,
                 "Pickup St", "Delivery St",
-                3.5, 20, status, Instant.now());
+                3.5, 20, status, Instant.now(), "ORD-001");
     }
 
     @Nested

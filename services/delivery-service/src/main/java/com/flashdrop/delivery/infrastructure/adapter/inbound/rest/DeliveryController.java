@@ -1,5 +1,6 @@
 package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
+import com.flashdrop.delivery.application.dto.ApiResponse;
 import com.flashdrop.delivery.application.dto.ClaimDeliveryRequest;
 import com.flashdrop.delivery.application.dto.DeliveryPersonResponse;
 import com.flashdrop.delivery.application.port.inbound.ClaimDeliveryOrdersUseCase;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/delivery")
+@RequestMapping(value = {"/delivery", "/api/delivery"})
 public class DeliveryController {
 
     private static final Logger log = LoggerFactory.getLogger(DeliveryController.class);
@@ -28,10 +29,12 @@ public class DeliveryController {
     }
 
     @PostMapping("/claim")
-    public ResponseEntity<List<DeliveryPersonResponse>> claimDelivery(
+    public ResponseEntity<ApiResponse<List<DeliveryPersonResponse>>> claimDelivery(
             @Valid @RequestBody ClaimDeliveryRequest request) {
         log.info("POST /delivery/claim - Claiming delivery orders: {}", request.orderIds());
         List<DeliveryPersonResponse> response = claimDeliveryOrdersUseCase.execute(request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        return new ResponseEntity<>(
+                ApiResponse.success("Delivery claimed successfully", response),
+                HttpStatus.CREATED);
     }
 }

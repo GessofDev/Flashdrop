@@ -2,6 +2,7 @@ package com.flashdrop.delivery.application.usecase;
 
 import com.flashdrop.delivery.application.dto.RouteResponse;
 import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
+import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,11 +33,14 @@ class UpdateRouteStatusUseCaseImplTest {
     @Mock
     private RouteRepository routeRepository;
 
+    @Mock
+    private OrderServicePort orderServicePort;
+
     private UpdateRouteStatusUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new UpdateRouteStatusUseCaseImpl(routeRepository);
+        useCase = new UpdateRouteStatusUseCaseImpl(routeRepository, orderServicePort);
     }
 
     @Nested
@@ -43,7 +48,7 @@ class UpdateRouteStatusUseCaseImplTest {
     class Execute {
 
         @Test
-        @DisplayName("TC1: valid status update — returns updated RouteResponse")
+        @DisplayName("TC1: valid status update — returns updated RouteResponse with code")
         void validStatusUpdate_returnsUpdatedRouteResponse() {
             Long routeId = 1L;
             UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("ENTREGADO");
@@ -52,11 +57,14 @@ class UpdateRouteStatusUseCaseImplTest {
                     RouteStatus.ENTREGADO, Instant.now());
 
             when(routeRepository.updateStatus(eq(routeId), any())).thenReturn(updated);
+            when(orderServicePort.getOrdersByIds(List.of(101L)))
+                    .thenReturn(List.of(new OrderServicePort.OrderInfo(101L, 10L, "Pickup", "Delivery", "ORD-001")));
 
             RouteResponse result = useCase.execute(routeId, request);
 
             assertThat(result.id()).isEqualTo(routeId);
             assertThat(result.status()).isEqualTo("ENTREGADO");
+            assertThat(result.code()).isEqualTo("ORD-001");
         }
 
         @Test

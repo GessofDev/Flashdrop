@@ -24,7 +24,7 @@ class OrderServiceClientAdapterTest {
         @DisplayName("TC1: OrderInfo record holds all required fields from OrderRow")
         void orderInfoRecordStructure() {
             OrderServicePort.OrderInfo info = new OrderServicePort.OrderInfo(
-                    101L, 10L, "Pickup Address", "Delivery Address");
+                    101L, 10L, "Pickup Address", "Delivery Address", "ORD-001");
 
             assertThat(info.id()).isEqualTo(101L);
             assertThat(info.restaurantId()).isEqualTo(10L);
@@ -36,7 +36,7 @@ class OrderServiceClientAdapterTest {
         @DisplayName("TC2: OrderRow record maps to OrderInfo fields correctly")
         void orderRowMapsToOrderInfo() {
             OrderRow row = new OrderRow(
-                    101L, 200L, 10L, 300L, "pending", "Delivery Address 101");
+                    101L, 200L, 10L, 300L, "pending", "Delivery Address 101", "ORD-001");
 
             assertThat(row.id()).isEqualTo(101L);
             assertThat(row.restaurantId()).isEqualTo(10L);

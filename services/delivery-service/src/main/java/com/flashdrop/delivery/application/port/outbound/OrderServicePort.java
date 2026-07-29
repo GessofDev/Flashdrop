@@ -8,6 +8,6 @@ public interface OrderServicePort {
 
     boolean areOrdersFromSameRestaurant(List<Long> orderIds);
 
-    record OrderInfo(Long id, Long restaurantId, String pickupAddress, String deliveryAddress) {
+    record OrderInfo(Long id, Long restaurantId, String pickupAddress, String deliveryAddress, String code) {
     }
 }
