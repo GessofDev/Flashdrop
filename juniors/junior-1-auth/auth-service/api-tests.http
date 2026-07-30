@@ -1,0 +1,58 @@
+### Variables
+@baseUrl = http://localhost:8081
+
+### 1. Validar Salud del Servicio (Actuator)
+GET {{baseUrl}}/actuator/health
+
+### 2. Obtener Clave Pública JWT (JWKS)
+GET {{baseUrl}}/auth/.well-known/jwks.json
+
+### 3. Registrar un nuevo usuario
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "nico@gessof.cl",
+  "password": "Password123!",
+  "phone": "+56912345678"
+}
+
+### 4. Hacer Login (recuperar tokens)
+# Ejecuta este después de registrar el usuario
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "login": "nico@gessof.cl",
+  "password": "Password123!"
+}
+
+### 5. Validar Token (usado por el API Gateway)
+# Pega aquí el accessToken obtenido en el paso 4
+@token = eyJraWQiOiJncEUzUDJCbFhsN0JMUTFOIiwiYWxnIjoiUlMyNTYifQ.eyJpc3MiOiJmbGFzaGRyb3AtYXV0aCIsInN1YiI6IjAxOWYzN2YxLTU5ZmEtNzUxNi04YmQyLWQ1MWM4YjE5ZmExOCIsImVtYWlsIjoibmljb0BnZXNzb2YuY2wiLCJyb2xlcyI6WyJDbGllbnRlIl0sImlhdCI6MTc4MzM1MDUxNSwiZXhwIjoxNzgzMzUxNDE1fQ.DmKfuD-8jpc3Gfil5hLuyx4vQXvhhVLvxXTfQkZHoVtYJCaVVHd3haK6dfwAVlq97w6z1IvIdbTj87vRWHFJOy3Obs7zBSrpH80C9xvb9Wm_wBOGhvBmi7I_U_JjCyeGdw2wAHeFx1QMW56ztDivg4FsqEYnMbqIFHWmjyOreGiw2B-HsF8akiwf3atS3CRo8OxA6PxFDz1VJyKsEMDSVjs60hJCMnwx3ud0j1s4X5FHoiyH60dM3rDIXx4x4m8LBDinp5-FJgOM7FZe8u4ebz8Znrt90F66JUP91P3zqhAMkUp_IBlSjcAHmEXSaPXrdlmPGh7TQjTLHISkq_X1jg
+
+GET {{baseUrl}}/auth/validate
+Authorization: Bearer {{token}}
+
+### 6. Obtener Perfil del Usuario
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{token}}
+
+### 7. Renovar Tokens (Refresh)
+# Pega aquí el refreshToken obtenido en el paso 4
+@refreshToken = HcAf8Y_cw-FzjlAUikqGf9fD5ASeewxT1Io_-PQspWE
+
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 8. Cerrar Sesión (Logout)
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}

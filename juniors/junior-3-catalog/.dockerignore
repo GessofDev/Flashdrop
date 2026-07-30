@@ -1,0 +1,6 @@
+.gradle
+build
+.env
+*.log
+*.zip
+HELP.md

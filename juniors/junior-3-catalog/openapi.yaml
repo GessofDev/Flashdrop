@@ -1,0 +1,306 @@
+openapi: 3.0.3
+info:
+  title: FlashDrop — Catalog Service API
+  description: |
+    Microservicio de catálogo de productos, categorías y restaurantes.
+
+    **Responsabilidades:**
+    - Listar y crear productos
+    - Validar existencia de productos (para pedidos)
+    - Listar categorías
+    - Listar restaurantes
+
+    **Puerto:** 8082
+    **Base path:** /catalog
+
+    ## Notas para el desarrollador
+    - Los IDs en la base de datos son **UUID**, pero este servicio puede usar Long internamente
+    - Las operaciones GET son **públicas** (no requieren JWT)
+    - Las operaciones POST requieren JWT válido (futuro)
+    - El perfil `supabase` usa la API REST de Supabase
+    - El perfil `local` usa datos en memoria (para desarrollo rápido)
+
+    ## Arquitectura
+    Sigue arquitectura hexagonal: Controller → UseCase → Port → Adapter
+    Ver `GUIA_LECTURA_CATALOG_SERVICE.txt` para explicación detallada.
+  version: 1.0.0
+  contact:
+    name: FlashDrop Backend Team
+
+servers:
+  - url: http://localhost:8082
+    description: Desarrollo local
+
+tags:
+  - name: Products
+    description: Gestión de productos
+  - name: Categories
+    description: Categorías de productos
+  - name: Restaurants
+    description: Restaurantes
+  - name: Health
+    description: Health checks
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check del servicio
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: catalog-service
+                  status:
+                    type: string
+                    example: ok
+
+  /catalog/products:
+    get:
+      tags: [Products]
+      summary: Listar todos los productos
+      description: Retorna la lista completa de productos disponibles.
+      operationId: listProducts
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+
+    post:
+      tags: [Products]
+      summary: Crear nuevo producto
+      description: |
+        Crea un nuevo producto en el catálogo.
+        **Requiere JWT válido** (futuro).
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /catalog/products/validate:
+    post:
+      tags: [Products]
+      summary: Validar existencia de productos
+      description: |
+        Valida si una lista de IDs de productos existe en el catálogo.
+        Usado por el orders-service antes de crear un pedido.
+      operationId: validateProducts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateProductsRequest'
+      responses:
+        '200':
+          description: Resultado de la validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateProductsResponse'
+
+  /catalog/categories:
+    get:
+      tags: [Categories]
+      summary: Listar todas las categorías
+      operationId: listCategories
+      responses:
+        '200':
+          description: Lista de categorías
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+
+  /catalog/restaurants:
+    get:
+      tags: [Restaurants]
+      summary: Listar todos los restaurantes
+      operationId: listRestaurants
+      responses:
+        '200':
+          description: Lista de restaurantes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RestaurantResponse'
+
+components:
+  schemas:
+    CreateProductRequest:
+      type: object
+      required: [categoryId, restaurantId, name, price]
+      properties:
+        categoryId:
+          type: integer
+          description: ID de la categoría
+          example: 3
+        restaurantId:
+          type: integer
+          description: ID del restaurante
+          example: 3
+        name:
+          type: string
+          description: Nombre del producto
+          example: Hamburguesa Clásica
+        description:
+          type: string
+          description: Descripción del producto
+          example: Doble carne, queso cheddar, lechuga y tomate
+        price:
+          type: number
+          format: decimal
+          description: Precio en CLP (pesos chilenos)
+          example: 8990
+        image:
+          type: string
+          description: URL de la imagen del producto
+          example: "https://supabase.storage/fotos/products/hamburger.jpg"
+        available:
+          type: boolean
+          description: Si el producto está disponible (default: true)
+          example: true
+
+    ProductResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID del producto
+          example: 1
+        categoryId:
+          type: integer
+          example: 3
+        restaurantId:
+          type: integer
+          example: 3
+        name:
+          type: string
+          example: Hamburguesa Clásica
+        description:
+          type: string
+          example: Doble carne, queso cheddar, lechuga y tomate
+        price:
+          type: number
+          format: decimal
+          example: 8990
+        image:
+          type: string
+          example: "https://supabase.storage/fotos/products/hamburger.jpg"
+        available:
+          type: boolean
+          example: true
+
+    ValidateProductsRequest:
+      type: object
+      required: [productIds]
+      properties:
+        productIds:
+          type: array
+          items:
+            type: integer
+          description: Lista de IDs de productos a validar
+          example: [1, 2, 999]
+
+    ValidateProductsResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: true si todos los productos existen
+          example: false
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductResponse'
+          description: Productos encontrados
+        missingIds:
+          type: array
+          items:
+            type: integer
+          description: IDs que no existen en el catálogo
+          example: [999]
+
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Hamburguesas
+        description:
+          type: string
+          example: Hamburguesas artesanales
+        image:
+          type: string
+          example: "https://supabase.storage/fotos/categories/burger.jpg"
+
+    RestaurantResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Urban Burger
+        address:
+          type: string
+          example: "Av. Providencia 1000, Santiago"
+        phone:
+          type: string
+          example: "+56912345678"
+        image:
+          type: string
+          example: "https://supabase.storage/fotos/restaurants/urban.jpg"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Nombre del producto es obligatorio
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

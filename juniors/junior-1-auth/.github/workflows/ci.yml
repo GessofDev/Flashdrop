@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+
+jobs:
+  build:
+    name: Build y tests
+    runs-on: ubuntu-latest
+    env:
+      # Activar perfil supabase para desactivar la autoconfig de DataSource/JPA/Flyway.
+      # Los tests unitarios no necesitan base de datos; los de integración se
+      # omiten automáticamente al no haber Docker-in-Docker en el runner.
+      SPRING_PROFILES_ACTIVE: supabase
+      SUPABASE_URL: http://localhost:0
+      SUPABASE_SERVICE_ROLE_KEY: dummy-key-for-ci
+      JWT_ALLOW_EPHEMERAL: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Dar permisos de ejecución a gradlew
+        run: chmod +x ./gradlew
+      - name: Build y tests unitarios
+        run: ./gradlew build --no-daemon -PexcludeIntegration=true
+
+  secrets-scan:
+    name: Escaneo de secretos (S-18)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-scan:
+    name: Escaneo de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'

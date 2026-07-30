@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty name="springAppName" source="spring.application.name" defaultValue="auth-service"/>
+
+    <!-- Appender JSON definido en shared-observability (incluye traceId + service) -->
+    <include resource="observability-logback.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+    </root>
+</configuration>
