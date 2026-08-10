@@ -1,0 +1,537 @@
+openapi: 3.0.3
+info:
+  title: FlashDrop — Orders Service API
+  description: |
+    Microservicio de gestión de pedidos y rutas de delivery.
+
+    **Responsabilidades:**
+    - Crear, listar y gestionar pedidos
+    - Actualizar estado de pedidos
+    - Gestionar rutas de delivery
+    - Reclamar pedidos para reparto
+
+    **Puerto:** 8083
+    **Base path:** /api/orders
+
+    ## Notas para el desarrollador
+    - Los IDs en la base de datos son **UUID**, pero este servicio usa Long internamente
+    - **Requiere JWT válido** para todas las operaciones (excepto health)
+    - El delivery fee hardcodeado es **2500 CLP** (configurable)
+    - Los estados de pedido son strings en español
+    - RabbitMQ se usa para eventos asíncronos (opcional)
+    - La comunicación con catalog-service es sincrónica (HTTP)
+
+    ## Estados de pedido
+    `Nuevo pedido` → `Preparando` → `Listo para retiro` → `Retirado` → `En camino` → `Entregado`
+  version: 1.0.0
+  contact:
+    name: FlashDrop Backend Team
+
+servers:
+  - url: http://localhost:8083
+    description: Desarrollo local
+
+tags:
+  - name: Orders
+    description: Gestión de pedidos
+  - name: Delivery
+    description: Rutas y reclamo de delivery
+  - name: Health
+    description: Health checks
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check del servicio
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: orders-service
+                  status:
+                    type: string
+                    example: ok
+
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: Listar pedidos
+      description: |
+        Retorna la lista de pedidos.
+        Opcionalmente filtrar por `user_id`.
+      operationId: listOrders
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filtrar por ID de usuario
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse OrderList'
+
+    post:
+      tags: [Orders]
+      summary: Crear nuevo pedido
+      description: |
+        Crea un nuevo pedido. Valida que los productos existan
+        consultando al catalog-service.
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Pedido creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse CreatedOrder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Obtener detalle de un pedido
+      description: Retorna el detalle completo de un pedido por su ID.
+      operationId: getOrderDetail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID del pedido
+      responses:
+        '200':
+          description: Detalle del pedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse OrderDetail'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/orders/{id}/status:
+    put:
+      tags: [Orders]
+      summary: Actualizar estado del pedido
+      description: |
+        Cambia el estado de un pedido.
+        Estados válidos: `Nuevo pedido`, `Preparando`, `Listo para retiro`,
+        `Retirado`, `En camino`, `Entregado`.
+      operationId: updateOrderStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderStatusRequest'
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse Void'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/delivery/routes:
+    get:
+      tags: [Delivery]
+      summary: Listar rutas de delivery
+      description: Retorna las rutas de delivery disponibles.
+      operationId: listDeliveryRoutes
+      responses:
+        '200':
+          description: Lista de rutas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryRouteResponse'
+
+  /api/delivery/claim:
+    post:
+      tags: [Delivery]
+      summary: Reclamar pedido para delivery
+      description: |
+        Un reparto reclama un pedido para entregar.
+        **Restricciones:**
+        - Máximo 3 pedidos reclamados
+        - Debe ser del mismo restaurante
+        - No puede tener ruta activa previa
+      operationId: claimDeliveryOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimDeliveryRequest'
+      responses:
+        '200':
+          description: Pedido reclamado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse DeliveryRoute'
+        '400':
+          description: No puede reclamar (excede límite, ruta activa, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Formato: Bearer <token>"
+
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [address, items]
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: ID del usuario (opcional, se resuelve por fallback)
+          example: "d3b07384-d113-4956-a5db-e1c480d5220c"
+        address:
+          type: string
+          description: Dirección de entrega (obligatorio)
+          example: "Av. Providencia 1200, Santiago"
+        paymentMethod:
+          type: string
+          description: "Método de pago: Efectivo, Tarjeta, Transferencia"
+          example: Efectivo
+        distanceKm:
+          type: number
+          format: decimal
+          description: Distancia estimada en km (opcional)
+          example: 3.2
+        estimatedMinutes:
+          type: integer
+          description: Tiempo estimado en minutos (opcional)
+          example: 20
+        items:
+          type: array
+          description: Lista de productos del pedido
+          items:
+            $ref: '#/components/schemas/OrderItemRequest'
+
+    OrderItemRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+          format: uuid
+          description: ID del producto
+          example: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+        quantity:
+          type: integer
+          description: Cantidad (mínimo 1)
+          example: 2
+
+    UpdateOrderStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: "Nuevo estado del pedido"
+          enum:
+            - Nuevo pedido
+            - Preparando
+            - Listo para retiro
+            - Retirado
+            - En camino
+            - Entregado
+          example: Preparando
+
+    ClaimDeliveryRequest:
+      type: object
+      required: [deliveryPersonId, orderId]
+      properties:
+        deliveryPersonId:
+          type: string
+          format: uuid
+          description: ID del repartidor
+          example: "e2808c16-ff34-442a-92a5-48b4cb185c79"
+        orderId:
+          type: string
+          format: uuid
+          description: ID del pedido a reclamar
+          example: "b5c1cbf8-cb42-4f11-92a8-a3f295b9d3b4"
+
+    OrderListResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b5c1cbf8-cb42-4f11-92a8-a3f295b9d3b4"
+        code:
+          type: string
+          description: Código único del pedido
+          example: "FD-00001"
+        status:
+          type: string
+          example: Nuevo pedido
+        address:
+          type: string
+          example: "Av. Providencia 1200, Santiago"
+        subtotal:
+          type: number
+          format: decimal
+          example: 17980
+        deliveryFee:
+          type: number
+          format: decimal
+          example: 2500
+        total:
+          type: number
+          format: decimal
+          example: 20480
+        paymentMethod:
+          type: string
+          example: Efectivo
+        clientName:
+          type: string
+          example: Juan Pérez
+        clientPhone:
+          type: string
+          example: "+56912345678"
+        clientEmail:
+          type: string
+          example: juan@test.com
+        restaurantName:
+          type: string
+          example: Urban Burger
+        deliveryId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "e2808c16-ff34-442a-92a5-48b4cb185c79"
+        createdAt:
+          type: string
+          format: date-time
+
+    OrderDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/OrderListResponse'
+        - type: object
+          properties:
+            client:
+              $ref: '#/components/schemas/ClientDto'
+            restaurant:
+              $ref: '#/components/schemas/RestaurantDto'
+            delivery:
+              $ref: '#/components/schemas/DeliveryDto'
+            route:
+              $ref: '#/components/schemas/RouteDto'
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ItemDto'
+
+    ClientDto:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+
+    RestaurantDto:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+
+    DeliveryDto:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        vehicle:
+          type: string
+
+    RouteDto:
+      type: object
+      properties:
+        pickupAddress:
+          type: string
+        deliveryAddress:
+          type: string
+        distanceKm:
+          type: number
+        estimatedMinutes:
+          type: integer
+        status:
+          type: string
+
+    ItemDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        image:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+        total:
+          type: number
+
+    DeliveryRouteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        pickupAddress:
+          type: string
+        deliveryAddress:
+          type: string
+        distanceKm:
+          type: number
+        estimatedMinutes:
+          type: integer
+        status:
+          type: string
+
+    CreatedOrderResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b5c1cbf8-cb42-4f11-92a8-a3f295b9d3b4"
+        total:
+          type: number
+          format: decimal
+          example: 20480
+
+    ApiResponse OrderList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderListResponse'
+
+    ApiResponse OrderDetail:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/OrderDetailResponse'
+
+    ApiResponse CreatedOrder:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Pedido creado
+        data:
+          $ref: '#/components/schemas/CreatedOrderResult'
+
+    ApiResponse Void:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Estado actualizado
+
+    ApiResponse DeliveryRoute:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/DeliveryRouteResponse'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: La dirección es obligatoria
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

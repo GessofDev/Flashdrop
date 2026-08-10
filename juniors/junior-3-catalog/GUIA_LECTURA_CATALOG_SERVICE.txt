@@ -1,0 +1,534 @@
+GUIA DE LECTURA - CATALOG SERVICE JAVA
+======================================
+
+Objetivo del proyecto
+---------------------
+Este proyecto es un microservicio de catalogo para Flash Drop Delivery.
+
+Su responsabilidad es manejar:
+
+- Productos
+- Categorias
+- Restaurantes
+- Validacion de productos para otras logicas, por ejemplo pedidos
+
+No maneja login, delivery, pagos ni pedidos completos. La idea es que cada
+microservicio tenga una responsabilidad clara.
+
+
+Flujo general
+-------------
+Cuando abres esta URL:
+
+  http://localhost:8082/catalog/products
+
+el flujo interno es:
+
+  Navegador / App / Postman
+          |
+          v
+  ProductController
+          |
+          v
+  ListProductsUseCase
+          |
+          v
+  ProductRepositoryPort
+          |
+          v
+  SupabaseRestProductRepositoryAdapter
+          |
+          v
+  Supabase REST API
+          |
+          v
+  Tabla products
+
+La frase clave:
+
+  Controller -> UseCase -> Port -> Adapter -> Supabase
+
+
+Orden en que se arma el proyecto
+--------------------------------
+1. Crear proyecto Spring Boot.
+2. Crear modelos del dominio.
+3. Crear ports.
+4. Crear use cases.
+5. Crear adapters.
+6. Crear controllers.
+7. Configurar perfiles y variables de entorno.
+8. Probar endpoints.
+
+
+1. Proyecto Spring Boot
+----------------------
+Archivo principal:
+
+  src/main/java/com/flashdrop/catalog/CatalogServiceApplication.java
+
+Este archivo levanta la aplicacion Spring Boot.
+Es el punto de inicio del backend Java.
+
+
+2. Domain / Model
+-----------------
+Carpeta:
+
+  src/main/java/com/flashdrop/catalog/domain/model
+
+Aqui estan las clases principales del negocio:
+
+  Product.java
+  Category.java
+  Restaurant.java
+
+Estas clases representan cosas reales del sistema.
+
+Ejemplo:
+
+  Product = producto del catalogo
+  Category = categoria del producto
+  Restaurant = local o restaurante
+
+Importante:
+
+  El modelo no deberia saber nada de HTTP, JSON, Supabase, SQL o controllers.
+
+El modelo responde:
+
+  "Que es esta cosa dentro de mi negocio?"
+
+Por ejemplo, Product define:
+
+- id
+- categoryId
+- restaurantId
+- name
+- description
+- price
+- image
+- available
+
+Tambien puede tener reglas de negocio.
+
+Ejemplo:
+
+  Un producto no puede existir sin nombre.
+  Un producto no puede existir sin precio valido.
+
+
+3. Value Objects
+----------------
+Carpeta:
+
+  src/main/java/com/flashdrop/catalog/domain/valueobjects
+
+Archivo:
+
+  Money.java
+
+Money representa dinero.
+
+Sirve para no dejar el precio como un numero suelto sin reglas.
+
+Ejemplo:
+
+  new Money(price)
+
+valida que el precio no sea null ni negativo.
+
+Esto evita repetir validaciones en muchos archivos.
+
+
+4. Ports
+--------
+Carpeta:
+
+  src/main/java/com/flashdrop/catalog/application/port/outbound
+
+Archivos:
+
+  ProductRepositoryPort.java
+  CategoryRepositoryPort.java
+  RestaurantRepositoryPort.java
+
+Un port es una interfaz o contrato.
+
+No hace la conexion real.
+Solo dice que operaciones necesita la aplicacion.
+
+Ejemplo:
+
+  ProductRepositoryPort
+
+declara:
+
+  findAll()
+  findByIds()
+  save()
+
+Eso significa:
+
+  "Necesito una forma de listar productos."
+  "Necesito una forma de buscar productos por ids."
+  "Necesito una forma de guardar productos."
+
+Pero el port no sabe si eso viene de:
+
+- Supabase
+- MySQL
+- PostgreSQL
+- memoria
+- otra API
+
+El port responde:
+
+  "Que necesito hacer con mis datos?"
+
+
+5. Use Cases
+------------
+Carpeta:
+
+  src/main/java/com/flashdrop/catalog/application/usecase
+
+Archivos:
+
+  ListProductsUseCase.java
+  CreateProductUseCase.java
+  GetProductsByIdsUseCase.java
+  ListCategoriesUseCase.java
+  ListRestaurantsUseCase.java
+
+Un use case representa una accion del sistema.
+
+Ejemplos:
+
+  ListProductsUseCase = listar productos
+  CreateProductUseCase = crear producto
+  GetProductsByIdsUseCase = buscar productos por ids
+
+El use case usa un port.
+
+Ejemplo:
+
+  ListProductsUseCase
+        usa
+  ProductRepositoryPort.findAll()
+
+El use case no deberia saber si los datos vienen de Supabase o MySQL.
+Solo ejecuta la accion.
+
+El use case responde:
+
+  "Que accion quiere hacer el sistema?"
+
+
+6. Adapters
+-----------
+Carpeta principal:
+
+  src/main/java/com/flashdrop/catalog/infrastructure/adapter
+
+Hay dos tipos importantes:
+
+  inbound
+  outbound
+
+
+6.1 Adapter inbound
+-------------------
+Inbound significa entrada.
+
+En este proyecto la entrada es HTTP.
+
+Carpeta:
+
+  infrastructure/adapter/inbound/rest
+
+Archivos:
+
+  ProductController.java
+  CategoryController.java
+  RestaurantController.java
+  HealthController.java
+
+Estos controllers reciben llamadas desde:
+
+- navegador
+- Postman
+- Flutter
+- otro backend
+
+Ejemplo:
+
+  GET /catalog/products
+
+llega a:
+
+  ProductController
+
+El controller no deberia hacer logica pesada.
+Solo recibe, llama al use case y responde.
+
+
+6.2 Adapter outbound
+--------------------
+Outbound significa salida.
+
+Es la parte que se conecta con algo externo.
+
+En este proyecto hay adapters para Supabase:
+
+  infrastructure/adapter/outbound/persistence/supabase
+
+Archivos:
+
+  SupabaseRestProductRepositoryAdapter.java
+  SupabaseRestCategoryRepositoryAdapter.java
+  SupabaseRestRestaurantRepositoryAdapter.java
+
+Estos adapters implementan los ports.
+
+Ejemplo:
+
+  SupabaseRestProductRepositoryAdapter
+        implements
+  ProductRepositoryPort
+
+Eso significa:
+
+  "Yo cumplo el contrato de ProductRepositoryPort,
+   pero lo hago conectandome a Supabase."
+
+El adapter responde:
+
+  "Como hago realmente esta operacion?"
+
+Ejemplo:
+
+  findAll()
+
+en el adapter arma una URL:
+
+  /rest/v1/products
+
+y consulta Supabase.
+
+
+7. DTOs
+-------
+Carpeta:
+
+  infrastructure/adapter/inbound/rest/dto
+
+Archivos:
+
+  CreateProductRequest.java
+  ProductResponse.java
+  ValidateProductsRequest.java
+  ValidateProductsResponse.java
+  CategoryResponse.java
+  RestaurantResponse.java
+
+DTO significa Data Transfer Object.
+
+Sirve para separar:
+
+  modelo interno del negocio
+  de
+  JSON que entra o sale por la API
+
+Ejemplo:
+
+  CreateProductRequest
+
+representa el JSON que llega cuando haces:
+
+  POST /catalog/products
+
+Ejemplo:
+
+  ProductResponse
+
+representa el JSON que se devuelve cuando haces:
+
+  GET /catalog/products
+
+
+8. Configuracion
+----------------
+Carpeta:
+
+  src/main/resources
+
+Archivos:
+
+  application.yaml
+  application-local.yaml
+  application-supabase.yaml
+  application-postgres.yaml
+
+application.yaml:
+
+  Configuracion general.
+
+application-local.yaml:
+
+  Sirve para correr con datos en memoria.
+
+application-supabase.yaml:
+
+  Sirve para correr conectado a Supabase usando la API REST.
+
+application-postgres.yaml:
+
+  Sirve para una conexion directa a PostgreSQL, si despues se usa JPA.
+
+
+9. Variables de entorno
+-----------------------
+Archivo:
+
+  .env
+
+Este archivo guarda datos sensibles como:
+
+  SUPABASE_URL
+  SUPABASE_SERVICE_ROLE_KEY
+
+Importante:
+
+  Nunca subir .env a GitHub.
+  La service role key nunca va en Flutter ni en frontend.
+  Solo debe estar en backend.
+
+
+10. Endpoints disponibles
+-------------------------
+Health:
+
+  GET http://localhost:8082/health
+
+Productos:
+
+  GET  http://localhost:8082/catalog/products
+  POST http://localhost:8082/catalog/products
+  POST http://localhost:8082/catalog/products/validate
+
+Categorias:
+
+  GET http://localhost:8082/catalog/categories
+
+Restaurantes:
+
+  GET http://localhost:8082/catalog/restaurants
+
+Nota:
+
+  http://localhost:8082/catalog
+
+da error 404 porque esa ruta no existe.
+Las rutas reales son /catalog/products, /catalog/categories y /catalog/restaurants.
+
+
+11. Como probarlo
+-----------------
+Entrar a la carpeta:
+
+  cd "C:\Users\javie\Desktop\geosoft\aplicacion delivery github repositorios\respaldo\catalog-service-java"
+
+Correr conectado a Supabase:
+
+  .\gradlew.bat bootRun --args="--spring.profiles.active=supabase"
+
+Si el puerto 8082 esta ocupado:
+
+  .\gradlew.bat bootRun --args="--spring.profiles.active=supabase --server.port=8081"
+
+Probar en navegador:
+
+  http://localhost:8082/health
+  http://localhost:8082/catalog/products
+  http://localhost:8082/catalog/categories
+  http://localhost:8082/catalog/restaurants
+
+
+12. Ejemplo de crear producto
+-----------------------------
+Con PowerShell:
+
+  $body = @{
+    categoryId = 3
+    restaurantId = 3
+    name = "Producto prueba"
+    description = "Creado desde catalog-service-java"
+    price = 1234
+    image = $null
+    available = $true
+  } | ConvertTo-Json
+
+  Invoke-RestMethod `
+    -Uri "http://localhost:8082/catalog/products" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+
+
+13. Resumen facil
+-----------------
+Model:
+
+  Define que es una cosa del negocio.
+
+Port:
+
+  Define que operaciones necesito.
+
+UseCase:
+
+  Ejecuta una accion del sistema.
+
+Controller:
+
+  Recibe una llamada HTTP.
+
+Adapter:
+
+  Se conecta con algo externo como Supabase.
+
+DTO:
+
+  Define como entra o sale el JSON.
+
+Config:
+
+  Define como corre el proyecto y con que conexion.
+
+
+14. Frase para memorizar
+------------------------
+Cuando estas armando el proyecto:
+
+  Proyecto -> Model -> Port -> UseCase -> Adapter -> Controller -> Config
+
+Cuando la aplicacion esta corriendo:
+
+  Controller -> UseCase -> Port -> Adapter -> Supabase
+
+
+15. Como leer el codigo recomendado
+-----------------------------------
+Lee en este orden:
+
+1. Product.java
+2. Money.java
+3. ProductRepositoryPort.java
+4. ListProductsUseCase.java
+5. ProductController.java
+6. ProductResponse.java
+7. SupabaseRestProductRepositoryAdapter.java
+
+Si entiendes ese camino, entiendes la base completa del microservicio.
+

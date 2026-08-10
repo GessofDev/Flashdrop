@@ -1,0 +1,26 @@
+# Compilados
+build/
+.gradle/
+*.class
+*.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Secrets - NUNCA subir
+.env
+*.env
+application-local.properties
+application-local.yml
+
+# Logs
+*.log
