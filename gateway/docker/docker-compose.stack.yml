@@ -1,0 +1,149 @@
+networks:
+  stack:
+    driver: bridge
+
+volumes:
+  redis-data:
+
+services:
+  redis-cache:
+    image: redis:7-alpine
+    container_name: stack-redis
+    networks: [stack]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  # ============================================================
+  # auth-service — multi-módulo Gradle, context = raíz
+  # El Dockerfile existente usa ./gradlew :auth-service:bootJar,
+  # por eso el context es juniors/junior-1-auth/ (raíz multi-módulo),
+  # NO juniors/junior-1-auth/auth-service/ (sub-módulo).
+  # ============================================================
+  auth-service:
+    build:
+      context: ../../juniors/junior-1-auth
+      dockerfile: auth-service/Dockerfile
+    container_name: stack-auth
+    environment:
+      - SPRING_PROFILES_ACTIVE=supabase
+      - SERVER_PORT=8081
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    env_file:
+      - ./secrets/jwt.env
+    networks: [stack]
+    expose: ["8081"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ============================================================
+  # catalog-service — single-module Gradle
+  # ============================================================
+  catalog-service:
+    build:
+      context: ../../juniors/junior-3-catalog
+      dockerfile: Dockerfile
+    container_name: stack-catalog
+    environment:
+      - SPRING_PROFILES_ACTIVE=supabase
+      - SERVER_PORT=8082
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+
+    networks: [stack]
+    expose: ["8082"]
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ============================================================
+  # orders-service — Maven single-module, migrado a Supabase REST
+  # ============================================================
+  orders-service:
+    build:
+      context: ../../juniors/junior-2-orders/orders-service
+      dockerfile: Dockerfile
+    container_name: stack-orders
+    environment:
+      - SPRING_PROFILES_ACTIVE=supabase
+      - SERVER_PORT=8083
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - DELIVERY_FEE=2500
+    networks: [stack]
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    expose: ["8083"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ============================================================
+  # delivery-service — single-module Gradle (Supabase REST)
+  # ============================================================
+  delivery-service:
+    build:
+      context: ../../services/delivery-service
+      dockerfile: Dockerfile
+    container_name: stack-delivery
+    environment:
+      - SPRING_PROFILES_ACTIVE=supabase
+      - SERVER_PORT=8084
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    networks: [stack]
+    expose: ["8084"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ============================================================
+  # gateway — TypeScript/Fastify reverse proxy
+  # ============================================================
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: stack-gateway
+    environment:
+      - NODE_ENV=production
+      - CONFIG_PATH=/app/config/gateway.yaml
+      - REDIS_URL=redis://redis-cache:6379
+      - LOG_LEVEL=info
+    volumes:
+      - ./gateway.yaml:/app/config/gateway.yaml:ro
+    networks: [stack]
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      orders-service:
+        condition: service_healthy
+      delivery-service:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
