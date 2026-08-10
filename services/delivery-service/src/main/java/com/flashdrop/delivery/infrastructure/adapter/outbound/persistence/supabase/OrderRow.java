@@ -8,6 +8,7 @@ public record OrderRow(
         @JsonProperty("restaurant_id") Long restaurantId,
         @JsonProperty("delivery_id") Long deliveryId,
         String status,
-        String address
+        String address,
+        String code
 ) {
 }
