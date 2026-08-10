@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: catalog-service
+  config:
+    import: optional:file:.env[.properties]
+  profiles:
+    default: local
+
+server:
+  port: 8082

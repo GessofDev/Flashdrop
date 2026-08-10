@@ -1,0 +1,408 @@
+openapi: 3.0.3
+info:
+  title: FlashDrop — Auth Service API
+  description: |
+    Microservicio de autenticación y gestión de usuarios.
+
+    **Responsabilidades:**
+    - Registro de usuarios
+    - Login y emisión de tokens JWT (RS256)
+    - Refresh y logout de tokens
+    - Validación de tokens (para el gateway)
+    - Perfil de usuario
+
+    **Puerto:** 8081
+    **Base path:** /auth
+
+    ## Notas para el desarrollador
+    - Los IDs son **UUID** (no Long/BigInt)
+    - El JWT se emite con algoritmo **RS256** (asimétrico)
+    - El gateway valida los tokens usando la clave pública expuesta en `/.well-known/jwks.json`
+    - El header de autenticación es `Authorization: Bearer <token>`
+  version: 1.0.0
+  contact:
+    name: FlashDrop Backend Team
+
+servers:
+  - url: http://localhost:8081
+    description: Desarrollo local
+
+tags:
+  - name: Auth
+    description: Autenticación y gestión de tokens
+  - name: Users
+    description: Perfil de usuario
+  - name: Health
+    description: Health checks
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check del servicio
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: auth-service
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar nuevo usuario
+      description: |
+        Crea un nuevo usuario con rol **Cliente** por defecto.
+        automáticamente crea registros en las tablas `client` y `login`.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterUserResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      description: |
+        Autentica un usuario y devuelve un par de tokens (access + refresh).
+        El access token expira en 15 minutos por defecto.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar access token
+      description: Intercambia un refresh token válido por un nuevo par de tokens.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token renovado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          description: Refresh token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cerrar sesión
+      description: Invalida el refresh token proporcionado.
+      operationId: logoutUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Sesión cerrada exitosamente
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/validate:
+    get:
+      tags: [Auth]
+      summary: Validar token JWT
+      description: |
+        Endpoint usado por el gateway para validar tokens.
+        Retorna los claims del token si es válido.
+      operationId: validateToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenClaims'
+        '401':
+          description: Token inválido o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/profile:
+    get:
+      tags: [Users]
+      summary: Obtener perfil de usuario
+      description: Retorna el perfil completo del usuario autenticado.
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Token inválido o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Formato: Bearer <token>"
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email del usuario (debe ser único)
+          example: juan@test.com
+        password:
+          type: string
+          minLength: 6
+          description: Contraseña (mínimo 6 caracteres)
+          example: mipassword123
+        rut:
+          type: string
+          description: RUT chileno (opcional)
+          example: "12.345.678-9"
+        name:
+          type: string
+          description: Nombre del usuario
+          example: Juan
+        lastName:
+          type: string
+          description: Apellido del usuario
+          example: Pérez
+        phone:
+          type: string
+          description: Teléfono (opcional, debe ser único)
+          example: "+56912345678"
+
+    RegisterUserResult:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: ID UUID del usuario creado
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          example: juan@test.com
+        message:
+          type: string
+          example: Usuario registrado exitosamente
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          description: Email o identificador de usuario
+          example: juan@test.com
+        password:
+          type: string
+          description: Contraseña
+          example: mipassword123
+
+    AuthResult:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          example: Juan
+        email:
+          type: string
+          example: juan@test.com
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["Cliente"]
+        accessToken:
+          type: string
+          description: JWT access token (expira en 15 min)
+          example: "eyJhbGciOiJSUzI1NiIs..."
+        refreshToken:
+          type: string
+          description: JWT refresh token (expira en 30 días)
+          example: "eyJhbGciOiJSUzI1NiIs..."
+        expiresInSeconds:
+          type: integer
+          description: Tiempo de expiración del access token en segundos
+          example: 900
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: El refresh token válido
+          example: "eyJhbGciOiJSUzI1NiIs..."
+
+    TokenPair:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJSUzI1NiIs..."
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJSUzI1NiIs..."
+        expiresInSeconds:
+          type: integer
+          example: 900
+
+    TokenClaims:
+      type: object
+      description: Claims decodificados del JWT
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          example: juan@test.com
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["Cliente"]
+        issuer:
+          type: string
+          example: flashdrop-auth
+        expiresAt:
+          type: string
+          format: date-time
+
+    UserProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          example: Juan
+        lastName:
+          type: string
+          example: Pérez
+        email:
+          type: string
+          example: juan@test.com
+        phone:
+          type: string
+          example: "+56912345678"
+        rut:
+          type: string
+          example: "12.345.678-9"
+        photo:
+          type: string
+          description: URL de la foto de perfil
+          example: "https://supabase.storage/fotos/user123.jpg"
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["Cliente"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Tipo de error
+          example: Bad Request
+        message:
+          type: string
+          description: Descripción del error
+          example: Email ya registrado
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida (validación fallida)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
