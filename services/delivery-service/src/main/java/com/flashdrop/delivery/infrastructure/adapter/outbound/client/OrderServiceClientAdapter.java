@@ -93,6 +93,6 @@ public class OrderServiceClientAdapter implements OrderServicePort {
                     : restaurant.address();
         }
         String delivery = row.address() != null ? row.address() : "";
-        return new OrderInfo(row.id(), row.restaurantId(), pickup, delivery);
+        return new OrderInfo(row.id(), row.restaurantId(), pickup, delivery, row.code());
     }
 }

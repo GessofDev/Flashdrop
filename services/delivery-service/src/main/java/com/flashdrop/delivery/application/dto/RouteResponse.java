@@ -10,6 +10,7 @@ public record RouteResponse(
         Double distanceKm,
         Integer estimatedMinutes,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        String code
 ) {
 }
