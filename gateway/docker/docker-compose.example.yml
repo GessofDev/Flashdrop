@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # ===============================================================
+  # API Gateway Standalone
+  # ===============================================================
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: gateway-http:latest
+    container_name: gateway-service
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - CONFIG_PATH=/app/config/gateway.yaml
+      - REDIS_URL=redis://redis-cache:6379
+      - LOG_LEVEL=info
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    volumes:
+      # Montar el directorio de configuración en modo de solo lectura (ro) para evitar fallos de inodo en Windows
+      - .:/app/config:ro
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  # ===============================================================
+  # Redis - Caché distribuido y almacenamiento de Rate Limiting
+  # ===============================================================
+  redis-cache:
+    image: redis:7-alpine
+    container_name: gateway-redis
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - gateway-network
+
+  # ===============================================================
+  # Microservicio Mock de ejemplo para probar el Gateway
+  # ===============================================================
+  mock-backend:
+    image: node:20-alpine
+    container_name: mock-service
+    expose:
+      - "8080"
+    command: >
+      node -e "
+      const http = require('http');
+      const server = http.createServer((req, res) => {
+        console.log(`Petición recibida en Backend Mock: $${req.method} $${req.url}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'success',
+          message: '¡Hola desde el Backend Mock Autocontenido!',
+          timestamp: new Date().toISOString(),
+          requestedPath: req.url,
+          headers: req.headers
+        }));
+      });
+      server.listen(8080, '0.0.0.0', () => {
+        console.log('Backend Mock escuchando en http://0.0.0.0:8080');
+      });
+      "
+    networks:
+      - gateway-network
+
+  # ===============================================================
+  # Visualizador de Logs en Tiempo Real (Dozzle)
+  # ===============================================================
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: gateway-logs
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
+    networks:
+      - gateway-network
+
+  # ===============================================================
+  # Prometheus - Recolector de métricas de series de tiempo
+  # ===============================================================
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: gateway-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - gateway
+    networks:
+      - gateway-network
+
+  # ===============================================================
+  # Grafana - Visualización de métricas y dashboards
+  # ===============================================================
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: gateway-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - gateway-network
+
+networks:
+  gateway-network:
+    driver: bridge

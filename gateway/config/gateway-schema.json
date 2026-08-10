@@ -1,0 +1,634 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gateway-config",
+  "title": "Configuración del API Gateway",
+  "description": "Esquema de validación para el archivo gateway.yaml del API Gateway HTTP Modular.",
+  "type": "object",
+  "required": ["redis", "routes"],
+  "additionalProperties": false,
+  "properties": {
+    "server": {
+      "type": "object",
+      "description": "Configuración del servidor Fastify Core del Gateway.",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "Puerto TCP en el que escuchará el servidor HTTP del Gateway."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": 3000
+        },
+        "host": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Dirección IP de escucha. Usar '0.0.0.0' para aceptar conexiones de cualquier interfaz de red."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "0.0.0.0"
+        }
+      },
+      "default": {
+        "port": 3000,
+        "host": "0.0.0.0"
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "Configuración del cliente y comportamiento de conexión a Redis.",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^rediss?://",
+              "description": "URL de conexión a Redis. Debe comenzar con 'redis://' o 'rediss://' (TLS)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "onFailure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["open", "closed"],
+              "description": "Comportamiento cuando Redis no está disponible. 'open' = permitir tráfico sin rate-limiting (fail-open). 'closed' = bloquear tráfico con error 503 (fail-closed)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "open"
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "description": "Configuración del sistema de logs estructurados con Pino.",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["debug", "info", "warn", "error"],
+              "description": "Nivel mínimo de logging. Los eventos con severidad menor a la configurada serán descartados."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "info"
+        }
+      },
+      "default": {
+        "level": "info"
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Configuración del módulo de métricas Prometheus.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Habilitar/deshabilitar la recolección y exposición de métricas."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": true
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Endpoint HTTP de scraping (por ejemplo, '/metrics')."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "/metrics"
+        },
+        "defaultLabels": {
+          "type": "object",
+          "description": "Labels adicionales globales que se agregan a todas las métricas.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "default": {
+        "enabled": true,
+        "path": "/metrics",
+        "defaultLabels": {}
+      }
+    },
+    "health": {
+      "type": "object",
+      "description": "Configuración del endpoint agregado de Health Aggregation. Consulta en paralelo el backendPath configurado en cada servicio declarado en routes[] y devuelve un estado agregado con código HTTP apropiado.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Habilitar/deshabilitar el endpoint de health agregado."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": true
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Path HTTP donde se expone el endpoint de health en el Gateway (por ejemplo, '/health')."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "/health"
+        },
+        "backendPath": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Path del endpoint de health en cada servicio downstream (por ejemplo, '/health' o '/internal/health')."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "/health"
+        },
+        "timeoutMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Timeout en milisegundos para la consulta de health a cada servicio. Si se agota, el servicio se marca como 'down'."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": 2000
+        }
+      },
+      "default": {
+        "enabled": true,
+        "path": "/health",
+        "backendPath": "/health",
+        "timeoutMs": 2000
+      }
+    },
+    "routes": {
+      "type": "array",
+      "description": "Lista de rutas declarativas que el Gateway intercepta y reenvía a backends.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["prefix", "target"],
+        "additionalProperties": false,
+        "properties": {
+          "prefix": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^/",
+                "description": "Prefijo de la ruta que el Gateway interceptará. Debe comenzar con '/' (por ejemplo, '/api')."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https?://",
+                "description": "URL del backend destino al que se reenviará el tráfico. Debe comenzar con http:// o https://."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          },
+          "stripPrefix": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "description": "Si es true, elimina el prefijo de la ruta antes de reenviar la petición al backend. Por ejemplo, si el prefijo es '/api' y stripPrefix es true, '/api/users' se convierte en '/users' al reenviarse."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ],
+            "default": false
+          },
+          "rateLimit": {
+            "$ref": "#/definitions/rateLimitConfig"
+          },
+          "timeout": {
+            "type": "object",
+            "description": "Configuración de timeouts específicos para esta ruta.",
+            "additionalProperties": false,
+            "properties": {
+              "connect": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Tiempo de espera máximo (en milisegundos) para establecer la conexión TCP con el backend."
+                  },
+                  {
+                    "$ref": "#/definitions/envVar"
+                  }
+                ]
+              },
+              "response": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Tiempo de espera máximo (en milisegundos) para recibir la primera respuesta desde el backend."
+                  },
+                  {
+                    "$ref": "#/definitions/envVar"
+                  }
+                ]
+              }
+            }
+          },
+          "jwt": {
+            "$ref": "#/definitions/jwtRouteConfig",
+            "description": "Bloque de configuración JWT por ruta. Si está ausente o `enabled=false`, la ruta es pública. Detección automática de modo (shared-secret vs JWKS)."
+          },
+          "metricsLabel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Override del label 'route' para métricas de esta ruta."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          },
+          "backendName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Override del label 'backend' para métricas de esta ruta."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "description": "Lista de excepciones de rate limit para paths específicos que sobreescriben las reglas de las rutas padre.",
+      "items": {
+        "type": "object",
+        "required": ["path", "rateLimit"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^/",
+                "description": "Path exacto al que se le aplicará el rate-limit específico (por ejemplo, '/api/login'). Debe comenzar con '/'."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          },
+          "rateLimit": {
+            "$ref": "#/definitions/rateLimitConfig"
+          }
+        }
+      }
+    },
+    "jwt": {
+      "$ref": "#/definitions/jwtGlobalConfig",
+      "description": "Configuración global de JWT (modo JWKS + lista de issuers). Opcional — solo requerida cuando alguna ruta usa modo JWKS."
+    },
+    "jwtOverrides": {
+      "type": "array",
+      "description": "Overrides de JWT por path exacto (mayor prioridad que routes[].jwt).",
+      "items": {
+        "type": "object",
+        "required": ["path", "jwt"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^/",
+                "description": "Path exacto al que se le aplicará el override JWT. Debe comenzar con '/'."
+              },
+              {
+                "$ref": "#/definitions/envVar"
+              }
+            ]
+          },
+          "jwt": {
+            "$ref": "#/definitions/jwtRouteConfig"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "envVar": {
+      "type": "string",
+      "pattern": "^\\$\\{[a-zA-Z_][a-zA-Z0-9_]*\\}$",
+      "description": "Referencia a una variable de entorno para interpolación dinámica, por ejemplo: ${REDIS_URL}."
+    },
+    "rateLimitConfig": {
+      "type": "object",
+      "description": "Configuración de límite de peticiones (Rate Limiting).",
+      "required": ["maxRequests", "windowSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "maxRequests": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Número máximo de peticiones permitidas desde la misma IP dentro de la ventana de tiempo especificada."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "windowSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Duración de la ventana de tiempo (en segundos) en la que se reinicia el conteo de peticiones."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        }
+      }
+    },
+    "jwtConfig": {
+      "type": "object",
+      "description": "Configuración de Autenticación y Validación de tokens JWT en modo shared-secret (HS256/HS384/HS512). Para modo JWKS usa jwtRouteConfig.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Indica si la validación JWT está activa en esta ruta. Por defecto es true si el bloque jwt existe."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": true
+        },
+        "secret": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Clave secreta simétrica utilizada para validar la firma de los tokens JWT."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "algorithm": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["HS256", "HS384", "HS512"],
+              "description": "Algoritmo criptográfico simétrico configurado. Por defecto es HS256."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": "HS256"
+        },
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Claim `iss` esperado (opcional)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "audience": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Claim `aud` esperado (opcional)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "forwardClaims": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Lista de claims a ser extraídas e inyectadas como cabeceras en el request hacia el backend (normalizadas en lowercase)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        }
+      }
+    },
+    "jwtJwksRouteConfig": {
+      "type": "object",
+      "description": "Configuración JWT por ruta en modo JWKS (RS256 contra endpoint remoto). Requiere que el issuer esté declarado en jwt.issuers[] o usar `issuer: \"any\"`.",
+      "required": ["mode", "issuer"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Indica si la validación JWT está activa en esta ruta."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ],
+          "default": true
+        },
+        "mode": {
+          "const": "jwks",
+          "description": "Modo JWKS — el plugin resolverá la clave pública desde el endpoint JWKS remoto."
+        },
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nombre del issuer declarado en jwt.issuers[].name, o la cadena literal 'any' para aceptar cualquier issuer registrado (mapeo por iss claim)."
+            },
+            {
+              "$ref": "#/definitions/envVar"
+            }
+          ]
+        },
+        "forwardClaims": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Lista de claims a inyectar como cabeceras hacia el backend."
+        }
+      }
+    },
+    "jwtRouteConfig": {
+      "description": "Configuración JWT por ruta — unión discriminada entre shared-secret y JWKS. El plugin detecta el modo por presencia de campos (shared-secret si tiene `secret`; jwks si tiene `mode: 'jwks'`).",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/jwtConfig"
+        },
+        {
+          "$ref": "#/definitions/jwtJwksRouteConfig"
+        }
+      ]
+    },
+    "jwtIssuerConfig": {
+      "type": "object",
+      "description": "Configuración de un issuer JWKS declarado en jwt.issuers[].",
+      "required": ["name", "jwksUri", "issuer"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre único del issuer dentro de jwt.issuers[]. Las rutas referencian por este nombre."
+        },
+        "jwksUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL del endpoint JWKS (RFC 7517) — debe devolver un JSON con el array `keys`."
+        },
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Claim `iss` esperado en los tokens emitidos por este issuer."
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Claim `aud` esperado (opcional)."
+        },
+        "cacheTtlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "TTL del cache JWKS antes de marcarlo como stale (default: 3600 = 1h)."
+        },
+        "staleGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1800,
+          "description": "Ventana de gracia adicional para servir claves stale si el refresh falla (default: 1800 = 30min)."
+        },
+        "refreshCooldownSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 30,
+          "description": "Tiempo mínimo entre refreshes síncronos (mitigación DoS, default: 30s)."
+        },
+        "refreshOnMiss": {
+          "type": "boolean",
+          "default": true,
+          "description": "Si true, dispara un refresh síncrono cuando un kid no está en cache (gated por cooldown)."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3000,
+          "description": "Timeout HTTP para fetches JWKS (default: 3000ms)."
+        }
+      }
+    },
+    "jwtGlobalConfig": {
+      "type": "object",
+      "description": "Configuración global de JWT — modo + lista de issuers (JWKS).",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Habilitar/deshabilitar la sección global JWT."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["shared-secret", "jwks"],
+          "default": "shared-secret",
+          "description": "Modo de validación por defecto cuando las rutas referencian la sección global."
+        },
+        "issuers": {
+          "type": "array",
+          "default": [],
+          "description": "Lista de issuers JWKS disponibles para las rutas en modo JWKS.",
+          "items": {
+            "$ref": "#/definitions/jwtIssuerConfig"
+          }
+        }
+      }
+    }
+  }
+}
