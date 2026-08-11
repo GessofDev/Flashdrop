@@ -2,6 +2,7 @@ package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.memory
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
@@ -21,5 +22,19 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     @Override
     public List<Restaurant> findAll() {
         return restaurants;
+    }
+
+    @Override
+    public Optional<Restaurant> findById(Long id) {
+        return restaurants.stream()
+                .filter(restaurant -> restaurant.getId().equals(id))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<Restaurant> findByUserId(Long userId) {
+        return restaurants.stream()
+                .filter(restaurant -> restaurant.getUserId().equals(userId))
+                .findFirst();
     }
 }

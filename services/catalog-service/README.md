@@ -13,6 +13,9 @@ POST /catalog/products
 POST /catalog/products/validate
 GET  /catalog/categories
 GET  /catalog/restaurants
+GET  /api/internal/products?ids=1,2,3
+GET  /api/internal/restaurants/{restaurantId}
+GET  /api/internal/restaurants?userId={userId}
 ```
 
 Ejemplo de validacion:
@@ -61,6 +64,7 @@ El archivo `.env` real debe quedar en el servidor, no en GitHub:
 SPRING_PROFILES_ACTIVE=supabase
 SUPABASE_URL=http://supabasekong-wymwq8rktid7ov678oe4va90.76.13.169.150.sslip.io
 SUPABASE_SERVICE_ROLE_KEY=********
+INTERNAL_API_KEY=********
 ```
 
 Luego se levanta con:
@@ -103,6 +107,34 @@ No subir nunca el archivo `.env` real a GitHub. En el repositorio solo debe exis
 
 La `SUPABASE_SERVICE_ROLE_KEY` es una clave de backend. No debe ir en Flutter, React,
 Next.js publico ni ningun frontend.
+
+## Endpoints internos
+
+Los endpoints bajo `/api/internal/**` son para comunicacion entre microservicios. No son
+para la app mobile ni para el panel admin.
+
+Todos requieren el header:
+
+```text
+X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
+```
+
+Ejemplos:
+
+```powershell
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/products?ids=1,2,3"
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restaurants/1"
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restaurants?userId=2"
+```
+
+Los scripts para preparar una base propia de Catalog estan en:
+
+```text
+src/main/resources/db/catalog_schema.sql
+src/main/resources/db/catalog_seed.sql
+```
+
+Estos scripts no se ejecutan automaticamente al levantar el servicio.
 
 Para probar sin base real:
 
