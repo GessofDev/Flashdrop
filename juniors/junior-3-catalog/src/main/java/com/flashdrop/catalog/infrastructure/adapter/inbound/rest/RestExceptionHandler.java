@@ -1,6 +1,5 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
-import java.time.OffsetDateTime;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -9,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.ErrorResponse;
 
 @RestControllerAdvice
@@ -16,7 +16,7 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
-        return badRequest(exception.getMessage());
+        return error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -27,15 +27,20 @@ public class RestExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
 
-        return badRequest(message);
+        return error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", message);
     }
 
-    private ResponseEntity<ErrorResponse> badRequest(String message) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
+    }
+
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
+        return ResponseEntity.status(status)
                 .body(new ErrorResponse(
-                        "Bad Request",
-                        message,
-                        OffsetDateTime.now()
+                        status.value(),
+                        code,
+                        message
                 ));
     }
 }

@@ -40,6 +40,8 @@ tags:
     description: Restaurantes
   - name: Health
     description: Health checks
+  - name: Internal
+    description: Endpoints internos entre microservicios
 
 paths:
   /health:
@@ -152,6 +154,88 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RestaurantResponse'
+
+  /api/internal/products:
+    get:
+      tags: [Internal]
+      summary: Obtener productos por IDs para otros microservicios
+      parameters:
+        - in: query
+          name: ids
+          required: true
+          schema:
+            type: string
+          example: "1,2,3"
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Productos encontrados. Si no hay coincidencias retorna array vacio.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InternalProductResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/internal/restaurants/{restaurantId}:
+    get:
+      tags: [Internal]
+      summary: Obtener restaurante por ID
+      parameters:
+        - in: path
+          name: restaurantId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurante encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalRestaurantResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/internal/restaurants:
+    get:
+      tags: [Internal]
+      summary: Obtener restaurante por userId
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurante encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalRestaurantResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   schemas:
@@ -287,19 +371,76 @@ components:
     ErrorResponse:
       type: object
       properties:
+        status:
+          type: integer
+          example: 404
         error:
           type: string
-          example: Bad Request
+          example: NOT_FOUND
         message:
           type: string
-          example: Nombre del producto es obligatorio
-        timestamp:
+          example: Restaurant not found with id: 99
+
+    InternalProductResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        restaurantId:
+          type: integer
+          example: 1
+        name:
           type: string
-          format: date-time
+          example: Burger doble
+        description:
+          type: string
+          nullable: true
+          example: Doble carne...
+        price:
+          type: number
+          format: decimal
+          example: 8990.00
+        image:
+          type: string
+          nullable: true
+          example: assets/img/burger1.png
+        isAvailable:
+          type: boolean
+          example: true
+
+    InternalRestaurantResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        userId:
+          type: integer
+          example: 2
+        name:
+          type: string
+          example: Urban Burger Demo
+        address:
+          type: string
+          nullable: true
+          example: Av. Providencia 1200
 
   responses:
     BadRequest:
       description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: API key interna invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso no encontrado
       content:
         application/json:
           schema:

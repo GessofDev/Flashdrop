@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.application.port.outbound;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.flashdrop.catalog.domain.model.Restaurant;
 
@@ -8,4 +9,8 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 public interface RestaurantRepositoryPort {
 
     List<Restaurant> findAll();
+
+    Optional<Restaurant> findById(Long id);
+
+    Optional<Restaurant> findByUserId(Long userId);
 }

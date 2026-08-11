@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -9,4 +10,6 @@ import com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.ent
 public interface SpringDataRestaurantRepository extends JpaRepository<RestaurantEntity, Long> {
 
     List<RestaurantEntity> findAllByOrderByNameAsc();
+
+    Optional<RestaurantEntity> findByUserId(Long userId);
 }
