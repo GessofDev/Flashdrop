@@ -40,7 +40,10 @@ public class SupabaseRestUserRepositoryAdapter implements UserRepository {
                 null
         );
 
-        restClient.post()
+        // Se lee la representación devuelta por PostgREST porque en un alta el
+        // id lo genera la identidad de la columna: sin este read-back el id
+        // queda null y el INSERT posterior en `login` viola la FK id_users.
+        UserRow[] saved = restClient.post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/users")
                         .queryParam("on_conflict", "id")
@@ -48,15 +51,17 @@ public class SupabaseRestUserRepositoryAdapter implements UserRepository {
                 .header("Prefer", "resolution=merge-duplicates,return=representation")
                 .body(dto)
                 .retrieve()
-                .toBodilessEntity();
+                .body(UserRow[].class);
+
+        Long userId = (saved == null || saved.length == 0) ? user.id() : saved[0].id();
 
         if (!user.roles().isEmpty()) {
             var relations = user.roles().stream()
-                    .map(role -> new UserHasRoleRow(user.id(), role.id()))
+                    .map(role -> new UserHasRoleRow(userId, role.id()))
                     .toList();
-            
+
             restClient.delete()
-                    .uri(uriBuilder -> uriBuilder.path("/user_has_roles").queryParam("id_user", "eq." + user.id()).build())
+                    .uri(uriBuilder -> uriBuilder.path("/user_has_roles").queryParam("id_user", "eq." + userId).build())
                     .retrieve()
                     .toBodilessEntity();
 
@@ -67,7 +72,7 @@ public class SupabaseRestUserRepositoryAdapter implements UserRepository {
                     .toBodilessEntity();
         }
 
-        return findById(user.id()).orElse(user);
+        return findById(userId).orElse(user);
     }
 
     @Override
@@ -90,6 +95,34 @@ public class SupabaseRestUserRepositoryAdapter implements UserRepository {
 
         List<RoleRow> roles = fetchRolesForUser(id);
         return Optional.of(rows[0].withRoles(roles).toDomain());
+    }
+
+    /** Resuelve N usuarios con una sola consulta (`id=in.(1,2,3)`).
+     *
+     *  <p>A diferencia de {@link #findById(Long)} NO hidrata los roles: el
+     *  contrato batch (GET /api/internal/users?ids=) expone solo id, name,
+     *  lastName, email y phone, y traer roles costaría dos consultas más por
+     *  usuario — justo el N+1 que este endpoint existe para evitar. Quien
+     *  necesite roles usa GET /api/internal/users/{id}/roles. */
+    @Override
+    public List<User> findAllByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        String idList = ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+
+        UserRow[] rows = restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/users")
+                        .queryParam("id", "in.(" + idList + ")")
+                        .queryParam("select", "*")
+                        .build())
+                .retrieve()
+                .body(UserRow[].class);
+
+        if (rows == null) return List.of();
+        return Arrays.stream(rows).map(UserRow::toDomain).toList();
     }
 
     @Override

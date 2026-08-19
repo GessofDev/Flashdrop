@@ -29,18 +29,13 @@ dependencies {
 
 
     // Tests
+    // Sin Testcontainers: la persistencia es PostgREST, no JDBC, así que no
+    // hay nada que levantar en un contenedor de Postgres. Los tests son
+    // unitarios (dominio y casos de uso) y de capa REST con MockMvc.
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.1"))
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    // En CI se pasa -PexcludeIntegration=true para omitir tests que requieren
-    // Docker + JPA/Flyway (incompatibles con el perfil supabase REST).
-    if (project.hasProperty("excludeIntegration")) {
-        exclude("**/integration/**")
-    }
 }

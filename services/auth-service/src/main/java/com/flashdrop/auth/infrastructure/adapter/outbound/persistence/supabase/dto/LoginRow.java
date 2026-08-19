@@ -1,12 +1,13 @@
 package com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flashdrop.auth.domain.model.Credentials;
 
-import java.util.UUID;
-
 public record LoginRow(
-        Long id,
+        /** Igual que en {@link UserRow}: se omite si es null para dejar que
+         *  la identidad de la columna genere el id en el INSERT. */
+        @JsonInclude(JsonInclude.Include.NON_NULL) Long id,
         String login,
         String password,
         Integer status,

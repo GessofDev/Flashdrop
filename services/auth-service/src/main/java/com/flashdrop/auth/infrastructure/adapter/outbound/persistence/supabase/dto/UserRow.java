@@ -1,6 +1,7 @@
 package com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flashdrop.auth.domain.model.Role;
 import com.flashdrop.auth.domain.model.User;
@@ -11,7 +12,10 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UserRow(
-        Long id,
+        /** Se omite del JSON cuando es null para que el INSERT no mande
+         *  {@code "id": null} y Postgres pueda generar el id con la
+         *  identidad de la columna (ver db/01_schema.sql). */
+        @JsonInclude(JsonInclude.Include.NON_NULL) Long id,
         String email,
         String rut,
         String name,

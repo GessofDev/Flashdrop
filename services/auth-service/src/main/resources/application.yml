@@ -1,18 +1,20 @@
 spring:
   application:
     name: auth-service
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/flashdrop_auth}
-    username: ${DB_USER:auth_service}
-    password: ${DB_PASSWORD:}
-  jpa:
-    hibernate:
-      ddl-auto: validate      # Flyway crea el esquema; JPA solo valida
-    open-in-view: false
-    properties:
-      hibernate.format_sql: false
-  flyway:
-    enabled: false
+
+# ---------------------------------------------------------------------------
+# Base de datos propia de auth-service (MIGRATION_PLAN.pdf §4.1).
+#
+# El acceso NO es por JDBC/JPA: los adaptadores hablan PostgREST contra el
+# proyecto Supabase EXCLUSIVO de auth (users, login, roles, user_has_roles,
+# refresh_tokens). Por eso aquí no hay spring.datasource, spring.jpa ni
+# flyway: no existe ninguna de esas dependencias en build.gradle.kts y la
+# configuración solo confundía sobre cuál es la conexión real.
+#
+# La conexión se define en application-supabase.yml y se activa con
+# SPRING_PROFILES_ACTIVE=supabase. El esquema y el seed se aplican a mano
+# desde db/01_schema.sql y db/02_seed.sql.
+# ---------------------------------------------------------------------------
 
 # Firma asimétrica RS256. En producción se proveen las claves RSA por entorno
 # (JWT_PRIVATE_KEY / JWT_PUBLIC_KEY en PEM). Si faltan y allow-ephemeral es false,
@@ -30,6 +32,10 @@ auth:
   ratelimit:
     max-attempts: ${AUTH_RL_MAX:5}
     window-seconds: ${AUTH_RL_WINDOW:300}
+
+services:
+  # Sin valor por defecto: si falta, /api/internal/** queda cerrado (403).
+  internal-api-key: ${INTERNAL_API_KEY:}
 
 management:
   endpoints:
