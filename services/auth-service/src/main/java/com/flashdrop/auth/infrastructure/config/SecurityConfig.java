@@ -30,6 +30,11 @@ public class SecurityConfig {
                         "/auth/refresh", "/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.GET, "/auth/validate", "/auth/profile",
                         "/auth/.well-known/jwks.json").permitAll()
+                // La autenticacion real de estas rutas la realiza InternalApiKeyFilter.
+                .requestMatchers("/api/internal/**").permitAll()
+                // El gateway hace polling de /health en cada servicio para la
+                // agregación de estado; sin este permitAll cae en denyAll (403).
+                .requestMatchers(HttpMethod.GET, "/health").permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Permitir pre-flight CORS
                 .anyRequest().denyAll());
