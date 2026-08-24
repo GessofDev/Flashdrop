@@ -31,7 +31,7 @@ public class OrderServiceClientAdapter implements OrderServicePort {
         }
         String inList = orderIds.stream().map(String::valueOf).collect(Collectors.joining(","));
         OrderRow[] rows = supabase.get()
-                .uri("/orders?id=in.({ids})&select=id,client_id,restaurant_id,delivery_id,status,address", inList)
+                .uri("/orders?id=in.({ids})&select=id,restaurant_id,delivery_id,status,address", inList)
                 .retrieve()
                 .body(OrderRow[].class);
         if (rows == null || rows.length == 0) {

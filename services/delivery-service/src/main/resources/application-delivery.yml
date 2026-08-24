@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DELIVERY_DB_HOST:localhost}:${DELIVERY_DB_PORT:5432}/${DELIVERY_DB_NAME:delivery_db}
+    username: ${DELIVERY_DB_USER:delivery_svc}
+    password: ${DELIVERY_DB_PASSWORD:delivery_svc_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: internal
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    schemas: internal
+    locations: classpath:db/migration

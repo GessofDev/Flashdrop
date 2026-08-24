@@ -61,7 +61,7 @@ class ClaimDeliveryOrdersUseCaseImplTest {
                     deliveryPersonId, List.of(orderId));
 
             DeliveryPerson person = new DeliveryPerson(
-                    deliveryPersonId, 1L, VehicleType.MOTO, Instant.now());
+                    deliveryPersonId, "1", VehicleType.MOTO, Instant.now());
             OrderServicePort.OrderInfo orderInfo = new OrderServicePort.OrderInfo(
                     orderId, 10L, "Pickup St 1", "Delivery St 1", "ORD-001");
 
@@ -99,7 +99,7 @@ class ClaimDeliveryOrdersUseCaseImplTest {
             Long orderId = 101L;
             ClaimDeliveryRequest request = new ClaimDeliveryRequest(5L, List.of(orderId));
 
-            DeliveryPerson person = new DeliveryPerson(5L, 1L, VehicleType.MOTO, Instant.now());
+            DeliveryPerson person = new DeliveryPerson(5L, "1", VehicleType.MOTO, Instant.now());
             OrderServicePort.OrderInfo orderInfo = new OrderServicePort.OrderInfo(
                     orderId, 10L, "Pickup", "Delivery", "ORD-001");
 
@@ -121,7 +121,7 @@ class ClaimDeliveryOrdersUseCaseImplTest {
         void multiRestaurant_throwsIllegalArgumentException() {
             ClaimDeliveryRequest request = new ClaimDeliveryRequest(5L, List.of(101L, 102L));
 
-            DeliveryPerson person = new DeliveryPerson(5L, 1L, VehicleType.MOTO, Instant.now());
+            DeliveryPerson person = new DeliveryPerson(5L, "1", VehicleType.MOTO, Instant.now());
             OrderServicePort.OrderInfo orderInfo1 = new OrderServicePort.OrderInfo(101L, 10L, "Pickup1", "Delivery1", "ORD-001");
             OrderServicePort.OrderInfo orderInfo2 = new OrderServicePort.OrderInfo(102L, 20L, "Pickup2", "Delivery2", "ORD-002");
 

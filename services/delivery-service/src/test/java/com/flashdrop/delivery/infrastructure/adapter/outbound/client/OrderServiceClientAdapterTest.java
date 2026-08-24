@@ -36,7 +36,7 @@ class OrderServiceClientAdapterTest {
         @DisplayName("TC2: OrderRow record maps to OrderInfo fields correctly")
         void orderRowMapsToOrderInfo() {
             OrderRow row = new OrderRow(
-                    101L, 200L, 10L, 300L, "pending", "Delivery Address 101", "ORD-001");
+                    101L, 10L, 300L, "pending", "Delivery Address 101", "ORD-001");
 
             assertThat(row.id()).isEqualTo(101L);
             assertThat(row.restaurantId()).isEqualTo(10L);

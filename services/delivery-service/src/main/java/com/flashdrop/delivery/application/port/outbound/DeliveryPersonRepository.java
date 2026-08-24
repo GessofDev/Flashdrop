@@ -8,9 +8,9 @@ public interface DeliveryPersonRepository {
 
     Optional<DeliveryPerson> findById(Long id);
 
-    Optional<DeliveryPerson> findByUserId(Long userId);
+    Optional<DeliveryPerson> findByUserId(String userId);
 
     DeliveryPerson save(DeliveryPerson deliveryPerson);
 
-    boolean existsByUserId(Long userId);
+    boolean existsByUserId(String userId);
 }

@@ -31,7 +31,7 @@ class DeliveryControllerTest {
     private ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase;
 
     private DeliveryPersonResponse makePersonResponse(Long id) {
-        return new DeliveryPersonResponse(id, 1L, "MOTO", Instant.now());
+        return new DeliveryPersonResponse(id, "1", "MOTO", Instant.now());
     }
 
     @Nested
