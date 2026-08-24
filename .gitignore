@@ -6,3 +6,20 @@ server.out.log
 server.err.log
 
 .vercel
+
+# ---- Java / Gradle (monorepo services/) ----
+# El .gitignore de la raiz venia del monolito Node y no cubria los
+# artefactos de Gradle, asi que .gradle/ y build/ se colaban en los commits.
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Secretos
+*.env
+!.env.example
