@@ -11,3 +11,5 @@ allprojects {
         mavenCentral()
     }
 }
+
+// Enable JDK toolchain auto-provisioning via settings
