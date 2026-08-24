@@ -1,19 +1,11 @@
 plugins {
     java
-    id("org.springframework.boot") apply false
-    id("io.spring.dependency-management") apply false
 }
-
-group = "com.flashdrop"
-version = "1.0.0"
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-repositories {
-    mavenCentral()
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 dependencies {

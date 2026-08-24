@@ -12,4 +12,9 @@ allprojects {
     }
 }
 
+subprojects {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+}
+
 // Enable JDK toolchain auto-provisioning via settings

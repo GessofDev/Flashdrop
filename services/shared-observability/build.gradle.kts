@@ -9,12 +9,6 @@ java {
     }
 }
 
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:3.3.4")
-    }
-}
-
 dependencies {
     // Tipos que los servicios consumidores necesitan (api = expuesto transitivamente)
     api("org.springframework.boot:spring-boot-autoconfigure")
