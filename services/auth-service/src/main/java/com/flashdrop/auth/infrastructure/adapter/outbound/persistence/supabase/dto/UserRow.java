@@ -23,7 +23,13 @@ public record UserRow(
         String phone,
         String photo,
         @JsonProperty("created_at") Instant createdAt,
-        List<RoleRow> roles
+        /** Los roles NO son una columna de `users`: viven en la tabla puente
+         *  user_has_roles y el repositorio los resuelve en una consulta aparte.
+         *  Este campo es solo un portador en memoria, asi que se marca
+         *  WRITE_ONLY para que Jackson nunca lo serialice: si sale en el JSON
+         *  del INSERT, PostgREST responde
+         *  PGRST204 "Could not find the 'roles' column of 'users'". */
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY) List<RoleRow> roles
 ) {
     /** Returns a copy of this row with the given roles. Used by the repository
      *  when roles are fetched separately through the user_has_roles junction
