@@ -4,6 +4,7 @@ import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.domain.model.RefreshToken;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto.RefreshTokenRow;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 @Repository
+@Profile("supabase")
 public class SupabaseRestRefreshTokenStoreAdapter implements RefreshTokenStore {
 
     private final RestClient restClient;

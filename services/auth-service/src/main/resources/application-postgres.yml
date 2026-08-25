@@ -1,0 +1,31 @@
+# Perfil PostgreSQL: la base propia de auth-service en Floci RDS.
+# Activar con SPRING_PROFILES_ACTIVE=postgres.
+#
+# Requiere en el entorno: DB_URL, DB_USERNAME, DB_PASSWORD.
+# Ninguno tiene valor por defecto a proposito: si falta uno, el servicio no
+# arranca en vez de caer silenciosamente contra una base equivocada.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    # Flyway es el unico que crea o altera el esquema. Hibernate solo valida
+    # que las entidades calcen con lo que las migraciones dejaron.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 crea SOLO las cinco tablas propietarias de auth. Ninguna tabla de
+    # otro microservicio vive en esta base (regla de propiedad de datos).

@@ -11,9 +11,15 @@ spring:
 # flyway: no existe ninguna de esas dependencias en build.gradle.kts y la
 # configuración solo confundía sobre cuál es la conexión real.
 #
-# La conexión se define en application-supabase.yml y se activa con
-# SPRING_PROFILES_ACTIVE=supabase. El esquema y el seed se aplican a mano
-# desde db/01_schema.sql y db/02_seed.sql.
+# HAY QUE ELEGIR UN PERFIL. El servicio no arranca sin uno:
+#
+#   postgres  -> base propia en Floci RDS por JDBC; esquema y datos los crea
+#                Flyway (ver application-postgres.yml). Es el destino.
+#   supabase  -> adaptadores PostgREST (ver application-supabase.yml). Se
+#                conserva mientras dure la transicion.
+#
+# Los adaptadores de ambos perfiles conviven en el classpath y se eligen con
+# @Profile, igual que en catalog-service.
 # ---------------------------------------------------------------------------
 
 # Firma asimétrica RS256. En producción se proveen las claves RSA por entorno

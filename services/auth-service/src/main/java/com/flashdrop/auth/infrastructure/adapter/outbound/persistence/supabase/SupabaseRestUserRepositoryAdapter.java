@@ -7,6 +7,7 @@ import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.d
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto.UserHasRoleRow;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto.UserRow;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
+@Profile("supabase")
 public class SupabaseRestUserRepositoryAdapter implements UserRepository {
 
     private final RestClient restClient;

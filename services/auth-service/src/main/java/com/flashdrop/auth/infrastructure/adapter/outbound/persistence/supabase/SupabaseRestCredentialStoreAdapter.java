@@ -4,12 +4,14 @@ import com.flashdrop.auth.application.port.outbound.CredentialStore;
 import com.flashdrop.auth.domain.model.Credentials;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.supabase.dto.LoginRow;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
 import java.util.Optional;
 
 @Repository
+@Profile("supabase")
 public class SupabaseRestCredentialStoreAdapter implements CredentialStore {
 
     private final RestClient restClient;
