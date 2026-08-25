@@ -2,6 +2,7 @@ package com.flashdrop.delivery.domain.valueobjects;
 
 public enum RouteStatus {
     PENDIENTE("Pendiente"),
+    ASSIGNED("Asignado"),
     RETIRAR_PEDIDO("Listo para retiro"),
     EN_CAMINO("En camino"),
     ENTREGADO("Entregado");
