@@ -23,6 +23,8 @@ dependencies {
     testImplementation(project(":shared-observability"))
     testImplementation("org.testcontainers:postgresql")
     testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
     testRuntimeOnly("org.testcontainers:postgresql")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
