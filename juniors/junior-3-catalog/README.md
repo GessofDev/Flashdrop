@@ -40,8 +40,7 @@ postgres  Usa JPA/PostgreSQL directo con POSTGRES_HOST, POSTGRES_PORT, POSTGRES_
 .\gradlew.bat bootRun --args="--spring.profiles.active=supabase"
 ```
 
-Este es el modo recomendado para probar desde el equipo local, porque usa `SUPABASE_URL` y
-`SUPABASE_SERVICE_ROLE_KEY`.
+Este es el modo recomendado para probar desde el equipo local. Si no configuras `SUPABASE_URL`, el servicio usa por defecto la URL de Supabase/Kong anterior del proyecto. La `SUPABASE_SERVICE_ROLE_KEY` siempre debe venir desde `.env` o variable de entorno.
 
 ## Levantar local sin Supabase
 
@@ -62,6 +61,7 @@ El archivo `.env` real debe quedar en el servidor, no en GitHub:
 
 ```text
 SPRING_PROFILES_ACTIVE=supabase
+# SUPABASE_URL es opcional; si no se define, usa la URL anterior del proyecto
 SUPABASE_URL=http://supabasekong-wymwq8rktid7ov678oe4va90.76.13.169.150.sslip.io
 SUPABASE_SERVICE_ROLE_KEY=********
 INTERNAL_API_KEY=********
