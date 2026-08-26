@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 import org.springframework.context.annotation.Profile;
@@ -37,6 +38,12 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public Optional<Product> findById(Long id) {
+        return repository.findById(id)
+                .map(ProductEntity::toDomain);
+    }
+
+    @Override
     public Product save(Product product) {
         ProductEntity entity = new ProductEntity(
                 product.getCategoryId(),
@@ -48,6 +55,15 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
                 product.isAvailable()
         );
 
+        return repository.save(entity).toDomain();
+    }
+
+    @Override
+    public Product update(Product product) {
+        ProductEntity entity = repository.findById(product.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Product does not exist with id: " + product.getId()));
+
+        entity.updateFrom(product);
         return repository.save(entity).toDomain();
     }
 }

@@ -72,4 +72,14 @@ public class ProductEntity {
                 available
         );
     }
+
+    public void updateFrom(Product product) {
+        this.categoryId = product.getCategoryId();
+        this.restaurantId = product.getRestaurantId();
+        this.name = product.getName();
+        this.description = product.getDescription();
+        this.price = product.getPrice().amount();
+        this.image = product.getImage();
+        this.available = product.isAvailable();
+    }
 }

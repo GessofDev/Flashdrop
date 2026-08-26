@@ -182,6 +182,69 @@ paths:
                   $ref: '#/components/schemas/InternalProductResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Internal]
+      summary: Crear producto desde otro microservicio
+      description: Endpoint interno para que un servicio autorizado cree productos en Catalog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/internal/products/{productId}:
+    patch:
+      tags: [Internal]
+      summary: Actualizar producto desde otro microservicio
+      description: Endpoint interno para actualizar parcialmente un producto existente en Catalog.
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/internal/restaurants/{restaurantId}:
     get:
@@ -271,6 +334,43 @@ components:
         available:
           type: boolean
           description: Si el producto está disponible (default: true)
+          example: true
+
+    UpdateProductRequest:
+      type: object
+      description: Campos opcionales para actualizar parcialmente un producto.
+      properties:
+        categoryId:
+          type: integer
+          description: ID de la categoría
+          example: 3
+        restaurantId:
+          type: integer
+          description: ID del restaurante
+          example: 3
+        name:
+          type: string
+          description: Nombre del producto
+          example: Hamburguesa Clásica actualizada
+        description:
+          type: string
+          nullable: true
+          description: Descripción del producto
+          example: Doble carne, queso cheddar, lechuga y tomate
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+          description: Precio en CLP (pesos chilenos)
+          example: 9990
+        image:
+          type: string
+          nullable: true
+          description: URL o path de imagen
+          example: assets/img/burger1.png
+        available:
+          type: boolean
+          description: Si el producto está disponible
           example: true
 
     ProductResponse:
