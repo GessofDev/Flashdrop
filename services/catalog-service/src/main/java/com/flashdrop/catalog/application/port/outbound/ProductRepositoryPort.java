@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.application.port.outbound;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.flashdrop.catalog.domain.model.Product;
 
@@ -14,6 +15,12 @@ public interface ProductRepositoryPort {
     // Busca solo los productos cuyos ids llegaron desde otra logica, por ejemplo pedidos.
     List<Product> findByIds(List<Long> ids);
 
+    // Busca un producto puntual para operaciones internas de actualizacion.
+    Optional<Product> findById(Long id);
+
     // Guarda un producto y devuelve el producto creado con su id real.
     Product save(Product product);
+
+    // Actualiza un producto existente y devuelve su estado final.
+    Product update(Product product);
 }

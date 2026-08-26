@@ -3,6 +3,7 @@ package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.memory
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
@@ -51,6 +52,13 @@ public class InMemoryProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public Optional<Product> findById(Long id) {
+        return products.stream()
+                .filter(product -> product.getId().equals(id))
+                .findFirst();
+    }
+
+    @Override
     public Product save(Product product) {
         long nextId = products.stream()
                 .map(Product::getId)
@@ -68,5 +76,17 @@ public class InMemoryProductRepositoryAdapter implements ProductRepositoryPort {
         );
         products.add(savedProduct);
         return savedProduct;
+    }
+
+    @Override
+    public Product update(Product product) {
+        for (int index = 0; index < products.size(); index++) {
+            if (products.get(index).getId().equals(product.getId())) {
+                products.set(index, product);
+                return product;
+            }
+        }
+
+        throw new IllegalArgumentException("Product does not exist with id: " + product.getId());
     }
 }

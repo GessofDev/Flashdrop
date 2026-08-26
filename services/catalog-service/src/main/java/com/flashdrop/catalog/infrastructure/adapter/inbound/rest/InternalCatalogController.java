@@ -3,17 +3,30 @@ package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.flashdrop.catalog.application.usecase.CreateProductUseCase;
 import com.flashdrop.catalog.application.usecase.GetProductsByIdsUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByIdUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
+import com.flashdrop.catalog.application.usecase.UpdateProductUseCase;
+import com.flashdrop.catalog.domain.model.Product;
+import com.flashdrop.catalog.domain.valueobjects.Money;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.CreateProductRequest;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.InternalProductResponse;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.InternalRestaurantResponse;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateProductRequest;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/internal")
@@ -22,15 +35,21 @@ public class InternalCatalogController {
     private final GetProductsByIdsUseCase getProductsByIdsUseCase;
     private final GetRestaurantByIdUseCase getRestaurantByIdUseCase;
     private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
+    private final CreateProductUseCase createProductUseCase;
+    private final UpdateProductUseCase updateProductUseCase;
 
     public InternalCatalogController(
             GetProductsByIdsUseCase getProductsByIdsUseCase,
             GetRestaurantByIdUseCase getRestaurantByIdUseCase,
-            GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase
+            GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
+            CreateProductUseCase createProductUseCase,
+            UpdateProductUseCase updateProductUseCase
     ) {
         this.getProductsByIdsUseCase = getProductsByIdsUseCase;
         this.getRestaurantByIdUseCase = getRestaurantByIdUseCase;
         this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
+        this.createProductUseCase = createProductUseCase;
+        this.updateProductUseCase = updateProductUseCase;
     }
 
     @GetMapping("/products")
@@ -45,6 +64,33 @@ public class InternalCatalogController {
                 .stream()
                 .map(InternalProductResponse::fromDomain)
                 .toList();
+    }
+
+    @PostMapping("/products")
+    public ResponseEntity<InternalProductResponse> createProduct(
+            @Valid @RequestBody CreateProductRequest request
+    ) {
+        Product product = new Product(
+                null,
+                request.categoryId(),
+                request.restaurantId(),
+                request.name(),
+                request.description(),
+                new Money(request.price()),
+                request.image(),
+                request.available() == null || request.available()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(InternalProductResponse.fromDomain(createProductUseCase.execute(product)));
+    }
+
+    @PatchMapping("/products/{productId}")
+    public InternalProductResponse updateProduct(
+            @PathVariable Long productId,
+            @Valid @RequestBody UpdateProductRequest request
+    ) {
+        return InternalProductResponse.fromDomain(updateProductUseCase.execute(productId, request));
     }
 
     @GetMapping("/restaurants/{restaurantId}")

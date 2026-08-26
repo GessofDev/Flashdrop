@@ -2,6 +2,8 @@ package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,12 +11,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class InternalCatalogControllerTest {
 
     private static final String INTERNAL_API_KEY = "dev-key";
@@ -43,6 +48,75 @@ class InternalCatalogControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void createProductReturnsCreatedInternalContractFields() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 1,
+                  "name": "Churrasco italiano",
+                  "description": "Carne, tomate, palta y mayo",
+                  "price": 6990,
+                  "image": "assets/img/churrasco.png",
+                  "available": true
+                }
+                """;
+
+        mockMvc.perform(post("/api/internal/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.restaurantId").value(1))
+                .andExpect(jsonPath("$.name").value("Churrasco italiano"))
+                .andExpect(jsonPath("$.description").value("Carne, tomate, palta y mayo"))
+                .andExpect(jsonPath("$.price").value(6990))
+                .andExpect(jsonPath("$.image").value("assets/img/churrasco.png"))
+                .andExpect(jsonPath("$.isAvailable").value(true));
+    }
+
+    @Test
+    void updateProductReturnsUpdatedInternalContractFields() throws Exception {
+        String body = """
+                {
+                  "name": "Burger doble actualizada",
+                  "price": 9990,
+                  "available": false
+                }
+                """;
+
+        mockMvc.perform(patch("/api/internal/products/1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.restaurantId").value(1))
+                .andExpect(jsonPath("$.name").value("Burger doble actualizada"))
+                .andExpect(jsonPath("$.description").value("Doble carne, queso y salsa de la casa"))
+                .andExpect(jsonPath("$.price").value(9990))
+                .andExpect(jsonPath("$.isAvailable").value(false));
+    }
+
+    @Test
+    void updateProductReturnsNotFound() throws Exception {
+        String body = """
+                {
+                  "name": "Producto inexistente"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/internal/products/999")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Product not found with id: 999"));
     }
 
     @Test
