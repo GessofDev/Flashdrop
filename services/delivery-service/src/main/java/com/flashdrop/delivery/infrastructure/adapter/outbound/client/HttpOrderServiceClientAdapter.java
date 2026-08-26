@@ -10,27 +10,30 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * HTTP client adapter that calls orders-service over REST.
  *
- * <p>Endpoints called:
+ * <p>Endpoints called (contract from MIGRATION_PLAN.md §8.3, §8.2):
  * <ul>
- *   <li>GET /api/orders?ids={id1,id2,...} — fetch order details by IDs</li>
- *   <li>GET /api/internal/restaurants?ids={id1,id2,...} — fetch restaurant names/addresses</li>
+ *   <li>GET /api/internal/orders?ids={id1,id2,...} — fetch order details by IDs.
+ *       Response: [{ id, clientId, restaurantId, deliveryId, status, address }] (all ids: long).</li>
+ *   <li>GET /api/internal/restaurants/{restaurantId} — fetch one restaurant by ID.
+ *       Looped N times for batch (the contract does not define a batch endpoint).</li>
  * </ul>
  *
  * <p>Authentication: {@code X-Internal-Api-Key} header on every request.
  *
- * <p>Graceful degradation: if the HTTP call fails (timeout, 5xx, connection refused),
- * returns an empty list and logs a WARN with the current trace ID. The caller
+ * <p>Graceful degradation: any HTTP failure (timeout, 5xx, connection refused, 404
+ * because orders-service has not yet implemented the endpoint) is caught, logged at
+ * WARN with the current trace ID, and returns an empty list. The caller
  * ({@link com.flashdrop.delivery.application.usecase.ClaimDeliveryOrdersUseCaseImpl})
- * will receive an empty list and throw an appropriate error, making the failure
- * behaviour suitable for automated testing.
+ * will then throw {@code IllegalArgumentException("Some orders were not found")},
+ * making the behaviour suitable for testing before orders-service is ready.
  */
 @Component
 public class HttpOrderServiceClientAdapter implements OrderServicePort {
@@ -60,7 +63,7 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
 
         try {
             OrderResponse[] responses = restClient.get()
-                    .uri("/api/orders?ids={ids}", idsParam)
+                    .uri("/api/internal/orders?ids={ids}", idsParam)
                     .retrieve()
                     .body(OrderResponse[].class);
 
@@ -68,7 +71,7 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
                 return List.of();
             }
 
-            // Collect unique restaurant IDs to fetch in batch
+            // Collect unique restaurant IDs to fetch one-by-one (no batch endpoint in MIGRATION_PLAN §8.2)
             List<Long> restaurantIds = java.util.Arrays.stream(responses)
                     .map(r -> r.restaurantId())
                     .filter(id -> id != null)
@@ -82,7 +85,7 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
                     .toList();
 
         } catch (RestClientException ex) {
-            log.warn("[{}] orders-service HTTP call failed, returning empty list: {}",
+            log.warn("[{}] orders-service /api/internal/orders call failed (endpoint not ready or unreachable), returning empty list: {}",
                     currentTraceId(), ex.getMessage());
             return List.of();
         }
@@ -103,35 +106,30 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
     }
 
     private Map<Long, RestaurantInfo> loadRestaurants(List<Long> restaurantIds) {
+        Map<Long, RestaurantInfo> result = new HashMap<>();
         if (restaurantIds.isEmpty()) {
-            return Map.of();
+            return result;
         }
 
-        String idsParam = restaurantIds.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(","));
-
-        try {
-            RestaurantResponse[] responses = restClient.get()
-                    .uri("/api/internal/restaurants?ids={ids}", idsParam)
-                    .retrieve()
-                    .body(RestaurantResponse[].class);
-
-            if (responses == null) {
-                return Map.of();
+        for (Long restaurantId : restaurantIds) {
+            try {
+                RestaurantResponse response = restClient.get()
+                        .uri("/api/internal/restaurants/{id}", restaurantId)
+                        .retrieve()
+                        .body(RestaurantResponse.class);
+                if (response != null && response.id() != null) {
+                    result.put(response.id(),
+                            new RestaurantInfo(response.id(), response.name(), response.address()));
+                }
+            } catch (RestClientException ex) {
+                // Per-restaurant failure: log + skip, continue with the others.
+                // If catalog-service has not yet implemented the endpoint, all calls fail
+                // and the map ends up empty — pickup falls back to "Restaurant {id}" in toOrderInfo.
+                log.warn("[{}] orders-service /api/internal/restaurants/{} call failed: {}",
+                        currentTraceId(), restaurantId, ex.getMessage());
             }
-
-            return java.util.Arrays.stream(responses)
-                    .collect(Collectors.toMap(
-                            r -> r.id(),
-                            r -> new RestaurantInfo(r.id(), r.name(), r.address())
-                    ));
-
-        } catch (RestClientException ex) {
-            log.warn("[{}] orders-service restaurant fetch failed: {}",
-                    currentTraceId(), ex.getMessage());
-            return Map.of();
         }
+        return result;
     }
 
     private OrderInfo toOrderInfo(OrderResponse row, Map<Long, RestaurantInfo> restaurantsById) {
@@ -143,15 +141,7 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
                     : restaurant.address();
         }
         String delivery = row.address() != null ? row.address() : "";
-        // orders-service uses UUID; delivery-service stores Long — take last 8 bytes
-        Long orderId = uuidToLong(row.id());
-        return new OrderInfo(orderId, row.restaurantId(), pickup, delivery, row.code());
-    }
-
-    /** Converts a UUID to a Long by taking the last 8 bytes (variant + most-significant bits). */
-    private Long uuidToLong(UUID uuid) {
-        if (uuid == null) return null;
-        return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        return new OrderInfo(row.id(), row.restaurantId(), pickup, delivery, row.code());
     }
 
     /**
@@ -164,23 +154,30 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
     }
 
     // -------------------------------------------------------------------------
-    // Internal DTOs mirroring orders-service API response
+    // Internal DTOs mirroring orders-service API response (per MIGRATION_PLAN.md §8.3, §8.2)
     // -------------------------------------------------------------------------
 
     /**
-     * Response DTO for the /api/orders endpoint.
-     * The actual API returns UUID as string, but we parse the last 8 bytes as Long.
+     * Response DTO for {@code GET /api/internal/orders?ids=...}.
+     * Per MIGRATION_PLAN.md §8.3: id/clientId/restaurantId/deliveryId are all long.
      */
     record OrderResponse(
-            UUID id,
+            Long id,
+            Long clientId,
             Long restaurantId,
+            Long deliveryId,
             String status,
             String address,
             String code
     ) {}
 
+    /**
+     * Response DTO for {@code GET /api/internal/restaurants/{restaurantId}}.
+     * Per MIGRATION_PLAN.md §8.2.
+     */
     record RestaurantResponse(
             Long id,
+            Long userId,
             String name,
             String address
     ) {}

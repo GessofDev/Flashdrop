@@ -17,6 +17,7 @@ SUCCESS_WITH_WARNINGS — verify returned 0 CRITICALs, 2 WARNINGs, 2 SUGGESTIONs
 - **PR-3**: `feat/delivery-internal-controllers` (commits: `4032f22`, `5366fcf`, `96fa1ab`, `b463053`) — InternalDeliveryPersonsController + InternalRoutesController + controller tests
 - **PR-4**: `chore/delivery-testcontainers-it-arch-test-docs` (commits: `9c9c184`, `94bec37`, `1a4bfff`, `93a8b18`, `ea2d442`) — Testcontainers ITs, ArchUnit NFR-1, domain unit tests, JSON contract tests, docs
 - **PR-5**: `feat/delivery-orders-http-adapter-supabase-removal` (commit: `TBD`) — DEC-1 EXECUTED: Supabase removed, HTTP adapter to orders-service with graceful degradation, mock adapter
+- **PR-5 contract fix** (commit: see `apply-progress.md`) — Aligned `HttpOrderServiceClientAdapter` with `MIGRATION_PLAN.md` §8.3, §8.2. Initial PR-5 called `/api/orders` (JWT-protected, would always 401) and did lossy `UUID → Long` XOR conversion. Fix: path now `/api/internal/orders?ids=...`, `id` is `long` (no conversion), restaurants fetched one-by-one via `/api/internal/restaurants/{id}` (no batch endpoint exists in plan). All HTTP failures caught → log WARN + return `List.of()` → graceful degradation suitable for testing before Felipe implements the endpoint. New test `HttpOrderServiceContractTest` locks the contract.
 
 ---
 
