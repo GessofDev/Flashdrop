@@ -1,4 +1,4 @@
-# Apply Progress: `delivery-service-dedicated-db` — PR-4 COMPLETE (CHAIN COMPLETE)
+# Apply Progress: `delivery-service-dedicated-db` — PR-5 + CONTRACT FIX COMPLETE (CHAIN COMPLETE)
 
 ## PR Chain Status — ALL COMPLETE
 - **Strategy**: `stacked-to-main`
@@ -223,6 +223,55 @@ BUILD SUCCESSFUL in 27s
 - PR-4: KAN-21 (parent tracking), KAN-44, KAN-45, KAN-46, KAN-47 (tests + docs)
 
 **All Jira transitions must be reviewed manually in the Jira UI.** The actual state should be verified there before closing tickets.
+
+---
+
+## PR-5 Summary — DEC-1 EXECUTED
+
+**Branch**: `feat/delivery-orders-http-adapter-supabase-removal`
+**Commits**: `14d008b` (feat), `41b4920` (docs)
+
+**Files deleted** (Supabase fully removed):
+- `services/delivery-service/src/main/java/com/flashdrop/delivery/infrastructure/config/SupabaseRestClientConfig.java`
+- `services/delivery-service/src/main/java/com/flashdrop/delivery/infrastructure/adapter/outbound/persistence/supabase/OrderRow.java`
+- `services/delivery-service/src/main/java/com/flashdrop/delivery/infrastructure/adapter/outbound/persistence/supabase/RestaurantRow.java`
+- `services/delivery-service/src/main/java/com/flashdrop/delivery/infrastructure/adapter/outbound/client/OrderServiceClientAdapter.java`
+- `services/delivery-service/src/main/resources/application-supabase.yml`
+- `services/delivery-service/src/test/java/com/flashdrop/delivery/infrastructure/adapter/outbound/client/OrderServiceClientAdapterTest.java`
+
+**Files created**:
+- `HttpOrderServiceClientAdapter.java` (HTTP client to orders-service with graceful degradation)
+- `MockOrderServiceClientAdapter.java` (`@Profile("mock-orders")`, returns empty)
+- `OrdersServiceRestClientConfig.java` (RestClient bean, `@ConditionalOnProperty(name = "orders.service.url")`)
+- `application-orders.yml` (profile config with `ORDERS_SERVICE_URL`)
+- `MockOrderServiceClientAdapterTest.java`
+
+**Modified**: `README.md`, `infra/coolify/env.shared.template`, `archive-report.md`
+
+**Tests**: 77 passed (4 ITs skipped — Docker unavailable).
+
+**Jira**: DEC-1 follow-up closed (manual transition in Jira UI).
+
+### PR-5 Risk (caught after agent returned)
+The initial `HttpOrderServiceClientAdapter` had three contract mistakes:
+1. Called `/api/orders` (JWT-protected) instead of `/api/internal/orders` (would always 401).
+2. Parsed `id` as UUID + XOR → Long (lossy conversion; collisions possible).
+3. Called non-existent `/api/internal/restaurants?ids=...` batch endpoint.
+
+---
+
+## PR-5 Contract Fix
+
+**Commit**: `eb7d010` (pushed to `feat/delivery-orders-http-adapter-supabase-removal`)
+
+Aligned `HttpOrderServiceClientAdapter` with `MIGRATION_PLAN.md` §8.3, §8.2:
+- Path: `GET /api/internal/orders?ids={ids}` (was `/api/orders`)
+- ID type: `long` directly (no conversion; removed `UUID`/`uuidToLong`)
+- Restaurants: loop `GET /api/internal/restaurants/{restaurantId}` one-by-one (plan has no batch endpoint)
+- Graceful degradation: every HTTP failure caught → log WARN with `currentTraceId()` → return `List.of()`
+- Added `HttpOrderServiceContractTest` with `MockRestServiceServer` to lock the contract
+
+**Tests after fix**: 78 passed, 0 failed (4 ITs skipped).
 
 ---
 
