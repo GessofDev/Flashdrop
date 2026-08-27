@@ -82,4 +82,15 @@ public class InternalRoutesController {
                 null
         );
     }
+
+    /**
+     * Handles illegal-argument payloads coming from the use case (e.g. a route id
+     * that does not exist). Returns a clean 400 with the original message.
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler(java.lang.IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgument(java.lang.IllegalArgumentException ex) {
+        log.warn("Bad request payload: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ex.getMessage()));
+    }
 }
