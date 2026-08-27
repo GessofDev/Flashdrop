@@ -31,18 +31,40 @@ Ejemplo de validacion:
 ```text
 local     Usa datos en memoria
 supabase  Usa Supabase REST API con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
-postgres  Usa JPA/PostgreSQL directo con POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER y POSTGRES_PASSWORD
+postgres  Usa JPA/PostgreSQL directo con DB_URL, DB_USERNAME y DB_PASSWORD
 ```
 
-## Levantar con Supabase
+## Levantar con Floci/PostgreSQL
+
+```powershell
+ssh -N -L 7001:127.0.0.1:7001 dev@76.13.168.23
+```
+
+En otra terminal, crea un `.env` local con:
+
+```text
+SPRING_PROFILES_ACTIVE=postgres
+DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
+DB_USERNAME=catalog_app
+DB_PASSWORD=tu_password
+INTERNAL_API_KEY=dev-key
+```
+
+Luego levanta el servicio:
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+Flyway crea automaticamente las tablas propias de Catalog desde `src/main/resources/db/migration`.
+
+## Levantar con Supabase temporal
 
 ```powershell
 .\gradlew.bat bootRun --args="--spring.profiles.active=supabase"
 ```
 
-Este es el modo recomendado para probar desde el equipo local. Si no configuras `SUPABASE_URL`, el servicio usa por defecto la URL de Supabase/Kong anterior del proyecto. La `SUPABASE_SERVICE_ROLE_KEY` siempre debe venir desde `.env` o variable de entorno.
-
-## Levantar local sin Supabase
+## Levantar local sin base real
 
 ```powershell
 .\gradlew.bat bootRun --args="--spring.profiles.active=local"
@@ -54,16 +76,15 @@ Este es el modo recomendado para probar desde el equipo local. Si no configuras 
 docker compose up --build
 ```
 
-Por defecto Docker levanta el servicio con el perfil `supabase`, usando la API REST del
-Kong/PostgREST de la empresa.
+Por defecto Docker levanta el servicio con el perfil configurado en `.env`.
 
 El archivo `.env` real debe quedar en el servidor, no en GitHub:
 
 ```text
-SPRING_PROFILES_ACTIVE=supabase
-# SUPABASE_URL es opcional; si no se define, usa la URL anterior del proyecto
-SUPABASE_URL=http://supabasekong-wymwq8rktid7ov678oe4va90.76.13.169.150.sslip.io
-SUPABASE_SERVICE_ROLE_KEY=********
+SPRING_PROFILES_ACTIVE=postgres
+DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
+DB_USERNAME=catalog_app
+DB_PASSWORD=********
 INTERNAL_API_KEY=********
 ```
 
@@ -81,24 +102,6 @@ http://localhost:8082/catalog/products
 http://localhost:8082/catalog/categories
 http://localhost:8082/catalog/restaurants
 ```
-
-## Alternativa PostgreSQL dentro del VPS
-
-Si el microservicio corre dentro de la misma red Docker/VPS donde existe el contenedor
-`db`, se puede usar PostgreSQL directo:
-
-```text
-SPRING_PROFILES_ACTIVE=postgres
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
-POSTGRES_DB=postgres
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=********
-POSTGRES_SSLMODE=disable
-```
-
-Nota: `POSTGRES_HOST=db` funciona solo si este servicio corre dentro de la misma red Docker/VPS
-donde existe el contenedor `db`. Desde el equipo local normalmente no resuelve.
 
 ## Seguridad de claves
 
@@ -127,14 +130,14 @@ curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restau
 curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restaurants?userId=2"
 ```
 
-Los scripts para preparar una base propia de Catalog estan en:
+Las migraciones que preparan la base propia de Catalog estan en:
 
 ```text
-src/main/resources/db/catalog_schema.sql
-src/main/resources/db/catalog_seed.sql
+src/main/resources/db/migration/V1__create_schema.sql
+src/main/resources/db/migration/V2__seed_development.sql
 ```
 
-Estos scripts no se ejecutan automaticamente al levantar el servicio.
+Con el perfil `postgres`, Flyway las ejecuta automaticamente al levantar el servicio.
 
 Para probar sin base real:
 

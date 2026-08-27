@@ -31,7 +31,7 @@ public class ProductEntity {
 
     private String description;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
     private String image;
