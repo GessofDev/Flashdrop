@@ -4,10 +4,12 @@ import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa.entity.DeliveryPersonJpaEntity;
+import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Optional;
 
+@Component
 public class JpaDeliveryPersonRepositoryAdapter implements DeliveryPersonRepository {
 
     private final JpaDeliveryPersonRepository jpaRepository;

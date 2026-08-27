@@ -4,6 +4,7 @@ import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
  * making the behaviour suitable for testing before orders-service is ready.
  */
 @Component
+@ConditionalOnProperty(name = "orders.service.url")
 public class HttpOrderServiceClientAdapter implements OrderServicePort {
 
     private static final Logger log = LoggerFactory.getLogger(HttpOrderServiceClientAdapter.class);

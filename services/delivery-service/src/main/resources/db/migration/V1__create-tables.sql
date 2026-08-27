@@ -16,8 +16,12 @@ CREATE INDEX idx_delivery_status ON internal.delivery(status);
 CREATE TABLE internal.delivery_routes (
     id BIGSERIAL PRIMARY KEY,
     delivery_id BIGINT NOT NULL REFERENCES internal.delivery(id) ON DELETE CASCADE,
-    order_id VARCHAR(64) NOT NULL,
+    order_id BIGINT NOT NULL,
     delivery_person_id BIGINT,
+    pickup_address VARCHAR(512),
+    delivery_address VARCHAR(512),
+    distance_km DECIMAL(8,2),
+    estimated_minutes INTEGER,
     status VARCHAR(32) DEFAULT 'ASSIGNED',
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()

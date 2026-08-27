@@ -6,12 +6,14 @@ import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
 import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 import com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa.entity.DeliveryRouteJpaEntity;
+import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Component
 public class JpaRouteRepositoryAdapter implements RouteRepository {
 
     private final JpaDeliveryRouteRepository jpaRepository;
