@@ -63,6 +63,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ExternalServiceException.class)
+    public ResponseEntity<ErrorResponse> handleExternalService(ExternalServiceException ex) {
+        log.warn("Fallo en servicio interno externo: {}", ex.getMessage());
+        return ResponseEntity.status(ex.getStatus()).body(
+            ErrorResponse.builder()
+                .error(ex.getStatus().getReasonPhrase())
+                .message(ex.getMessage())
+                .timestamp(OffsetDateTime.now())
+                .build()
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Error no controlado capturado: ", ex);

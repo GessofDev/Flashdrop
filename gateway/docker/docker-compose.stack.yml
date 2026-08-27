@@ -80,10 +80,15 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=supabase
       - SERVER_PORT=8083
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # Orders uses its OWN Supabase project, independent of Auth/Catalog/Delivery.
+      # The host-level ORDERS_SUPABASE_* variables are mapped to the names the
+      # application reads (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).
+      - SUPABASE_URL=${ORDERS_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${ORDERS_SUPABASE_SERVICE_ROLE_KEY}
       - AUTH_SERVICE_URL=http://auth-service:8081
       - DELIVERY_FEE=2500
+      # PENDING: CATALOG_SERVICE_URL and DELIVERY_SERVICE_URL are not set here;
+      # orders falls back to localhost defaults (see §9 Pendientes).
     networks: [stack]
     depends_on:
       auth-service:

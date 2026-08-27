@@ -81,7 +81,7 @@ public class ClaimDeliveryOrdersUseCase {
         }
 
         // 8. Sincronizar rutas
-        orderRepository.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue());
+        deliveryPort.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue());
 
         log.info("Repartidor {} tomó {} pedidos: {}", deliveryId, uniqueOrderIds.size(), uniqueOrderIds);
     }

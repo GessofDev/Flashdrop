@@ -15,9 +15,12 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     private final JwtValidationFilter jwtValidationFilter;
+    private final InternalApiKeyFilter internalApiKeyFilter;
 
-    public SecurityConfig(JwtValidationFilter jwtValidationFilter) {
+    public SecurityConfig(JwtValidationFilter jwtValidationFilter,
+                          InternalApiKeyFilter internalApiKeyFilter) {
         this.jwtValidationFilter = jwtValidationFilter;
+        this.internalApiKeyFilter = internalApiKeyFilter;
     }
 
     @Bean
@@ -35,7 +38,8 @@ public class SecurityConfig {
                 .accessDeniedHandler((req, res, e) ->
                     res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden"))
             )
-            .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(internalApiKeyFilter, JwtValidationFilter.class);
 
         return http.build();
     }

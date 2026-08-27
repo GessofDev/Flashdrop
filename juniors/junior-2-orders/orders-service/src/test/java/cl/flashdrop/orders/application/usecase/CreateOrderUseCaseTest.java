@@ -7,6 +7,7 @@ import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -35,6 +36,8 @@ class CreateOrderUseCaseTest {
     private OrderRepositoryPort orderRepository;
     @Mock
     private CatalogPort catalogPort;
+    @Mock
+    private ClientPort clientPort;
     @Mock
     private DeliveryPort deliveryPort;
     @Mock
@@ -83,7 +86,7 @@ class CreateOrderUseCaseTest {
                 .build();
 
         when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(product));
-        when(deliveryPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(restaurant));
 
         Order mockSavedOrder = Order.builder()
@@ -99,7 +102,7 @@ class CreateOrderUseCaseTest {
         assertEquals(0, BigDecimal.valueOf(4500).compareTo(result.total()));
 
         verify(orderRepository).save(any(Order.class));
-        verify(orderRepository).saveRoute(any());
+        verify(deliveryPort).saveRoute(any());
         verify(eventPublisher).publish(eq("order.created"), any());
     }
 
