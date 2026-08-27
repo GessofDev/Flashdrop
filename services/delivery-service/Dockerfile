@@ -33,7 +33,9 @@ COPY gradlew settings.gradle.kts gradle.properties ./
 COPY shared-observability shared-observability
 COPY delivery-service delivery-service
 
-RUN chmod +x gradlew && ./gradlew :delivery-service:bootJar --no-daemon -x test
+# Strip CRLF line endings (gradlew ships with CRLF on Windows checkouts, breaks /bin/sh on Alpine)
+# and make sure gradlew is executable regardless of host umask.
+RUN sed -i 's/\r$//' gradlew gradlew.bat && chmod +x gradlew && ./gradlew :delivery-service:bootJar --no-daemon -x test
 
 FROM eclipse-temurin:21-jre-alpine
 
