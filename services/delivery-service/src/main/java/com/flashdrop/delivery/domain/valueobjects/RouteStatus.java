@@ -40,4 +40,20 @@ public enum RouteStatus {
         log.warn("Unknown RouteStatus dbValue='{}' — returning null instead of throwing", value);
         return null;
     }
+
+    /**
+     * Strict mapping for the WRITE path (use case / controller input). Accepts both
+     * the enum name ({@code ENTREGADO}) and the dbValue ({@code Entregado}) in any
+     * casing. Throws {@link IllegalArgumentException} with a descriptive message when
+     * the value matches neither — this is the contract that {@code @Pattern} on the
+     * DTO complements but cannot fully enforce (the use case is the last line of
+     * defense for the domain rule).
+     */
+    public static RouteStatus fromAnyValue(String value) {
+        RouteStatus mapped = fromDbValue(value);
+        if (mapped == null) {
+            throw new IllegalArgumentException("Invalid status: " + value);
+        }
+        return mapped;
+    }
 }
