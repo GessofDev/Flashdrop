@@ -25,7 +25,10 @@ import java.util.UUID;
  * Para enriquecer el nombre del cliente se consulta Auth (C-4) a través de {@link UserPort},
  * evitando así el acceso directo a la tabla {@code users}.</p>
  */
+import org.springframework.context.annotation.Profile;
+
 @Component
+@Profile("supabase")
 @RequiredArgsConstructor
 public class SupabaseRestClientAdapter implements ClientPort {
 

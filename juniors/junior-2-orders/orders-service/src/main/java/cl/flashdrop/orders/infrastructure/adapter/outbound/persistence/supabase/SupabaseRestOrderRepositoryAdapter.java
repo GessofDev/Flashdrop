@@ -19,7 +19,10 @@ import java.util.stream.Collectors;
  * <p>No accede a tablas externas (products, restaurant, users, delivery, delivery_routes);
  * esas consultas se resuelven vía los adaptadores HTTP ({@code Catalog}, {@code Auth}, {@code Delivery}).</p>
  */
+import org.springframework.context.annotation.Profile;
+
 @Repository
+@Profile("supabase")
 @RequiredArgsConstructor
 public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
