@@ -48,11 +48,6 @@ public class HttpOrderServiceClientAdapter implements OrderServicePort {
         this.restClient = ordersServiceRestClient;
     }
 
-    // Package-private constructor for testing with injected base URL
-    HttpOrderServiceClientAdapter(RestClient restClient, String baseUrl) {
-        this.restClient = restClient;
-    }
-
     @Override
     public List<OrderInfo> getOrdersByIds(List<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {

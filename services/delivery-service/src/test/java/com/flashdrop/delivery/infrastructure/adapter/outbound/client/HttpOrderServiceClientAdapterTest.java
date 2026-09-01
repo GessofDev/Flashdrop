@@ -40,7 +40,7 @@ class HttpOrderServiceClientAdapterTest {
                     });
 
             HttpOrderServiceClientAdapter adapter =
-                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient, "http://orders:8083");
+                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient);
 
             List<OrderServicePort.OrderInfo> result = adapter.getOrdersByIds(List.of());
 
@@ -58,7 +58,7 @@ class HttpOrderServiceClientAdapterTest {
                     });
 
             HttpOrderServiceClientAdapter adapter =
-                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient, "http://orders:8083");
+                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient);
 
             List<OrderServicePort.OrderInfo> result = adapter.getOrdersByIds(null);
 
@@ -81,7 +81,7 @@ class HttpOrderServiceClientAdapterTest {
                     });
 
             HttpOrderServiceClientAdapter adapter =
-                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient, "http://orders:8083");
+                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient);
 
             boolean result = adapter.areOrdersFromSameRestaurant(List.of());
 
@@ -99,7 +99,7 @@ class HttpOrderServiceClientAdapterTest {
                     });
 
             HttpOrderServiceClientAdapter adapter =
-                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient, "http://orders:8083");
+                    new HttpOrderServiceClientAdapter((RestClient) mockRestClient);
 
             boolean result = adapter.areOrdersFromSameRestaurant(null);
 
@@ -133,7 +133,7 @@ class HttpOrderServiceClientAdapterTest {
                     (proxy, method, args) -> null);
 
             OrderServicePort adapter = new HttpOrderServiceClientAdapter(
-                    (RestClient) mockRestClient, "http://orders:8083");
+                    (RestClient) mockRestClient);
 
             assertThat(adapter).isNotNull();
             assertThat(adapter).isInstanceOf(OrderServicePort.class);
