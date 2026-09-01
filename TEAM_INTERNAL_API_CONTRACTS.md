@@ -367,3 +367,137 @@ have been removed in favor of the HTTP contracts above.
   preserving the existing enrichment behavior.
 - Delivery routes are now created/synced through Delivery Service (C-6/C-7); orders-service
   no longer writes `delivery_routes` directly.
+
+---
+
+## 9. Gaps conocidos (deuda técnica)
+
+### GAP-01 — ✅ RESUELTO (2026-09-01) — C-7 no soporta actualizar el estado de ruta por `orderId`
+
+**Problema**
+
+El contrato C-7 documentado en la sección 4 de este archivo (`PATCH
+/api/internal/delivery/routes/order/{orderId}` single y `PATCH
+/api/internal/delivery/routes` bulk) es el contrato contra el que Orders
+está implementado: Orders necesita actualizar el estado de una ruta a
+partir del `orderId` que ya tiene disponible (durante `ClaimDeliveryOrdersUseCase`
+y `UpdateOrderStatusUseCase`), no a partir del `routeId` interno de Delivery,
+que Orders nunca conoce.
+
+**Comportamiento actual**
+
+delivery-service (`InternalRoutesController`) solo expone:
+
+```
+PATCH /api/internal/routes/{routeId}/status
+```
+
+Es decir, por `routeId`, uno a la vez. No existe ningún endpoint que acepte
+`orderId` como identificador, ni una variante bulk.
+
+**Impacto**
+
+`DeliveryHttpClientAdapter.updateRouteStatusByOrder` y
+`DeliveryHttpClientAdapter.updateRouteStatus` (en orders-service) no pueden
+llamar a ningún endpoint real de Delivery para sincronizar el estado de la
+ruta. Ambos métodos degradan con gracia: registran un `WARN` con el/los
+`orderId` y el `status` que no se pudo sincronizar, y continúan sin lanzar
+excepción, para no tumbar la transacción de claim ni de cambio de estado.
+
+Consecuencia concreta: después de un claim exitoso, el pedido en Orders
+queda con `status = "En camino"` correctamente, pero la fila correspondiente
+en `delivery_routes` (base de Delivery) se queda en su estado inicial
+(`"Asignado"`/`ASSIGNED`) — el estado de la ruta no se sincroniza con el
+estado real del pedido.
+
+**Solución requerida a nivel de contrato/API**
+
+delivery-service necesita exponer una forma de actualizar el estado de una
+ruta a partir del `orderId`, por ejemplo (a definir con Sebastián, cualquiera
+de las dos alcanza para destrabar ambos métodos de Orders):
+
+- `PATCH /api/internal/routes/order/{orderId}/status` — single, análogo al
+  C-7 documentado arriba pero resolviendo la ruta por `orderId` en vez de
+  `routeId`.
+- `PATCH /api/internal/routes/status` con body `{ "orderIds": [...], "status": "..." }`
+  — bulk, para el caso de `ClaimDeliveryOrdersUseCase` que sincroniza varios
+  pedidos reclamados en una sola llamada.
+
+Nota de alcance: `RouteRepository.findByOrderId(Long orderId)` **ya existe**
+en la capa de persistencia de delivery-service (confirmado en el código al
+2026-09-01). El trabajo pendiente es exponer el/los endpoint(s) de arriba en
+`InternalRoutesController` reutilizando ese método — no hace falta tocar la
+capa de repositorio/dominio.
+
+**Responsable:** Sebastián / delivery-service.
+
+**Estado del E2E:** el flujo E2E real (crear pedido → reclamar → consultar)
+**sigue funcionando de punta a punta** con este gap presente — el claim no
+falla y el pedido se actualiza correctamente en Orders. Lo único incompleto
+es la sincronización del estado de la ruta en la base de Delivery, que
+queda pendiente hasta que exista el endpoint de arriba.
+
+**Actualización (2026-09-01, commit `358d154`):** este commit de Sebastián
+en la misma rama corrigió un bug de arranque no relacionado (constructor
+duplicado en `HttpOrderServiceClientAdapter`) — no tocaba este gap.
+
+**Resolución (2026-09-01, commit `904464d`):** Sebastián agregó
+
+```
+PATCH /api/internal/routes/order/{orderId}/status
+Body: { "status": "<RouteStatus>" }
+```
+
+en `InternalRoutesController`, reutilizando `RouteRepository.findByOrderId` +
+`RouteRepository.updateStatus` (sin cambios de dominio/repositorio, como se
+anticipaba). Devuelve `400` si no existe ruta para ese `orderId`.
+
+**Verificado en caliente contra Postgres real (Floci)** el 2026-09-01, no
+solo por lectura de código:
+- `PATCH /api/internal/routes/order/13/status {"status":"EN_CAMINO"}` → `200`,
+  y el cambio quedó persistido en `delivery_routes.status` en la base real.
+- `PATCH /api/internal/routes/order/99999/status` (orderId inexistente) →
+  `400` con `"No route found for orderId=99999"`, tal como especifica el commit.
+
+**Detalle importante para GAP-01b:** el `status` que este endpoint acepta es
+un **token de enum** (`PENDIENTE`, `ASSIGNED`, `RETIRAR_PEDIDO`, `EN_CAMINO`,
+`ENTREGADO`, case-insensitive) — probé `"En camino"` (el texto que produce
+`OrderStatus.getValue()` en Orders, con espacio y sin mayúsculas de enum) y
+Delivery lo rechazó con `400`. El wire-up en Orders (GAP-01b, abajo) va a
+necesitar mapear el valor de `OrderStatus` de Orders al token de enum que
+espera Delivery, no reenviar `OrderStatus.getValue()` tal cual.
+
+#### GAP-01b — ✅ RESUELTO (2026-09-01) — Seguimiento en Orders
+
+`DeliveryHttpClientAdapter.updateRouteStatusByOrder` y `.updateRouteStatus`
+(commit `f8a8eb8`, orders-service) ya llaman al endpoint real de Delivery en
+vez de ser no-ops:
+
+1. Llaman a `PATCH /api/internal/routes/order/{orderId}/status`.
+2. Traducen el valor de `OrderStatus` de Orders al token de enum de
+   `RouteStatus` que espera Delivery vía `ORDER_STATUS_TO_ROUTE_TOKEN`
+   (`"Listo para retiro"→RETIRAR_PEDIDO`, `"Retirado"→EN_CAMINO`,
+   `"En camino"→EN_CAMINO`, `"Entregado"→ENTREGADO`). `"Nuevo pedido"` y
+   `"Preparando"` no tienen ruta equivalente todavía y se omiten sin llamar
+   a Delivery.
+3. `updateRouteStatus` (bulk, usado por `ClaimDeliveryOrdersUseCase`) itera
+   el endpoint single una vez por `orderId`, ya que no hay variante bulk en
+   Delivery.
+4. Mantiene la degradación con gracia (log `WARN` + continúa) ante
+   cualquier falla HTTP — no cambia el diseño ya establecido, solo agrega
+   la llamada real detrás.
+
+**Verificado en vivo contra Postgres real (Floci), no solo por test:**
+- `UpdateOrderStatusUseCase` (single): pedido 13 `En camino`→`Entregado` en
+  Orders sincronizó `delivery_routes.status` `Asignado`→`ENTREGADO` en la
+  base de Delivery.
+- `ClaimDeliveryOrdersUseCase` (bulk-loop): claim del pedido 14 sincronizó
+  `delivery_routes.status` `Asignado`→`EN_CAMINO`.
+
+De paso se corrigieron `MockDeliveryServer`, `DeliveryHttpClientAdapterTest`
+y `OrdersE2ESimulatedTest`, que seguían apuntando a las URLs viejas de antes
+del fix de contrato (commit `641cc3e`) y esperaban que estos métodos
+lanzaran excepción — estaban rotos desde ese commit y no se habían corrido
+en la suite completa hasta ahora. 61/61 tests de orders-service en verde.
+
+**Responsable:** Felipe / orders-service.
