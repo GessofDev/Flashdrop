@@ -3,7 +3,6 @@ package cl.flashdrop.orders.infrastructure.adapter.outbound.http;
 import cl.flashdrop.orders.domain.model.DeliveryRoute;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
-import cl.flashdrop.orders.infrastructure.adapter.outbound.http.dto.InternalDeliveryPersonDto;
 import cl.flashdrop.orders.infrastructure.exception.ExternalServiceException;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -41,14 +40,18 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         long uid = IdConverter.toLong(userId);
         log.debug("Consultando repartidor interno por userId={}", uid);
         try {
-            InternalDeliveryPersonDto dto = deliveryInternalRestClient.get()
-                    .uri("/api/internal/delivery/by-user/{userId}", uid)
+            // delivery-service envuelve la respuesta en {success, message, data:{id,...}}
+            DeliveryPersonEnvelope envelope = deliveryInternalRestClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/internal/delivery-persons")
+                            .queryParam("userId", uid)
+                            .build())
                     .retrieve()
-                    .body(InternalDeliveryPersonDto.class);
-            if (dto == null) {
+                    .body(DeliveryPersonEnvelope.class);
+            if (envelope == null || envelope.data() == null || envelope.data().id() == null) {
                 return Optional.empty();
             }
-            return Optional.of(IdConverter.toUuid(dto.id()));
+            return Optional.of(IdConverter.toUuid(envelope.data().id()));
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 return Optional.empty();
@@ -71,7 +74,7 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         body.put("status", route.getStatus());
         try {
             deliveryInternalRestClient.post()
-                    .uri("/api/internal/delivery/routes")
+                    .uri("/api/internal/routes")
                     .body(body)
                     .retrieve()
                     .toBodilessEntity();
@@ -82,23 +85,19 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         }
     }
 
+    // NOTA: delivery-service (InternalRoutesController) sólo expone
+    // PATCH /api/internal/routes/{routeId}/status (por routeId, uno a la vez).
+    // No existe todavía un endpoint "por orderId" ni "bulk" como el que estos
+    // dos métodos necesitarían para llamar en una sola pasada. Mientras ese
+    // contrato no se defina en Delivery, se degrada con gracia (log + sigue)
+    // en vez de tumbar la transacción de claim completa, igual que hace
+    // HttpOrderServiceClientAdapter del lado de Delivery.
+
     @Override
     public void updateRouteStatusByOrder(UUID orderId, String status) {
         long rawOrderId = IdConverter.toLong(orderId);
-        log.debug("Sincronizando estado de ruta por order={}", rawOrderId);
-        try {
-            deliveryInternalRestClient.patch()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/internal/delivery/routes/order/{orderId}")
-                            .queryParam("status", status)
-                            .build(rawOrderId))
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (HttpStatusCodeException e) {
-            throw InternalHttpSupport.httpError(SERVICE, e);
-        } catch (ResourceAccessException e) {
-            throw InternalHttpSupport.connectionFailure(SERVICE, e);
-        }
+        log.warn("updateRouteStatusByOrder: no existe endpoint por orderId en delivery-service todavia "
+                + "(orderId={}, status={}); se omite la sincronizacion de ruta", rawOrderId, status);
     }
 
     @Override
@@ -107,20 +106,14 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
             return;
         }
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
-        log.debug("Sincronizando estado de ruta bulk orderIds={}", rawIds);
-        try {
-            deliveryInternalRestClient.patch()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/internal/delivery/routes")
-                            .queryParam("status", status)
-                            .build())
-                    .body(rawIds)
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (HttpStatusCodeException e) {
-            throw InternalHttpSupport.httpError(SERVICE, e);
-        } catch (ResourceAccessException e) {
-            throw InternalHttpSupport.connectionFailure(SERVICE, e);
-        }
+        log.warn("updateRouteStatus: no existe endpoint bulk por orderIds en delivery-service todavia "
+                + "(orderIds={}, status={}); se omite la sincronizacion de ruta", rawIds, status);
+    }
+
+    /** Forma real de la respuesta de GET /api/internal/delivery-persons (ApiResponse<DeliveryPersonResponse>). */
+    private record DeliveryPersonEnvelope(boolean success, String message, DeliveryPersonData data) {
+    }
+
+    private record DeliveryPersonData(Long id, String userId, String vehicle) {
     }
 }
