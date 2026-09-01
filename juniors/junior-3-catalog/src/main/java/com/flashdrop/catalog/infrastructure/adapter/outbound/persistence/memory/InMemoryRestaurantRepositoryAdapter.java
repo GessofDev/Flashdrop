@@ -25,6 +25,12 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     }
 
     @Override
+    public boolean existsById(Long id) {
+        return restaurants.stream()
+                .anyMatch(restaurant -> restaurant.getId().equals(id));
+    }
+
+    @Override
     public Optional<Restaurant> findById(Long id) {
         return restaurants.stream()
                 .filter(restaurant -> restaurant.getId().equals(id))

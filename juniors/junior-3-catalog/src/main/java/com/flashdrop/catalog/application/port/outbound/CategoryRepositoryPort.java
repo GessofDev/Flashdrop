@@ -8,4 +8,6 @@ import com.flashdrop.catalog.domain.model.Category;
 public interface CategoryRepositoryPort {
 
     List<Category> findAll();
+
+    boolean existsById(Long id);
 }

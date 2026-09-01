@@ -3,11 +3,17 @@ spring:
     name: catalog-service
   config:
     import: optional:file:.env[.properties]
-  profiles:
-    default: local
 
 server:
   port: 8082
 
 services:
   internal-api-key: ${INTERNAL_API_KEY:dev-key}
+
+internal:
+  api:
+    key: ${INTERNAL_API_KEY:dev-key}
+
+catalog:
+  cors:
+    allowed-origins: ${CATALOG_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200}

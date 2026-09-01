@@ -52,6 +52,11 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
     }
 
     @Override
+    public boolean existsById(Long id) {
+        return findById(id).isPresent();
+    }
+
+    @Override
     public Optional<Restaurant> findById(Long id) {
         String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
                 .path("/rest/v1/restaurant")

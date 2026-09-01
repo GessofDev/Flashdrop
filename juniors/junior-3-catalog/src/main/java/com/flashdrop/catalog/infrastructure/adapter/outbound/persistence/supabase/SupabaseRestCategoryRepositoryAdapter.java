@@ -55,6 +55,12 @@ public class SupabaseRestCategoryRepositoryAdapter implements CategoryRepository
                 .toList();
     }
 
+    @Override
+    public boolean existsById(Long id) {
+        return id != null && findAll().stream()
+                .anyMatch(category -> category.getId().equals(id));
+    }
+
     private record CategoryRow(Long id, String name, String description, String image) {
         // Convierte una fila JSON de Supabase al modelo Category.
         Category toDomain() {

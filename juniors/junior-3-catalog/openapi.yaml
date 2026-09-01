@@ -16,8 +16,9 @@ info:
     ## Notas para el desarrollador
     - Los IDs en la base de datos son **UUID**, pero este servicio puede usar Long internamente
     - Las operaciones GET son **públicas** (no requieren JWT)
-    - Las operaciones POST requieren JWT válido (futuro)
-    - El perfil `supabase` usa la API REST de Supabase
+    - Las operaciones POST requieren `X-Internal-Api-Key`
+    - El perfil `postgres` usa PostgreSQL con Flyway/JPA
+    - El perfil `supabase` se mantiene como adapter legacy
     - El perfil `local` usa datos en memoria (para desarrollo rápido)
 
     ## Arquitectura
@@ -85,8 +86,14 @@ paths:
       summary: Crear nuevo producto
       description: |
         Crea un nuevo producto en el catálogo.
-        **Requiere JWT válido** (futuro).
+        Requiere header `X-Internal-Api-Key`.
       operationId: createProduct
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -102,6 +109,10 @@ paths:
                 $ref: '#/components/schemas/ProductResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /catalog/products/validate:
     post:
@@ -110,7 +121,14 @@ paths:
       description: |
         Valida si una lista de IDs de productos existe en el catálogo.
         Usado por el orders-service antes de crear un pedido.
+        Requiere header `X-Internal-Api-Key`.
       operationId: validateProducts
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -124,6 +142,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidateProductsResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /catalog/categories:
     get:

@@ -18,6 +18,12 @@ GET  /api/internal/restaurants/{restaurantId}
 GET  /api/internal/restaurants?userId={userId}
 ```
 
+Los `POST` publicos y todos los endpoints `/api/internal/**` requieren:
+
+```text
+X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
+```
+
 Ejemplo de validacion:
 
 ```json
@@ -30,8 +36,8 @@ Ejemplo de validacion:
 
 ```text
 local     Usa datos en memoria
-supabase  Usa Supabase REST API con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
 postgres  Usa JPA/PostgreSQL directo con DB_URL, DB_USERNAME y DB_PASSWORD
+supabase  Adapter legacy via Supabase REST API
 ```
 
 ## Levantar con Floci/PostgreSQL
@@ -48,6 +54,7 @@ DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
 DB_USERNAME=catalog_app
 DB_PASSWORD=tu_password
 INTERNAL_API_KEY=dev-key
+CATALOG_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4200
 ```
 
 Luego levanta el servicio:
@@ -58,11 +65,13 @@ Luego levanta el servicio:
 
 Flyway crea automaticamente las tablas propias de Catalog desde `src/main/resources/db/migration`.
 
-## Levantar con Supabase temporal
+## Levantar con Supabase legacy
 
 ```powershell
 .\gradlew.bat bootRun --args="--spring.profiles.active=supabase"
 ```
+
+Ese perfil queda solo como compatibilidad. Para Floci/PostgreSQL usar `postgres`.
 
 ## Levantar local sin base real
 
