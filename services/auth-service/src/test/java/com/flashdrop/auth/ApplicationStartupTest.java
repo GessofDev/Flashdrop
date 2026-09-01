@@ -2,11 +2,15 @@ package com.flashdrop.auth;
 
 import org.junit.jupiter.api.Test;
 import com.flashdrop.auth.application.dto.TokenClaims;
+import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
+import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.TokenService;
+import com.flashdrop.auth.application.port.outbound.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -29,15 +33,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * rutas que resuelven dentro de los filtros.
  */
 @SpringBootTest(properties = {
-        "supabase.url=http://localhost:0",
-        "supabase.service-role-key=clave-de-prueba",
         "services.internal-api-key=clave-interna-de-prueba",
-        "jwt.allow-ephemeral-key=true"
+        "jwt.allow-ephemeral-key=true",
+        // Este test verifica el cableado y la cadena de filtros, no la
+        // persistencia: se desactiva el acceso a datos para que no necesite
+        // ni base ni Docker. La persistencia real la cubre
+        // AuthPostgresIntegrationTest.
+        "spring.autoconfigure.exclude="
+                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,"
+                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
 })
 @AutoConfigureMockMvc
-// Perfil supabase: este test verifica la cadena de filtros, no la
-// persistencia, y asi no necesita levantar un DataSource.
-@ActiveProfiles("supabase")
+@MockBean({UserRepository.class, CredentialStore.class,
+           RoleRepository.class, RefreshTokenStore.class})
 class ApplicationStartupTest {
 
     @Autowired
@@ -68,7 +78,7 @@ class ApplicationStartupTest {
     /**
      * Verifica que InternalApiKeyFilter esté efectivamente montado en la cadena
      * real, no solo en el test de MockMvc standalone. Sin la cabecera no se
-     * llega al controlador, asi que no hay llamada a Supabase.
+     * llega al controlador, asi que no se consulta la base.
      */
     @Test
     void endpointsInternosRechazanSinApiKey() throws Exception {

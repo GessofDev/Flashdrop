@@ -3,28 +3,37 @@ spring:
     name: auth-service
 
 # ---------------------------------------------------------------------------
-# Base de datos propia de auth-service (MIGRATION_PLAN.pdf §4.1).
+# Base de datos propia de auth-service (Floci RDS).
 #
-# El acceso NO es por JDBC/JPA: los adaptadores hablan PostgREST contra el
-# proyecto Supabase EXCLUSIVO de auth (users, login, roles, user_has_roles,
-# refresh_tokens). Por eso aquí no hay spring.datasource, spring.jpa ni
-# flyway: no existe ninguna de esas dependencias en build.gradle.kts y la
-# configuración solo confundía sobre cuál es la conexión real.
+# El esquema y los datos de desarrollo los crea Flyway al arrancar, leyendo
+# db/migration. Hibernate solo valida que las entidades calcen con lo que las
+# migraciones dejaron: nunca altera el esquema.
 #
-# HAY QUE ELEGIR UN PERFIL. El servicio no arranca sin uno:
-#
-#   postgres  -> base propia en Floci RDS por JDBC; esquema y datos los crea
-#                Flyway (ver application-postgres.yml). Es el destino.
-#   supabase  -> adaptadores PostgREST (ver application-supabase.yml). Se
-#                conserva mientras dure la transicion.
-#
-# Los adaptadores de ambos perfiles conviven en el classpath y se eligen con
-# @Profile, igual que en catalog-service.
+# DB_URL, DB_USERNAME y DB_PASSWORD no tienen valor por defecto a proposito:
+# si falta alguna, el servicio no arranca en vez de caer silenciosamente
+# contra una base equivocada.
 # ---------------------------------------------------------------------------
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
 
-# Firma asimétrica RS256. En producción se proveen las claves RSA por entorno
-# (JWT_PRIVATE_KEY / JWT_PUBLIC_KEY en PEM). Si faltan y allow-ephemeral es false,
-# el arranque FALLA (S-02). El gateway valida con la clave pública del JWKS.
+  jpa:
+    # Flyway es el unico que crea o altera el esquema. Hibernate solo valida
+    # que las entidades calcen con lo que las migraciones dejaron.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 crea SOLO las cinco tablas propietarias de auth. Ninguna tabla de
+    # otro microservicio vive en esta base (regla de propiedad de datos).
+
 jwt:
   issuer: flashdrop-auth
   access-expiration-minutes: ${JWT_ACCESS_MIN:15}

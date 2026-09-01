@@ -4,7 +4,6 @@ import com.flashdrop.auth.application.port.outbound.CredentialStore;
 import com.flashdrop.auth.domain.model.Credentials;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.entity.LoginEntity;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataLoginRepository;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,7 +12,6 @@ import java.util.Optional;
 /** Credenciales contra PostgreSQL. El estado se guarda como el entero del
  *  esquema (1 activo / 0 inactivo) y se traduce al dominio como texto. */
 @Repository
-@Profile("postgres")
 public class JpaCredentialStoreAdapter implements CredentialStore {
 
     private static final String ACTIVO = "ACTIVE";

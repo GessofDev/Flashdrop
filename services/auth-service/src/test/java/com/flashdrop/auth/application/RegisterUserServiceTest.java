@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
  * MIGRATION_PLAN.pdf §12.1 — tests unitarios de registro.
  *
  * <p>Puramente de dominio/aplicación: todos los puertos salientes están
- * mockeados, así que no toca Supabase ni la red.
+ * mockeados, así que no toca la base ni la red.
  */
 class RegisterUserServiceTest {
 

@@ -530,7 +530,7 @@ components:
         photo:
           type: string
           description: URL de la foto de perfil
-          example: "https://supabase.storage/fotos/user123.jpg"
+          example: "https://almacenamiento.flashdrop.cl/fotos/user123.jpg"
         roles:
           type: array
           items:

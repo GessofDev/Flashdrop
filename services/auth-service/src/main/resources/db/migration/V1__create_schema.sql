@@ -6,11 +6,7 @@
 -- propiedad de datos). Las referencias a usuarios desde Catalog, Orders o
 -- Delivery son identificadores logicos, no claves foraneas entre bases.
 --
--- Este DDL es el mismo que se valido contra un PostgreSQL real el
--- 24/08/2026, sin los `drop table` (Flyway versiona, no reaplica) ni las
--- sentencias de Row Level Security, que existian porque PostgREST exponia
--- la base a la red. Con Floci RDS la base solo la alcanza el servicio por
--- JDBC.
+-- Lo aplica Flyway al arrancar el servicio: no se ejecuta a mano.
 -- =====================================================================
 
 -- =====================================================================

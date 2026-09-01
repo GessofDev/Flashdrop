@@ -31,13 +31,13 @@ jobs:
         # La raiz del proyecto Gradle es services/, no la raiz del repo.
         working-directory: services
     env:
-      # Perfil supabase: define supabase.url / supabase.service-role-key, que es
-      # de donde toman su configuracion los adaptadores PostgREST. Ningun test
-      # abre conexiones — son unitarios, de capa REST con MockMvc, y uno que
-      # arranca el contexto sin llegar a la persistencia.
-      SPRING_PROFILES_ACTIVE: supabase
-      SUPABASE_URL: http://localhost:0
-      SUPABASE_SERVICE_ROLE_KEY: dummy-key-for-ci
+      # Los tests no necesitan una base real: los de persistencia levantan su
+      # propio PostgreSQL con Testcontainers, y el resto desactiva el acceso a
+      # datos. Estas variables solo evitan que falte una al construir el
+      # contexto.
+      DB_URL: jdbc:postgresql://localhost:5432/no-se-usa
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
       INTERNAL_API_KEY: dummy-internal-key-for-ci
       JWT_ALLOW_EPHEMERAL: "true"
     steps:

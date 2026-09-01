@@ -10,7 +10,6 @@ import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.entity
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataRoleRepository;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataUserHasRoleRepository;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataUserRepository;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,6 @@ import java.util.Optional;
  * siendo inmutable y sin dependencias de JPA, que es la regla del dominio.
  */
 @Repository
-@Profile("postgres")
 public class JpaUserRepositoryAdapter implements UserRepository {
 
     private final SpringDataUserRepository users;

@@ -4,7 +4,6 @@ import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.domain.model.RefreshToken;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.entity.RefreshTokenEntity;
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataRefreshTokenRepository;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,7 +11,6 @@ import java.util.Optional;
 
 /** Refresh tokens contra PostgreSQL. Se guarda solo el hash. */
 @Repository
-@Profile("postgres")
 public class JpaRefreshTokenStoreAdapter implements RefreshTokenStore {
 
     private final SpringDataRefreshTokenRepository tokens;
