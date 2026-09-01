@@ -36,11 +36,11 @@ import org.springframework.test.web.servlet.MockMvc;
  * Contrato HTTP de /auth/**: códigos de estado, forma del cuerpo y traducción
  * de excepciones de dominio.
  *
- * <p>Reemplaza al antiguo {@code AuthIntegrationTest}, que levantaba
- * Testcontainers + Flyway + JPA — un stack que este servicio no tiene
- * (la persistencia es PostgREST) y que por eso nunca llegaba a ejecutarse.
- * Aquí los casos de uso están mockeados: se verifica la capa REST, que es
- * lo que el test anterior decía cubrir y no cubría.
+ * <p>Los casos de uso están simulados a propósito: acá se verifica solo la
+ * capa REST — códigos, forma del cuerpo y traducción de excepciones — sin
+ * involucrar persistencia. El comportamiento contra una base real lo cubre
+ * {@code AuthPostgresIntegrationTest}, y el cableado de la aplicación
+ * {@code ApplicationStartupTest}.
  */
 class AuthControllerTest {
 
