@@ -7,10 +7,15 @@ import java.util.UUID;
  *
  * <p>Orders no expone ni almacena usuarios: consume este endpoint interno
  * en lugar de consultar la tabla {@code users} de Supabase.</p>
+ *
+ * <p>Refleja el contrato real de {@code GET /api/internal/users/{id}} definido en
+ * {@code MIGRATION_PLAN.md} (sección 8.1): Auth expone {@code name} y {@code lastName}
+ * por separado, nunca {@code fullName}.</p>
  */
 public record InternalUserDto(
         Long id,
-        String fullName,
+        String name,
+        String lastName,
         String email,
         String phone
 ) {

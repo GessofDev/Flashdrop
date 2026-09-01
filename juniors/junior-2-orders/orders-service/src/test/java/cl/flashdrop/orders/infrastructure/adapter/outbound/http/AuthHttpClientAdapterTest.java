@@ -37,14 +37,38 @@ class AuthHttpClientAdapterTest {
     @Test
     void shouldReturnUserInfoWhenUserExists() {
         UUID userId = toUuid(42L);
-        MockAuthServer.stubGetUserOk(wireMock, 42L, "Maria Perez", "maria@test.com", "+56912345678");
+        MockAuthServer.stubGetUserOk(wireMock, 42L, "Felipe", "Pousa", "felipe@example.com", "+56911111111");
 
         Optional<UserInfo> result = adapter.findUserById(userId);
 
         assertTrue(result.isPresent());
-        assertEquals("Maria Perez", result.get().getFullName());
-        assertEquals("maria@test.com", result.get().getEmail());
-        assertEquals("+56912345678", result.get().getPhone());
+        assertEquals("Felipe Pousa", result.get().getFullName());
+        assertEquals("felipe@example.com", result.get().getEmail());
+        assertEquals("+56911111111", result.get().getPhone());
+    }
+
+    @Test
+    void shouldComposeFullNameFromNameOnlyWhenLastNameIsNull() {
+        UUID userId = toUuid(43L);
+        MockAuthServer.stubGetUserOk(wireMock, 43L, "Felipe", null, "felipe@example.com", "+56911111111");
+
+        Optional<UserInfo> result = adapter.findUserById(userId);
+
+        assertTrue(result.isPresent());
+        assertEquals("Felipe", result.get().getFullName());
+        assertFalse(result.get().getFullName().contains("null"));
+    }
+
+    @Test
+    void shouldComposeFullNameFromLastNameOnlyWhenNameIsNull() {
+        UUID userId = toUuid(44L);
+        MockAuthServer.stubGetUserOk(wireMock, 44L, null, "Pousa", "felipe@example.com", "+56911111111");
+
+        Optional<UserInfo> result = adapter.findUserById(userId);
+
+        assertTrue(result.isPresent());
+        assertEquals("Pousa", result.get().getFullName());
+        assertFalse(result.get().getFullName().contains("null"));
     }
 
     @Test

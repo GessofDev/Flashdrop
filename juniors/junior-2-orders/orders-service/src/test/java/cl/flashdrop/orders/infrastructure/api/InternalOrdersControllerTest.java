@@ -44,12 +44,15 @@ class InternalOrdersControllerTest {
         UUID orderId = IdConverter.toUuid(501L);
         UUID clientId = IdConverter.toUuid(10L);
         UUID restaurantId = IdConverter.toUuid(7L);
+        UUID deliveryId = IdConverter.toUuid(9L);
 
         Order order = Order.builder()
                 .id(orderId)
                 .clientId(clientId)
                 .restaurantId(restaurantId)
+                .deliveryId(deliveryId)
                 .status(OrderStatus.EN_CAMINO)
+                .address("Av. Providencia 1200, Santiago")
                 .total(BigDecimal.valueOf(25000))
                 .build();
 
@@ -60,8 +63,30 @@ class InternalOrdersControllerTest {
                 .andExpect(jsonPath("$[0].id").value(501))
                 .andExpect(jsonPath("$[0].clientId").value(10))
                 .andExpect(jsonPath("$[0].restaurantId").value(7))
+                .andExpect(jsonPath("$[0].deliveryId").value(9))
                 .andExpect(jsonPath("$[0].status").value("En camino"))
-                .andExpect(jsonPath("$[0].total").value(25000));
+                .andExpect(jsonPath("$[0].address").value("Av. Providencia 1200, Santiago"))
+                .andExpect(jsonPath("$[0].total").doesNotExist());
+    }
+
+    @Test
+    void shouldReturnNullDeliveryIdWhenOrderNotClaimedYetUsingMockMvc() throws Exception {
+        UUID orderId = IdConverter.toUuid(502L);
+
+        Order order = Order.builder()
+                .id(orderId)
+                .clientId(IdConverter.toUuid(10L))
+                .restaurantId(IdConverter.toUuid(7L))
+                .status(OrderStatus.PREPARANDO)
+                .address("Av. Providencia 1200, Santiago")
+                .total(BigDecimal.valueOf(25000))
+                .build();
+
+        when(orderRepository.findByIds(List.of(orderId))).thenReturn(List.of(order));
+
+        mockMvc.perform(get("/api/internal/orders").param("ids", "502"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].deliveryId").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

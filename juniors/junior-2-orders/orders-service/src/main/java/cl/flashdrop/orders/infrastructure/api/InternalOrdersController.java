@@ -63,10 +63,11 @@ public class InternalOrdersController {
     private InternalOrderDto toDto(Order order) {
         return new InternalOrderDto(
                 IdConverter.toLong(order.getId()),
-                order.getStatus().getValue(),
                 IdConverter.toLong(order.getClientId()),
                 IdConverter.toLong(order.getRestaurantId()),
-                order.getTotal());
+                order.getDeliveryId() != null ? IdConverter.toLong(order.getDeliveryId()) : null,
+                order.getStatus().getValue(),
+                order.getAddress());
     }
 
     /**

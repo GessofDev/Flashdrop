@@ -142,7 +142,7 @@ class OrdersE2ESimulatedTest {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"id\":1,\"fullName\":\"Maria Perez\",\"email\":\"maria@test.com\",\"phone\":\"+56912345678\"}")));
+                        .withBody("{\"id\":1,\"name\":\"Maria\",\"lastName\":\"Perez\",\"email\":\"maria@test.com\",\"phone\":\"+56912345678\"}")));
 
         // 4. Delivery (C-6): POST /api/internal/routes
         wireMock.stubFor(post(urlEqualTo("/api/internal/routes"))

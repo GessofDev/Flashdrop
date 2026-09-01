@@ -47,7 +47,7 @@ public class AuthHttpClientAdapter implements UserPort {
                 return Optional.empty();
             }
             return Optional.of(UserInfo.builder()
-                    .fullName(dto.fullName())
+                    .fullName(buildFullName(dto.name(), dto.lastName()))
                     .email(dto.email())
                     .phone(dto.phone())
                     .build());
@@ -59,5 +59,25 @@ public class AuthHttpClientAdapter implements UserPort {
         } catch (ResourceAccessException e) {
             throw InternalHttpSupport.connectionFailure(SERVICE, e);
         }
+    }
+
+    /**
+     * Compone el nombre completo a partir de {@code name} y {@code lastName} (contrato
+     * C-4 de {@code MIGRATION_PLAN.md}), tolerando que cualquiera de los dos venga
+     * {@code null} o en blanco sin dejar el literal {@code "null"} en el resultado.
+     */
+    private static String buildFullName(String name, String lastName) {
+        boolean hasName = name != null && !name.isBlank();
+        boolean hasLastName = lastName != null && !lastName.isBlank();
+        if (hasName && hasLastName) {
+            return name.trim() + " " + lastName.trim();
+        }
+        if (hasName) {
+            return name.trim();
+        }
+        if (hasLastName) {
+            return lastName.trim();
+        }
+        return null;
     }
 }

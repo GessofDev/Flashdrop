@@ -17,15 +17,27 @@ public final class MockAuthServer {
     private MockAuthServer() {
     }
 
-    public static void stubGetUserOk(WireMockExtension wm, long userId, String fullName, String email, String phone) {
+    /**
+     * Registra el stub OK con el contrato real de Auth (C-4, {@code MIGRATION_PLAN.md}
+     * sección 8.1): {@code name} y {@code lastName} por separado, nunca {@code fullName}.
+     */
+    public static void stubGetUserOk(WireMockExtension wm, long userId, String name, String lastName, String email, String phone) {
         wm.stubFor(get(urlEqualTo(BASE + "/" + userId))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody(String.format(
-                                "{\"id\":%d,\"fullName\":\"%s\",\"email\":\"%s\",\"phone\":\"%s\"}",
-                                userId, fullName, email, phone))));
+                                "{\"id\":%d,\"name\":%s,\"lastName\":%s,\"email\":\"%s\",\"phone\":\"%s\"}",
+                                userId, jsonStringOrNull(name), jsonStringOrNull(lastName), email, phone))));
+    }
+
+    /**
+     * {@code "valor"} si no es null, o el literal JSON {@code null} (sin comillas) si lo es
+     * — para no confundir un {@code name}/{@code lastName} ausente con el string {@code "null"}.
+     */
+    private static String jsonStringOrNull(String value) {
+        return value == null ? "null" : "\"" + value + "\"";
     }
 
     public static void stubGetUserNotFound(WireMockExtension wm, long userId) {
