@@ -128,10 +128,10 @@ class InternalRoutesControllerTest {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Scenario 9: PATCH /api/internal/routes/{orderId}/status — valid status → 200
+    // Scenario 9: PATCH /api/internal/routes/{routeId}/status — valid status → 200
     // ---------------------------------------------------------------------------------------------
     @Nested
-    @DisplayName("Scenario 9: PATCH /api/internal/routes/{orderId}/status")
+    @DisplayName("Scenario 9: PATCH /api/internal/routes/{routeId}/status")
     class UpdateRouteStatus {
 
         @Test
@@ -151,6 +151,54 @@ class InternalRoutesControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Scenario 10: PATCH /api/internal/routes/order/{orderId}/status — valid status → 200
+    // (Resolves the route by orderId; used by orders-service when it has no routeId.)
+    // ---------------------------------------------------------------------------------------------
+    @Nested
+    @DisplayName("Scenario 10: PATCH /api/internal/routes/order/{orderId}/status")
+    class UpdateRouteStatusByOrderId {
+
+        @Test
+        @DisplayName("returns 200 with updated DeliveryRoute when route exists for orderId")
+        void updateStatusByOrderId_valid_returns200() throws Exception {
+            DeliveryRoute existing = new DeliveryRoute(
+                    42L, 1001L, "Pickup A", "Delivery B",
+                    Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
+                    RouteStatus.ASSIGNED, Instant.parse("2024-01-01T10:00:00Z")
+            );
+            DeliveryRoute updated = new DeliveryRoute(
+                    42L, 1001L, "Pickup A", "Delivery B",
+                    Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
+                    RouteStatus.ENTREGADO, Instant.parse("2024-01-01T10:00:00Z")
+            );
+            when(routeRepository.findByOrderId(1001L)).thenReturn(java.util.Optional.of(existing));
+            when(routeRepository.updateStatus(42L, "ENTREGADO")).thenReturn(updated);
+
+            mockMvc.perform(patch("/api/internal/routes/order/1001/status")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"ENTREGADO\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.id").value(42))
+                    .andExpect(jsonPath("$.data.orderId").value(1001))
+                    .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+        }
+
+        @Test
+        @DisplayName("returns 400 when no route exists for orderId")
+        void updateStatusByOrderId_unknownOrderId_returns400() throws Exception {
+            when(routeRepository.findByOrderId(9999L)).thenReturn(java.util.Optional.empty());
+
+            mockMvc.perform(patch("/api/internal/routes/order/9999/status")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"ENTREGADO\"}"))
+                    .andExpect(status().isBadRequest());
         }
     }
 }

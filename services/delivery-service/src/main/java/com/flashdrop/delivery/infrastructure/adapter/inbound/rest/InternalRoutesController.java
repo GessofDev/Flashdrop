@@ -69,6 +69,27 @@ public class InternalRoutesController {
         return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
     }
 
+    /**
+     * Updates a route's status by {@code orderId} (the only identifier orders-service
+     * has when claiming an order). Resolves the underlying route via
+     * {@link RouteRepository#findByOrderId(Long)} and delegates the actual status
+     * transition to {@link RouteRepository#updateStatus(Long, String)}.
+     *
+     * <p>Returns 400 (via the {@link #handleIllegalArgument} handler) when no route
+     * is found for the given {@code orderId}.
+     */
+    @PatchMapping("/order/{orderId}/status")
+    public ResponseEntity<ApiResponse<RouteResponse>> updateStatusByOrderId(
+            @PathVariable Long orderId,
+            @Valid @RequestBody UpdateRouteStatusRequest request) {
+        log.info("PATCH /api/internal/routes/order/{}/status - Updating status to: {}", orderId, request.status());
+
+        DeliveryRoute route = routeRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("No route found for orderId=" + orderId));
+        DeliveryRoute updated = routeRepository.updateStatus(route.getId(), request.status());
+        return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
+    }
+
     private RouteResponse toResponse(DeliveryRoute route) {
         return new RouteResponse(
                 route.getId(),

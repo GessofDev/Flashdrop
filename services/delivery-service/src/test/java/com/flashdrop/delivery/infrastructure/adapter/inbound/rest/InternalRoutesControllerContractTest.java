@@ -132,4 +132,36 @@ class InternalRoutesControllerContractTest {
                                 """))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("TC5: PATCH /api/internal/routes/order/{orderId}/status returns ApiResponse envelope with success=true")
+    void updateStatusByOrderIdReturnsSuccessEnvelope() throws Exception {
+        DeliveryRoute existing = new DeliveryRoute(
+                42L, 100L, "Pickup A", "Delivery B",
+                Distance.of(BigDecimal.valueOf(5.0)), EstimatedTime.of(30),
+                RouteStatus.ASSIGNED, Instant.now()
+        );
+        DeliveryRoute updated = new DeliveryRoute(
+                42L, 100L, "Pickup A", "Delivery B",
+                Distance.of(BigDecimal.valueOf(5.0)), EstimatedTime.of(30),
+                RouteStatus.ENTREGADO, Instant.now()
+        );
+        when(routeRepository.findByOrderId(eq(100L))).thenReturn(java.util.Optional.of(existing));
+        when(routeRepository.updateStatus(eq(42L), eq("Entregado"))).thenReturn(updated);
+
+        mockMvc.perform(patch("/api/internal/routes/order/100/status")
+                        .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "Entregado"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(42))
+                .andExpect(jsonPath("$.data.orderId").value(100))
+                .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+    }
 }
