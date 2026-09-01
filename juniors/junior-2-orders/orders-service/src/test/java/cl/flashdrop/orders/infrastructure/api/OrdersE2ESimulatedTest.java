@@ -144,23 +144,31 @@ class OrdersE2ESimulatedTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody("{\"id\":1,\"fullName\":\"Maria Perez\",\"email\":\"maria@test.com\",\"phone\":\"+56912345678\"}")));
 
-        // 4. Delivery (C-6): POST /api/internal/delivery/routes
-        wireMock.stubFor(post(urlEqualTo("/api/internal/delivery/routes"))
+        // 4. Delivery (C-6): POST /api/internal/routes
+        wireMock.stubFor(post(urlEqualTo("/api/internal/routes"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
                 .willReturn(aResponse().withStatus(201)));
 
-        // 5. Delivery (C-5): GET /api/internal/delivery/by-user/1
-        wireMock.stubFor(get(urlEqualTo("/api/internal/delivery/by-user/1"))
+        // 5. Delivery (C-5): GET /api/internal/delivery-persons?userId=1
+        // Respuesta real envuelta en ApiResponse{success,message,data} (ver GAP-01, §9 de
+        // TEAM_INTERNAL_API_CONTRACTS.md).
+        wireMock.stubFor(get(urlPathEqualTo("/api/internal/delivery-persons"))
+                .withQueryParam("userId", equalTo("1"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"id\":9,\"fullName\":\"Carlos Delivery\",\"phone\":\"+56999999999\"}")));
+                        .withBody("{\"success\":true,\"message\":null,\"data\":{\"id\":9,\"userId\":\"1\",\"vehicle\":\"MOTO\"}}")));
 
-        // 6. Delivery (C-7 bulk): PATCH /api/internal/delivery/routes
-        wireMock.stubFor(patch(urlPathMatching("/api/internal/delivery/routes"))
+        // 6. Delivery (C-7): PATCH /api/internal/routes/order/501/status
+        // No hay endpoint bulk todavia (GAP-01b): el claim de un solo pedido dispara una
+        // llamada single por orderId.
+        wireMock.stubFor(patch(urlPathEqualTo("/api/internal/routes/order/501/status"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
-                .willReturn(aResponse().withStatus(204)));
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{\"success\":true,\"message\":null,\"data\":{}}")));
 
         // 7. Supabase (BD propia Orders PostgREST Stubs)
         // GET /client
@@ -281,14 +289,16 @@ class OrdersE2ESimulatedTest {
         wireMock.verify(getRequestedFor(urlEqualTo("/api/internal/restaurants/7"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
 
-        wireMock.verify(postRequestedFor(urlEqualTo("/api/internal/delivery/routes"))
+        wireMock.verify(postRequestedFor(urlEqualTo("/api/internal/routes"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
 
-        wireMock.verify(getRequestedFor(urlEqualTo("/api/internal/delivery/by-user/1"))
+        wireMock.verify(getRequestedFor(urlPathEqualTo("/api/internal/delivery-persons"))
+                .withQueryParam("userId", equalTo("1"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
 
-        wireMock.verify(patchRequestedFor(urlPathMatching("/api/internal/delivery/routes"))
-                .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
+        wireMock.verify(patchRequestedFor(urlPathEqualTo("/api/internal/routes/order/501/status"))
+                .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
+                .withRequestBody(matchingJsonPath("$.status", equalTo("EN_CAMINO"))));
 
         wireMock.verify(getRequestedFor(urlEqualTo("/api/internal/users/1"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));

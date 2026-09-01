@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Cliente HTTP hacia Delivery Service (contratos C-5, C-6, C-7).
@@ -85,19 +85,41 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         }
     }
 
-    // NOTA: delivery-service (InternalRoutesController) sólo expone
-    // PATCH /api/internal/routes/{routeId}/status (por routeId, uno a la vez).
-    // No existe todavía un endpoint "por orderId" ni "bulk" como el que estos
-    // dos métodos necesitarían para llamar en una sola pasada. Mientras ese
-    // contrato no se defina en Delivery, se degrada con gracia (log + sigue)
-    // en vez de tumbar la transacción de claim completa, igual que hace
-    // HttpOrderServiceClientAdapter del lado de Delivery.
+    // delivery-service (InternalRoutesController) expone PATCH
+    // /api/internal/routes/order/{orderId}/status (GAP-01, resuelto en
+    // commit 904464d de delivery-service). No existe variante bulk todavia,
+    // asi que updateRouteStatus (usado por ClaimDeliveryOrdersUseCase para
+    // varios pedidos a la vez) llama al endpoint single una vez por orderId.
+    //
+    // El status que ese endpoint acepta es el TOKEN del enum RouteStatus de
+    // Delivery (PENDIENTE, ASSIGNED, RETIRAR_PEDIDO, EN_CAMINO, ENTREGADO),
+    // no el texto en español que produce OrderStatus.getValue() en Orders
+    // (ej. "Listo para retiro"). ORDER_STATUS_TO_ROUTE_TOKEN traduce entre
+    // ambos vocabularios. "Nuevo pedido" y "Preparando" no tienen ruta
+    // equivalente todavia (la ruta recien existe desde que el pedido esta
+    // "Listo para retiro" en adelante) y se omiten sin llamar a Delivery.
+    //
+    // Cualquier falla de red o de contrato (404/400/5xx/timeout) se degrada
+    // con gracia: se registra un WARN y se continua, para no tumbar la
+    // transaccion de claim ni la de cambio de estado por un problema de
+    // sincronizacion secundaria.
+    private static final Map<String, String> ORDER_STATUS_TO_ROUTE_TOKEN = Map.of(
+            "Listo para retiro", "RETIRAR_PEDIDO",
+            "Retirado", "EN_CAMINO",
+            "En camino", "EN_CAMINO",
+            "Entregado", "ENTREGADO"
+    );
 
     @Override
     public void updateRouteStatusByOrder(UUID orderId, String status) {
         long rawOrderId = IdConverter.toLong(orderId);
-        log.warn("updateRouteStatusByOrder: no existe endpoint por orderId en delivery-service todavia "
-                + "(orderId={}, status={}); se omite la sincronizacion de ruta", rawOrderId, status);
+        String routeToken = ORDER_STATUS_TO_ROUTE_TOKEN.get(status);
+        if (routeToken == null) {
+            log.debug("updateRouteStatusByOrder: el estado de pedido '{}' no tiene ruta equivalente en "
+                    + "Delivery; se omite sincronizacion (orderId={})", status, rawOrderId);
+            return;
+        }
+        patchRouteStatus(rawOrderId, routeToken);
     }
 
     @Override
@@ -105,9 +127,31 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         if (orderIds == null || orderIds.isEmpty()) {
             return;
         }
-        List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
-        log.warn("updateRouteStatus: no existe endpoint bulk por orderIds en delivery-service todavia "
-                + "(orderIds={}, status={}); se omite la sincronizacion de ruta", rawIds, status);
+        String routeToken = ORDER_STATUS_TO_ROUTE_TOKEN.get(status);
+        if (routeToken == null) {
+            log.debug("updateRouteStatus: el estado de pedido '{}' no tiene ruta equivalente en Delivery; "
+                    + "se omite sincronizacion (orderIds={})", status, orderIds);
+            return;
+        }
+        for (UUID orderId : orderIds) {
+            patchRouteStatus(IdConverter.toLong(orderId), routeToken);
+        }
+    }
+
+    /** No existe endpoint bulk en Delivery todavia (ver nota arriba): una llamada por orderId,
+     *  cada una con su propio manejo de errores para que una falla no corte las demas. */
+    private void patchRouteStatus(long rawOrderId, String routeToken) {
+        log.debug("Sincronizando estado de ruta orderId={} -> {}", rawOrderId, routeToken);
+        try {
+            deliveryInternalRestClient.patch()
+                    .uri("/api/internal/routes/order/{orderId}/status", rawOrderId)
+                    .body(Map.of("status", routeToken))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException e) {
+            log.warn("No se pudo sincronizar el estado de la ruta para orderId={} (status={}): {}",
+                    rawOrderId, routeToken, e.getMessage());
+        }
     }
 
     /** Forma real de la respuesta de GET /api/internal/delivery-persons (ApiResponse<DeliveryPersonResponse>). */
