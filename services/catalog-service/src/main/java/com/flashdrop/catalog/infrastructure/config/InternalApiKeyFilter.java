@@ -17,7 +17,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
     private final String expectedApiKey;
 
-    public InternalApiKeyFilter(@Value("${services.internal-api-key:dev-key}") String expectedApiKey) {
+    public InternalApiKeyFilter(@Value("${internal.api.key:${services.internal-api-key:dev-key}}") String expectedApiKey) {
         this.expectedApiKey = expectedApiKey;
     }
 
@@ -27,7 +27,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        if (request.getRequestURI().startsWith("/api/internal")) {
+        if (requiresInternalApiKey(request)) {
             String apiKey = request.getHeader("X-Internal-Api-Key");
 
             if (!expectedApiKey.equals(apiKey)) {
@@ -41,5 +41,14 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean requiresInternalApiKey(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String method = request.getMethod();
+
+        return uri.startsWith("/api/internal")
+                || ("POST".equalsIgnoreCase(method) && "/catalog/products".equals(uri))
+                || ("POST".equalsIgnoreCase(method) && "/catalog/products/validate".equals(uri));
     }
 }

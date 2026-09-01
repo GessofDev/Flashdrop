@@ -29,6 +29,11 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
     }
 
     @Override
+    public boolean existsById(Long id) {
+        return id != null && repository.existsById(id);
+    }
+
+    @Override
     public Optional<Restaurant> findById(Long id) {
         return repository.findById(id)
                 .map(restaurantEntity -> restaurantEntity.toDomain());

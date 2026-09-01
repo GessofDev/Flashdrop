@@ -2,7 +2,9 @@ package com.flashdrop.catalog.application.usecase;
 
 import org.springframework.stereotype.Service;
 
+import com.flashdrop.catalog.application.port.outbound.CategoryRepositoryPort;
 import com.flashdrop.catalog.application.port.outbound.ProductRepositoryPort;
+import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.model.Product;
 import com.flashdrop.catalog.domain.valueobjects.Money;
@@ -12,9 +14,17 @@ import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateProdu
 public class UpdateProductUseCase {
 
     private final ProductRepositoryPort productRepositoryPort;
+    private final CategoryRepositoryPort categoryRepositoryPort;
+    private final RestaurantRepositoryPort restaurantRepositoryPort;
 
-    public UpdateProductUseCase(ProductRepositoryPort productRepositoryPort) {
+    public UpdateProductUseCase(
+            ProductRepositoryPort productRepositoryPort,
+            CategoryRepositoryPort categoryRepositoryPort,
+            RestaurantRepositoryPort restaurantRepositoryPort
+    ) {
         this.productRepositoryPort = productRepositoryPort;
+        this.categoryRepositoryPort = categoryRepositoryPort;
+        this.restaurantRepositoryPort = restaurantRepositoryPort;
     }
 
     public Product execute(Long productId, UpdateProductRequest request) {
@@ -36,6 +46,17 @@ public class UpdateProductUseCase {
                 request.available() == null ? currentProduct.isAvailable() : request.available()
         );
 
+        validateReferences(productToUpdate);
         return productRepositoryPort.update(productToUpdate);
+    }
+
+    private void validateReferences(Product product) {
+        if (!categoryRepositoryPort.existsById(product.getCategoryId())) {
+            throw new ResourceNotFoundException("Category not found with id: " + product.getCategoryId());
+        }
+
+        if (!restaurantRepositoryPort.existsById(product.getRestaurantId())) {
+            throw new ResourceNotFoundException("Restaurant not found with id: " + product.getRestaurantId());
+        }
     }
 }

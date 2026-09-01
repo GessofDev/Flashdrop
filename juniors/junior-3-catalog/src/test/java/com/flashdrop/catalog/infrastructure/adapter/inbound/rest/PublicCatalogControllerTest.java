@@ -22,6 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class PublicCatalogControllerTest {
 
+    private static final String INTERNAL_API_KEY = "dev-key";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -74,6 +76,7 @@ class PublicCatalogControllerTest {
                 """;
 
         mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -88,7 +91,141 @@ class PublicCatalogControllerTest {
     }
 
     @Test
+    void createProductRequiresApiKey() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 1,
+                  "name": "Completo italiano",
+                  "price": 3990
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Invalid internal API key"));
+    }
+
+    @Test
+    void createProductReturnsBadRequestForNegativePrice() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 1,
+                  "name": "Completo italiano",
+                  "price": -100
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void createProductReturnsBadRequestForEmptyName() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 1,
+                  "name": "",
+                  "price": 3990
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void createProductReturnsNotFoundForMissingCategory() throws Exception {
+        String body = """
+                {
+                  "categoryId": 999,
+                  "restaurantId": 1,
+                  "name": "Completo italiano",
+                  "price": 3990
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Category not found with id: 999"));
+    }
+
+    @Test
+    void createProductReturnsNotFoundForMissingRestaurant() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 999,
+                  "name": "Completo italiano",
+                  "price": 3990
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Restaurant not found with id: 999"));
+    }
+
+    @Test
+    void createProductReturnsBadRequestForMalformedJson() throws Exception {
+        mockMvc.perform(post("/catalog/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("El cuerpo de la solicitud no es valido"));
+    }
+
+    @Test
     void validateProductsReturnsFoundProductsAndMissingIds() throws Exception {
+        String body = """
+                {
+                  "productIds": [1, 999]
+                }
+                """;
+
+        mockMvc.perform(post("/catalog/products/validate")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.products", hasSize(1)))
+                .andExpect(jsonPath("$.products[0].id").value(1))
+                .andExpect(jsonPath("$.missingIds", hasSize(1)))
+                .andExpect(jsonPath("$.missingIds[0]").value(999));
+    }
+
+    @Test
+    void validateProductsRequiresApiKey() throws Exception {
         String body = """
                 {
                   "productIds": [1, 999]
@@ -98,11 +235,9 @@ class PublicCatalogControllerTest {
         mockMvc.perform(post("/catalog/products/validate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.valid").value(false))
-                .andExpect(jsonPath("$.products", hasSize(1)))
-                .andExpect(jsonPath("$.products[0].id").value(1))
-                .andExpect(jsonPath("$.missingIds", hasSize(1)))
-                .andExpect(jsonPath("$.missingIds[0]").value(999));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("Invalid internal API key"));
     }
 }

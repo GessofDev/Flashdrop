@@ -79,6 +79,27 @@ class InternalCatalogControllerTest {
     }
 
     @Test
+    void createProductReturnsNotFoundForMissingCategory() throws Exception {
+        String body = """
+                {
+                  "categoryId": 999,
+                  "restaurantId": 1,
+                  "name": "Churrasco italiano",
+                  "price": 6990
+                }
+                """;
+
+        mockMvc.perform(post("/api/internal/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Category not found with id: 999"));
+    }
+
+    @Test
     void updateProductReturnsUpdatedInternalContractFields() throws Exception {
         String body = """
                 {
@@ -117,6 +138,18 @@ class InternalCatalogControllerTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("Product not found with id: 999"));
+    }
+
+    @Test
+    void updateProductReturnsBadRequestWhenBodyHasNoChanges() throws Exception {
+        mockMvc.perform(patch("/api/internal/products/1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Debe enviar al menos un campo para actualizar"));
     }
 
     @Test

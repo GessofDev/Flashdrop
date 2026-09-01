@@ -10,6 +10,8 @@ public interface RestaurantRepositoryPort {
 
     List<Restaurant> findAll();
 
+    boolean existsById(Long id);
+
     Optional<Restaurant> findById(Long id);
 
     Optional<Restaurant> findByUserId(Long userId);
