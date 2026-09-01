@@ -1,11 +1,15 @@
 package com.flashdrop.auth;
 
 import org.junit.jupiter.api.Test;
+import com.flashdrop.auth.application.dto.TokenClaims;
+import com.flashdrop.auth.application.port.outbound.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,6 +42,10 @@ class ApplicationStartupTest {
 
     @Autowired
     MockMvc mvc;
+
+    /** Emisor real de JWT, para no validar contra un caso de uso simulado. */
+    @Autowired
+    TokenService tokens;
 
     /** Si algún bean no resuelve, este test falla antes que ningún otro. */
     @Test
@@ -82,5 +90,62 @@ class ApplicationStartupTest {
     void rutaDesconocidaQuedaDenegadaPorDefecto() throws Exception {
         mvc.perform(get("/una-ruta-que-no-existe"))
                 .andExpect(status().is4xxClientError());
+    }
+
+    /**
+     * Gap QA: comprobar sobre la cadena real que las rutas declaradas publicas
+     * efectivamente lo son. Un permitAll mal escrito no se nota hasta que el
+     * gateway o la app dejan de poder entrar.
+     */
+    @Test
+    void lasRutasPublicasDeclaradasSonAlcanzables() throws Exception {
+        // No se comprueba el codigo exacto sino que la peticion atraviese la
+        // cadena de seguridad: lo que importa es que no responda 401 ni 403.
+        for (String ruta : List.of("/auth/.well-known/jwks.json", "/health",
+                                   "/actuator/health")) {
+            mvc.perform(get(ruta))
+                    .andExpect(result -> {
+                        int codigo = result.getResponse().getStatus();
+                        if (codigo == 401 || codigo == 403) {
+                            throw new AssertionError(
+                                    "La ruta publica " + ruta + " respondio " + codigo);
+                        }
+                    });
+        }
+    }
+
+    /**
+     * Gap QA: /auth/validate ejercitado con un JWT real emitido por el propio
+     * servicio, no con un caso de uso simulado. Recorre la firma, el issuer y
+     * la extraccion de claims de punta a punta.
+     */
+    @Test
+    void validateAceptaUnJwtRealYDevuelveSusClaims() throws Exception {
+        String jwt = tokens.issue(new TokenClaims(42L, "real@flashdrop.cl", List.of("Cliente")));
+
+        mvc.perform(get("/auth/validate").header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(42))
+                .andExpect(jsonPath("$.email").value("real@flashdrop.cl"))
+                .andExpect(jsonPath("$.roles[0]").value("Cliente"));
+    }
+
+    @Test
+    void validateRechazaUnJwtManipulado() throws Exception {
+        String jwt = tokens.issue(new TokenClaims(42L, "real@flashdrop.cl", List.of("Cliente")));
+        String[] partes = jwt.split("\\.");
+        char primero = partes[2].charAt(0);
+        String manipulado = partes[0] + "." + partes[1] + "."
+                + (primero == 'A' ? 'B' : 'A') + partes[2].substring(1);
+
+        mvc.perform(get("/auth/validate").header("Authorization", "Bearer " + manipulado))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
+
+    @Test
+    void validateSinCabeceraDevuelve401() throws Exception {
+        mvc.perform(get("/auth/validate"))
+                .andExpect(status().isUnauthorized());
     }
 }

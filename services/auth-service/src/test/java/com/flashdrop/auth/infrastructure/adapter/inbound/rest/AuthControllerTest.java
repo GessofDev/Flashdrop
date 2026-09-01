@@ -10,14 +10,18 @@ import com.flashdrop.auth.application.port.inbound.RegisterUserUseCase;
 import com.flashdrop.auth.application.port.inbound.ValidateTokenUseCase;
 import com.flashdrop.auth.domain.exception.EmailAlreadyRegisteredException;
 import com.flashdrop.auth.domain.exception.InvalidCredentialsException;
+import com.flashdrop.auth.domain.exception.InvalidTokenException;
+import com.flashdrop.auth.domain.exception.UserNotFoundException;
 import com.flashdrop.auth.infrastructure.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -124,6 +128,83 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    /** Gap QA: contrato HTTP del refresh cuando el token ya vencio. El caso
+     *  unitario existia en RefreshTokenManagerTest, pero no la respuesta HTTP. */
+    @Test
+    void refreshConTokenVencidoDevuelve401ConCodigoTipado() throws Exception {
+        when(refreshToken.refresh(any())).thenThrow(new InvalidTokenException());
+
+        mvc.perform(post("/auth/refresh")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"token-ya-vencido"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
+
+    /** Gap QA: el logout es idempotente. Un token inexistente no es un error:
+     *  el objetivo del llamador —que esa sesion no sirva— ya se cumple. */
+    @Test
+    void logoutConTokenInexistenteDevuelve204() throws Exception {
+        mvc.perform(post("/auth/logout")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"refreshToken":"token-que-nunca-existio"}
+                                """))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void logoutSinCuerpoDevuelve400() throws Exception {
+        mvc.perform(post("/auth/logout").contentType(APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    /** Gap QA: telefono duplicado. `users.phone` es unico y el alta no lo
+     *  comprueba antes de insertar, asi que la violacion llegaba como 500.
+     *  Ahora se traduce al 409 que la seccion 10 del plan reserva para
+     *  "recurso ya existe", con mensaje generico para no permitir enumerar
+     *  telefonos registrados. */
+    @Test
+    void telefonoDuplicadoDevuelve409YNoRevelaElCampo() throws Exception {
+        when(registerUser.register(any()))
+                .thenThrow(new DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint \"users_phone_key\""));
+
+        mvc.perform(post("/auth/register")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"email":"otro@flashdrop.cl","password":"Segura1234",
+                                 "phone":"+56911111111"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.message").value("Ya existe un registro con esos datos"));
+    }
+
+    /**
+     * I-3: en rutas publicas el 404 sale como ApiError, con code y traceId. El
+     * formato {status, error, message} queda reservado para /api/internal/**,
+     * que es donde la seccion 10 del plan lo exige.
+     */
+    @Test
+    void usuarioInexistenteEnRutaPublicaUsaElFormatoDeObservabilidad() throws Exception {
+        when(validateToken.validate(any()))
+                .thenReturn(new com.flashdrop.auth.application.dto.TokenClaims(
+                        99L, "fantasma@flashdrop.cl", java.util.List.of()));
+        when(getUserProfile.getProfile(99L))
+                .thenThrow(new UserNotFoundException("User not found with id: 99"));
+
+        mvc.perform(get("/auth/profile").header("Authorization", "Bearer un-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").exists())
+                .andExpect(jsonPath("$.service").value("auth-service"))
+                .andExpect(jsonPath("$.status").doesNotExist())
+                .andExpect(jsonPath("$.error").doesNotExist());
     }
 
     @Test

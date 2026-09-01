@@ -21,6 +21,16 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
     private final RateLimiter rateLimiter;
     private final AuditLogger audit;
 
+    /**
+     * Hash de descarte contra el que se compara cuando el login no existe o
+     * esta inactivo (I-1).
+     *
+     * <p>Sin esto, BCrypt solo se ejecutaba en la rama del usuario existente y
+     * la diferencia de tiempo de respuesta permitia averiguar que correos estan
+     * registrados. Se calcula una sola vez al construir el servicio.
+     */
+    private final String hashDeDescarte;
+
     public AuthenticateUserService(CredentialStore credentials, UserRepository users, PasswordHasher hasher,
                                    TokenService tokens, RefreshTokenManager refreshTokens,
                                    RateLimiter rateLimiter, AuditLogger audit) {
@@ -31,6 +41,7 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
         this.refreshTokens = refreshTokens;
         this.rateLimiter = rateLimiter;
         this.audit = audit;
+        this.hashDeDescarte = hasher.hash("contrasena-inexistente-para-tiempo-constante");
     }
 
     @Override
@@ -44,9 +55,17 @@ public class AuthenticateUserService implements AuthenticateUserUseCase {
         rateLimiter.checkAllowed(loginKey);
 
         Optional<Credentials> found = credentials.findByLogin(login);
+
+        // I-1: se ejecuta un BCrypt en los dos caminos. Si no hay credenciales
+        // utilizables se compara contra el hash de descarte, de modo que el
+        // tiempo de respuesta no revele si el correo existe. El resultado de esa
+        // comparacion se descarta: la decision la toma `utilizable`.
+        boolean utilizable = found.isPresent() && found.get().isActive();
+        String hashAComparar = utilizable ? found.get().passwordHash() : hashDeDescarte;
+        boolean claveCorrecta = hasher.matches(command.rawPassword(), hashAComparar);
+
         // S-07: mismo error para login inexistente, inactivo o clave incorrecta.
-        if (found.isEmpty() || !found.get().isActive()
-                || !hasher.matches(command.rawPassword(), found.get().passwordHash())) {
+        if (!utilizable || !claveCorrecta) {
             rateLimiter.recordFailure(ipKey);
             rateLimiter.recordFailure(loginKey);
             audit.record(new AuditLogger.AuditEvent("LOGIN", login, "FAIL", command.clientIp()));
