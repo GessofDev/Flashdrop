@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -111,5 +112,70 @@ class RegisterUserServiceTest {
         // si el email existe.
         verify(users, never()).existsByEmail(any());
         verify(users, never()).save(any());
+    }
+
+    // --------------------------------------------------------------- N-1
+
+    /**
+     * N-1: un alta rechazada por correo ya registrado deja rastro de auditoria.
+     * Sin esto, alguien probando altas en serie para averiguar que correos
+     * existen no aparecia en ningun registro.
+     */
+    @Test
+    void emailDuplicadoQuedaAuditadoComoFallo() {
+        var command = new RegisterUserCommand("cliente@demo.cl", "Segura1234",
+                null, "Cliente", "Demo", null);
+        when(users.existsByEmail(any(Email.class))).thenReturn(true);
+
+        assertThrows(EmailAlreadyRegisteredException.class, () -> service.register(command));
+
+        var evento = ArgumentCaptor.forClass(AuditLogger.AuditEvent.class);
+        verify(audit).record(evento.capture());
+        assertEquals("REGISTER", evento.getValue().action());
+        assertEquals("FAIL", evento.getValue().result());
+        assertEquals("cliente@demo.cl", evento.getValue().actor());
+    }
+
+    /** Tambien cuando el rechazo es por politica de contrasena. */
+    @Test
+    void passwordDebilQuedaAuditadaComoFallo() {
+        var command = new RegisterUserCommand("nuevo@flashdrop.cl", "corta1",
+                null, "Nuevo", "Cliente", null);
+
+        assertThrows(WeakPasswordException.class, () -> service.register(command));
+
+        verify(audit).record(argThat(e -> "REGISTER".equals(e.action())
+                && "FAIL".equals(e.result())));
+    }
+
+    /** Y cuando el fallo viene de la base, como un telefono repetido. */
+    @Test
+    void unFalloDeLaBaseTambienQuedaAuditado() {
+        var command = new RegisterUserCommand("nuevo@flashdrop.cl", "Segura1234",
+                null, "Nuevo", "Cliente", "+56911112222");
+        when(users.existsByEmail(any(Email.class))).thenReturn(false);
+        when(users.save(any(User.class)))
+                .thenThrow(new IllegalStateException("unique constraint users_phone_key"));
+
+        assertThrows(IllegalStateException.class, () -> service.register(command));
+
+        verify(audit).record(argThat(e -> "FAIL".equals(e.result())));
+    }
+
+    /** El alta correcta sigue registrando exactamente un evento, de exito. */
+    @Test
+    void elAltaCorrectaAuditaUnUnicoEventoDeExito() {
+        when(users.existsByEmail(any(Email.class))).thenReturn(false);
+        when(hasher.hash(any())).thenReturn("hash-bcrypt");
+        when(users.save(any(User.class))).thenReturn(new User(42L,
+                new Email("nuevo@flashdrop.cl"), null, "Nuevo", "Cliente",
+                null, null, List.of(ROL_CLIENTE), Instant.now()));
+
+        service.register(new RegisterUserCommand("nuevo@flashdrop.cl", "Segura1234",
+                null, "Nuevo", "Cliente", null));
+
+        var evento = ArgumentCaptor.forClass(AuditLogger.AuditEvent.class);
+        verify(audit).record(evento.capture());
+        assertEquals("SUCCESS", evento.getValue().result());
     }
 }

@@ -38,7 +38,13 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>Los casos de uso están simulados a propósito: acá se verifica solo la
  * capa REST — códigos, forma del cuerpo y traducción de excepciones — sin
- * involucrar persistencia. El comportamiento contra una base real lo cubre
+ * involucrar persistencia.
+ *
+ * <p>Se monta con {@code standaloneSetup}, que <b>no</b> aplica la cadena de
+ * filtros de Spring Security: los códigos de acá reflejan lo que devuelven el
+ * controlador y el {@code @RestControllerAdvice}, no lo que vería un cliente
+ * real atravesando la seguridad. Esa parte se verifica en
+ * {@code ApplicationStartupTest}, sobre el contexto completo. El comportamiento contra una base real lo cubre
  * {@code AuthPostgresIntegrationTest}, y el cableado de la aplicación
  * {@code ApplicationStartupTest}.
  */
