@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class AuthenticateUserServiceTest {
@@ -66,5 +68,32 @@ class AuthenticateUserServiceTest {
         assertEquals("refresh-opaco", result.refreshToken());
         assertEquals(900L, result.expiresInSeconds());
         verify(rateLimiter).reset("login:user@x.cl");
+    }
+
+    /**
+     * I-1: con un login inexistente tambien se ejecuta una comparacion BCrypt,
+     * contra un hash de descarte. Si se saltara, el tiempo de respuesta
+     * revelaria que correos estan registrados.
+     */
+    @Test
+    void loginInexistenteIgualEjecutaUnaComparacionBcrypt() {
+        when(credentials.findByLogin("fantasma@flashdrop.cl")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidCredentialsException.class, () -> service.authenticate(
+                new AuthenticateCommand("fantasma@flashdrop.cl", "loquesea123", "127.0.0.1")));
+
+        verify(hasher).matches(eq("loquesea123"), any());
+    }
+
+    /** Lo mismo para una cuenta que existe pero esta inactiva. */
+    @Test
+    void loginInactivoIgualEjecutaUnaComparacionBcrypt() {
+        when(credentials.findByLogin("inactivo@flashdrop.cl")).thenReturn(
+                Optional.of(new Credentials(1L, 1L, "inactivo@flashdrop.cl", "$2b$10$hash", "INACTIVE")));
+
+        assertThrows(InvalidCredentialsException.class, () -> service.authenticate(
+                new AuthenticateCommand("inactivo@flashdrop.cl", "loquesea123", "127.0.0.1")));
+
+        verify(hasher).matches(eq("loquesea123"), any());
     }
 }

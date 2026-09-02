@@ -1,22 +1,39 @@
 spring:
   application:
     name: auth-service
+
+# ---------------------------------------------------------------------------
+# Base de datos propia de auth-service (Floci RDS).
+#
+# El esquema y los datos de desarrollo los crea Flyway al arrancar, leyendo
+# db/migration. Hibernate solo valida que las entidades calcen con lo que las
+# migraciones dejaron: nunca altera el esquema.
+#
+# DB_URL, DB_USERNAME y DB_PASSWORD no tienen valor por defecto a proposito:
+# si falta alguna, el servicio no arranca en vez de caer silenciosamente
+# contra una base equivocada.
+# ---------------------------------------------------------------------------
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/flashdrop_auth}
-    username: ${DB_USER:auth_service}
-    password: ${DB_PASSWORD:}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
   jpa:
+    # Flyway es el unico que crea o altera el esquema. Hibernate solo valida
+    # que las entidades calcen con lo que las migraciones dejaron.
     hibernate:
-      ddl-auto: validate      # Flyway crea el esquema; JPA solo valida
+      ddl-auto: validate
     open-in-view: false
     properties:
-      hibernate.format_sql: false
-  flyway:
-    enabled: false
+      hibernate.jdbc.time_zone: UTC
 
-# Firma asimétrica RS256. En producción se proveen las claves RSA por entorno
-# (JWT_PRIVATE_KEY / JWT_PUBLIC_KEY en PEM). Si faltan y allow-ephemeral es false,
-# el arranque FALLA (S-02). El gateway valida con la clave pública del JWKS.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 crea SOLO las cinco tablas propietarias de auth. Ninguna tabla de
+    # otro microservicio vive en esta base (regla de propiedad de datos).
+
 jwt:
   issuer: flashdrop-auth
   access-expiration-minutes: ${JWT_ACCESS_MIN:15}
@@ -30,6 +47,10 @@ auth:
   ratelimit:
     max-attempts: ${AUTH_RL_MAX:5}
     window-seconds: ${AUTH_RL_WINDOW:300}
+
+services:
+  # Sin valor por defecto: si falta, /api/internal/** queda cerrado (403).
+  internal-api-key: ${INTERNAL_API_KEY:}
 
 management:
   endpoints:

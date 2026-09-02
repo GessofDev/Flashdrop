@@ -34,8 +34,30 @@ public class RegisterUserService implements RegisterUserUseCase {
         this.audit = audit;
     }
 
+    /**
+     * N-1: el alta se audita en los dos desenlaces.
+     *
+     * <p>Antes solo se registraba el exito, asi que un intento de registro
+     * rechazado —correo ya usado, contrasena debil, formato invalido, telefono
+     * repetido— no dejaba rastro. Eso deja ciego el registro de auditoria
+     * justamente ante el patron que interesa detectar: alguien probando altas
+     * en serie para averiguar que correos ya existen. El login ya lo hacia.
+     *
+     * <p>Se anota el correo tal como llego, no el normalizado, porque cuando el
+     * fallo es de formato no existe una version validada.
+     */
     @Override
     public RegisterUserResult register(RegisterUserCommand command) {
+        String intento = command.email() == null ? "(sin email)" : command.email().trim();
+        try {
+            return registrar(command);
+        } catch (RuntimeException e) {
+            audit.record(new AuditLogger.AuditEvent("REGISTER", intento, "FAIL", null));
+            throw e;
+        }
+    }
+
+    private RegisterUserResult registrar(RegisterUserCommand command) {
         var email = new Email(command.email());              // valida formato (dominio)
         PasswordPolicy.validate(command.rawPassword());       // S-13
         String phone = command.phone() == null ? null : new Phone(command.phone()).value();

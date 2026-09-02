@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -56,5 +56,28 @@ class RefreshTokenManagerTest {
         when(opaque.hash("x")).thenReturn("h");
         when(store.findByTokenHash("h")).thenReturn(Optional.of(revoked));
         assertThrows(InvalidTokenException.class, () -> manager.rotate("x"));
+    }
+
+    @Test
+    void rotarTokenExpiradoFalla() {
+        // Vigente en la tabla (revoked = false) pero con expires_at en el pasado.
+        var expired = new RefreshToken(3L, 2L, "hash-vencido",
+                Instant.now().minusSeconds(1), false);
+        when(opaque.hash("vencido")).thenReturn("hash-vencido");
+        when(store.findByTokenHash("hash-vencido")).thenReturn(Optional.of(expired));
+
+        assertThrows(InvalidTokenException.class, () -> manager.rotate("vencido"));
+
+        // Un token vencido no debe emitir uno nuevo ni revocar nada.
+        verify(store, never()).save(any());
+        verify(store, never()).revoke(any());
+    }
+
+    @Test
+    void rotarTokenInexistenteFalla() {
+        when(opaque.hash("desconocido")).thenReturn("no-esta");
+        when(store.findByTokenHash("no-esta")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidTokenException.class, () -> manager.rotate("desconocido"));
     }
 }

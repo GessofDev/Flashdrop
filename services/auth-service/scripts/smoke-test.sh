@@ -7,6 +7,9 @@ EMAIL="smoke_$(date +%s)@flashdrop.cl"
 PASS="Segura1234"
 JSON='Content-Type: application/json'
 
+echo "== 0. health (espera 200 — el gateway lo consulta en cada ciclo) =="
+curl -s -o /dev/null -w "HTTP %{http_code}\n" "$BASE/health"
+
 echo "== 1. register (espera 201) =="
 curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$BASE/auth/register" -H "$JSON" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Smoke\",\"lastName\":\"Test\",\"phone\":\"+56911112222\"}"
