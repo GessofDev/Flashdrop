@@ -46,6 +46,10 @@ class JpaRouteRepositoryIT {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        // PR-A: fail-loud bean registrations need these in non-dev profiles.
+        registry.add("internal.api.key", () -> "test-internal-key");
+        registry.add("auth.jwks-uri", () -> "http://localhost:1/jwks.json");
+        registry.add("auth.issuer", () -> "flashdrop-auth");
     }
 
     @Test

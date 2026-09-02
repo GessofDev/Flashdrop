@@ -15,3 +15,24 @@ spring:
     enabled: true
     schemas: internal
     locations: classpath:db/migration
+
+# JWT auth (RS256) — verified locally against auth-service's JWKS endpoint.
+# Path is non-standard (/auth/.well-known/jwks.json), verified at
+# services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/adapter/inbound/rest/JwksController.java
+auth:
+  jwks-uri: ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}
+
+# PR-B: feature flag for delegating the claim to orders-service
+# (POST /api/internal/orders/claim). Defaults OFF — production behavior
+# unchanged until the flag is flipped manually (plan D8).
+delivery:
+  claim:
+    delegate-to-orders:
+      enabled: ${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:false}
+
+# PR-B: orders-service base URL for the claim delegation adapter.
+# Defaults to the Coolify resource name so docker-compose network DNS resolves.
+orders:
+  service:
+    url: ${ORDERS_SERVICE_URL:http://orders-service:8083}

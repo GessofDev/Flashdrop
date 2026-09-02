@@ -4,10 +4,12 @@ import com.flashdrop.delivery.application.dto.RouteResponse;
 import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase;
 import com.flashdrop.delivery.application.port.inbound.UpdateRouteStatusUseCase;
+import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RouteController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class RouteControllerTest {
 
     @Autowired
@@ -35,6 +38,13 @@ class RouteControllerTest {
 
     @MockBean
     private UpdateRouteStatusUseCase updateRouteStatusUseCase;
+
+    /**
+     * JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
+     * requires JwksKeyProvider via constructor injection.
+     */
+    @MockBean
+    private JwksKeyProvider jwksKeyProvider;
 
     private RouteResponse makeRouteResponse(Long id, String status) {
         return new RouteResponse(id, 101L,

@@ -1,6 +1,7 @@
 package com.flashdrop.delivery.infrastructure.exception;
 
 import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
+import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import org.slf4j.Logger;
@@ -41,6 +42,20 @@ public class GlobalExceptionHandler {
             RouteAlreadyAssignedException ex) {
         log.error("Route already assigned: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
+     * PR-B: orders-service claim delegation failed. Maps the upstream status
+     * (carried by the exception) to the response. Routes may already be saved
+     * (orphan) — the caller decides whether to reconcile.
+     */
+    @ExceptionHandler(OrderClaimFailedException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderClaimFailed(
+            OrderClaimFailedException ex) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.BAD_GATEWAY;
+        log.error("Order claim delegation failed (upstreamStatus={}): {}",
+                status, ex.getMessage(), ex);
+        return buildErrorResponse(status, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

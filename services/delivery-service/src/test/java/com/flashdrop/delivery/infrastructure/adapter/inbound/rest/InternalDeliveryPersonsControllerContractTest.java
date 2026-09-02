@@ -3,6 +3,7 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 import com.flashdrop.delivery.application.dto.ApiResponse;
 import com.flashdrop.delivery.application.dto.DeliveryPersonResponse;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.observability.config.ObservabilityAutoConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +31,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(InternalDeliveryPersonsController.class)
 @Import(ObservabilityAutoConfiguration.class)
-@TestPropertySource(properties = {"internal.api.key=test-internal-key"})
+@TestPropertySource(properties = {
+        "internal.api.key=test-internal-key",
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration,org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration"
+})
 @DisplayName("InternalDeliveryPersonsControllerContractTest — KAN-47: JSON envelope contract")
 class InternalDeliveryPersonsControllerContractTest {
 
@@ -39,6 +43,11 @@ class InternalDeliveryPersonsControllerContractTest {
 
     @MockBean
     private DeliveryPersonRepository deliveryPersonRepository;
+
+    /** JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
+     *  requires JwksKeyProvider via constructor injection. */
+    @MockBean
+    private JwksKeyProvider jwksKeyProvider;
 
     private static final String INTERNAL_KEY_HEADER = "X-Internal-Api-Key";
     private static final String VALID_KEY = "test-internal-key";

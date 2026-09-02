@@ -97,7 +97,10 @@ services:
       start_period: 40s
 
   # ============================================================
-  # delivery-service — single-module Gradle (Supabase REST)
+  # delivery-service — single-module Gradle (Spring Boot JPA + Flyway)
+  # Profile `delivery` activates its dedicated DataSource against delivery_db
+  # and the JPA/Flyway configuration from application-delivery.yml.
+  # JWT (RS256) is validated locally via JWKS pulled from auth-service.
   # ============================================================
   delivery-service:
     build:
@@ -105,10 +108,18 @@ services:
       dockerfile: Dockerfile
     container_name: stack-delivery
     environment:
-      - SPRING_PROFILES_ACTIVE=supabase
+      - SPRING_PROFILES_ACTIVE=delivery
       - SERVER_PORT=8084
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DELIVERY_DB_HOST=${DELIVERY_DB_HOST}
+      - DELIVERY_DB_PORT=${DELIVERY_DB_PORT:-5432}
+      - DELIVERY_DB_NAME=${DELIVERY_DB_NAME:-delivery_db}
+      - DELIVERY_DB_USER=${DELIVERY_DB_USER:-delivery_svc}
+      - DELIVERY_DB_PASSWORD=${DELIVERY_DB_PASSWORD}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - AUTH_SERVICE_JWKS_URI=${AUTH_SERVICE_JWKS_URI:-http://auth-service:8081/auth/.well-known/jwks.json}
+      - AUTH_SERVICE_ISSUER=${AUTH_SERVICE_ISSUER:-flashdrop-auth}
+      - ORDERS_SERVICE_URL=${ORDERS_SERVICE_URL:-http://orders-service:8083}
+      - DELIVERY_CLAIM_DELEGATE_TO_ORDERS=${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:-false}
     networks: [stack]
     expose: ["8084"]
     healthcheck:

@@ -2,6 +2,7 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
 import com.flashdrop.delivery.application.dto.DeliveryPersonResponse;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.observability.config.ObservabilityAutoConfiguration;
@@ -10,9 +11,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,7 +33,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(InternalDeliveryPersonsController.class)
 @Import(ObservabilityAutoConfiguration.class)
 @TestPropertySource(properties = {
-        "internal.api.key=test-internal-key"
+        "internal.api.key=test-internal-key",
+        // PR-A: delivery-service now ships spring-boot-starter-security on the
+        // classpath. Exclude Spring Security auto-config so the InternalApiKeyFilter
+        // (registered by ObservabilityAutoConfiguration) is what gates these
+        // internal endpoints in this slice test — that's the contract being tested.
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration,org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration"
 })
 class InternalDeliveryPersonsControllerTest {
 
@@ -38,6 +47,11 @@ class InternalDeliveryPersonsControllerTest {
 
     @MockBean
     private DeliveryPersonRepository deliveryPersonRepository;
+
+    /** JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
+     *  requires JwksKeyProvider via constructor injection. */
+    @MockBean
+    private JwksKeyProvider jwksKeyProvider;
 
     private static final String INTERNAL_KEY_HEADER = "X-Internal-Api-Key";
     private static final String VALID_KEY = "test-internal-key";

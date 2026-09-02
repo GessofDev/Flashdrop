@@ -2,6 +2,7 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
+import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
@@ -30,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(InternalRoutesController.class)
 @Import(com.flashdrop.observability.config.ObservabilityAutoConfiguration.class)
 @TestPropertySource(properties = {
-        "internal.api.key=test-internal-key"
+        "internal.api.key=test-internal-key",
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration,org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration"
 })
 class InternalRoutesControllerTest {
 
@@ -42,6 +44,11 @@ class InternalRoutesControllerTest {
 
     @MockBean
     private RouteRepository routeRepository;
+
+    /** JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
+     *  requires JwksKeyProvider via constructor injection. */
+    @MockBean
+    private JwksKeyProvider jwksKeyProvider;
 
     private static final String INTERNAL_KEY_HEADER = "X-Internal-Api-Key";
     private static final String VALID_KEY = "test-internal-key";
