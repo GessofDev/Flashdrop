@@ -5,6 +5,7 @@ import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -34,6 +35,7 @@ public class CreateOrderUseCase {
 
     private final OrderRepositoryPort orderRepository;
     private final CatalogPort catalogPort;
+    private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
 
@@ -90,7 +92,7 @@ public class CreateOrderUseCase {
         }).collect(Collectors.toList());
 
         // 5. Resolver cliente (por userId o primer cliente disponible en modo demo)
-        UUID clientId = deliveryPort.findClientIdByUserId(command.getUserId())
+        UUID clientId = clientPort.findClientIdByUserId(command.getUserId())
                 .orElseThrow(() -> new OrderDomainException("No existe cliente para crear pedido"));
 
         // 6. Calcular totales
@@ -129,7 +131,7 @@ public class CreateOrderUseCase {
                 .status("Pendiente")
                 .build();
 
-        orderRepository.saveRoute(route);
+        deliveryPort.saveRoute(route);
 
         // 9. Publicar evento
         eventPublisher.publish(orderCreatedRoutingKey, OrderCreatedEvent.builder()

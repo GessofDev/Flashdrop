@@ -1,28 +1,15 @@
 package cl.flashdrop.orders.infrastructure.api.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
-import lombok.Getter;
-
-import java.time.OffsetDateTime;
 
 /**
- * DTO de respuesta de error conforme al contrato definido en openapi.yaml.
+ * DTO de respuesta de error conforme al contrato estándar de {@code MIGRATION_PLAN.md} §10
+ * ("Códigos de error estándar"): {@code { "status": 404, "error": "NOT_FOUND", "message": "..." } }.
  *
- * Estructura: {@code { "error": "Bad Request", "message": "...", "timestamp": "..." }}
- * Reemplaza el uso de {@link ApiResponse} en casos de error para cumplir el contrato.
+ * <p>{@code error} usa los códigos constantes de esa tabla (BAD_REQUEST, UNAUTHORIZED,
+ * FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION_ERROR, INTERNAL_ERROR, SERVICE_UNAVAILABLE),
+ * no la frase de razón HTTP (ej. "Not Found").</p>
  */
-@Getter
 @Builder
-public class ErrorResponse {
-
-    /** Tipo de error HTTP (ej. "Bad Request", "Not Found") */
-    private final String error;
-
-    /** Descripción del error para el consumidor de la API */
-    private final String message;
-
-    /** Timestamp de cuando ocurrió el error */
-    @JsonFormat(shape = JsonFormat.Shape.STRING)
-    private final OffsetDateTime timestamp;
+public record ErrorResponse(int status, String error, String message) {
 }
