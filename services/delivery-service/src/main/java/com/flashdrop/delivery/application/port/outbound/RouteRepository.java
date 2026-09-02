@@ -13,6 +13,8 @@ public interface RouteRepository {
 
     List<DeliveryRoute> findAll();
 
+    List<DeliveryRoute> findByDeliveryPersonId(Long deliveryPersonId);
+
     DeliveryRoute save(DeliveryRoute route);
 
     boolean existsByOrderId(Long orderId);

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.flashdrop.observability.security.ApiKeyValidatorTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-08-24T22:01:14" hostname="LAPTOP-PT0UERNE" time="0.024">
+  <properties/>
+  <testcase name="emptyStringVsValidKey_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.012"/>
+  <testcase name="nullExpected_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.001"/>
+  <testcase name="exactMatch_returnsTrue()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.001"/>
+  <testcase name="nullProvided_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.002"/>
+  <testcase name="oneCharMismatch_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.0"/>
+  <testcase name="bothNull_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.0"/>
+  <testcase name="differentLengthKeys_returnFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.0"/>
+  <testcase name="completelyDifferentKey_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.001"/>
+  <testcase name="validKeyVsEmptyString_returnsFalse()" classname="com.flashdrop.observability.security.ApiKeyValidatorTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

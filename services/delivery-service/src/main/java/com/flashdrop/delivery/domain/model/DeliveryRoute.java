@@ -10,6 +10,7 @@ public class DeliveryRoute {
 
     private Long id;
     private Long orderId;
+    private Long deliveryPersonId;
     private String pickupAddress;
     private String deliveryAddress;
     private Distance distanceKm;
@@ -20,17 +21,24 @@ public class DeliveryRoute {
     public DeliveryRoute() {
     }
 
-    public DeliveryRoute(Long id, Long orderId, String pickupAddress, String deliveryAddress,
-                         Distance distanceKm, EstimatedTime estimatedMinutes, RouteStatus status,
-                         Instant createdAt) {
+    public DeliveryRoute(Long id, Long orderId, Long deliveryPersonId, String pickupAddress,
+                         String deliveryAddress, Distance distanceKm, EstimatedTime estimatedMinutes,
+                         RouteStatus status, Instant createdAt) {
         this.id = id;
         this.orderId = orderId;
+        this.deliveryPersonId = deliveryPersonId;
         this.pickupAddress = pickupAddress;
         this.deliveryAddress = deliveryAddress;
         this.distanceKm = distanceKm;
         this.estimatedMinutes = estimatedMinutes;
         this.status = status;
         this.createdAt = createdAt;
+    }
+
+    public DeliveryRoute(Long id, Long orderId, String pickupAddress, String deliveryAddress,
+                         Distance distanceKm, EstimatedTime estimatedMinutes, RouteStatus status,
+                         Instant createdAt) {
+        this(id, orderId, null, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, createdAt);
     }
 
     public Long getId() {
@@ -47,6 +55,14 @@ public class DeliveryRoute {
 
     public void setOrderId(Long orderId) {
         this.orderId = orderId;
+    }
+
+    public Long getDeliveryPersonId() {
+        return deliveryPersonId;
+    }
+
+    public void setDeliveryPersonId(Long deliveryPersonId) {
+        this.deliveryPersonId = deliveryPersonId;
     }
 
     public String getPickupAddress() {

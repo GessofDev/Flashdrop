@@ -38,6 +38,12 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
     }
 
     @Override
+    public List<DeliveryRoute> findByDeliveryPersonId(Long deliveryPersonId) {
+        return jpaRepository.findByDeliveryPersonId(deliveryPersonId)
+                .stream().map(this::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
     public DeliveryRoute save(DeliveryRoute route) {
         DeliveryRouteJpaEntity entity = toEntity(route);
         DeliveryRouteJpaEntity saved = jpaRepository.save(entity);
@@ -66,6 +72,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
         return new DeliveryRoute(
                 entity.getId(),
                 entity.getOrderId(),
+                entity.getDeliveryPersonId(),
                 entity.getPickupAddress(),
                 entity.getDeliveryAddress(),
                 entity.getDistanceKm() != null ? Distance.of(entity.getDistanceKm()) : Distance.zero(),
@@ -79,6 +86,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
         return new DeliveryRouteJpaEntity(
                 route.getId(),
                 route.getOrderId(),
+                route.getDeliveryPersonId(),
                 route.getPickupAddress(),
                 route.getDeliveryAddress(),
                 route.getDistanceKm() != null ? route.getDistanceKm().value() : null,

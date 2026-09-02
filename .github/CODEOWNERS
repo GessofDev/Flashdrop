@@ -1,0 +1,25 @@
+# CODEOWNERS — quién revisa qué en este repo
+# Cuando un PR toca archivos bajo un path, GitHub asigna automáticamente
+# el owner de ese path como reviewer requerido.
+# Formato: <path-pattern>    @usuario-github
+# El último match gana (los patterns se evalúan de arriba a abajo).
+
+# ── Default: el admin del repo revisa todo lo no listado ──
+*                            @GessofDev
+
+# ── Servicios (cada junior es dueño de su servicio) ──
+/services/auth-service/      @GessofDev
+/services/catalog-service/   @GessofDev
+/services/orders-service/    @GessofDev
+/services/delivery-service/  @GessofDev
+/services/shared-observability/ @GessofDev
+
+# ── Gateway ──
+/gateway/                     @GessofDev
+
+# ── Deploy / infra ──
+/infra/                       @GessofDev
+
+# ── Documentación y referencias ──
+/references/                  @GessofDev
+/README.md                   @GessofDev

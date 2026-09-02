@@ -16,6 +16,9 @@ public class DeliveryRouteJpaEntity {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    @Column(name = "delivery_person_id")
+    private Long deliveryPersonId;
+
     @Column(name = "pickup_address")
     private String pickupAddress;
 
@@ -42,8 +45,15 @@ public class DeliveryRouteJpaEntity {
 
     public DeliveryRouteJpaEntity(Long id, Long orderId, String pickupAddress, String deliveryAddress,
                                    BigDecimal distanceKm, Integer estimatedMinutes, String status, Instant createdAt) {
+        this(id, orderId, null, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, createdAt);
+    }
+
+    public DeliveryRouteJpaEntity(Long id, Long orderId, Long deliveryPersonId, String pickupAddress,
+                                   String deliveryAddress, BigDecimal distanceKm, Integer estimatedMinutes,
+                                   String status, Instant createdAt) {
         this.id = id;
         this.orderId = orderId;
+        this.deliveryPersonId = deliveryPersonId;
         this.pickupAddress = pickupAddress;
         this.deliveryAddress = deliveryAddress;
         this.distanceKm = distanceKm;
@@ -66,6 +76,14 @@ public class DeliveryRouteJpaEntity {
 
     public void setOrderId(Long orderId) {
         this.orderId = orderId;
+    }
+
+    public Long getDeliveryPersonId() {
+        return deliveryPersonId;
+    }
+
+    public void setDeliveryPersonId(Long deliveryPersonId) {
+        this.deliveryPersonId = deliveryPersonId;
     }
 
     public String getPickupAddress() {
