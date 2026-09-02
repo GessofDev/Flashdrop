@@ -17,18 +17,20 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Controlador interno de Orders para el flujo de claim delegado por Delivery Service
- * (decisiones D5/D6 de "Plan_ Servicio_delivery.txt").
+ * Controlador interno de Orders para el flujo de claim delegado por Delivery Service.
  *
  * <p>Expone {@code POST /api/internal/orders/claim}, protegido automáticamente por
  * {@link cl.flashdrop.orders.config.InternalApiKeyFilter} (cubre todo el prefijo
  * {@code /api/internal/}; no requiere configuración adicional).</p>
  *
- * <p>A diferencia de {@link DeliveryController} (endpoint público legacy
- * {@code POST /api/delivery/claim}, que sigue existiendo sin cambios), aquí
- * {@code deliveryPersonId} llega ya resuelto por Delivery Service — se usa
- * directamente, sin volver a resolverlo vía {@code findDeliveryIdByUserId}
- * (decisión D5, cerrada).</p>
+ * <p>Recibe el {@code userId} crudo del repartidor (subject del JWT que Delivery ya
+ * validó) y reutiliza el flujo canónico existente ({@link ClaimDeliveryOrdersUseCase#execute})
+ * para resolverlo a {@code delivery.id} vía {@code findDeliveryIdByUserId} — el mismo
+ * mecanismo que ya usa {@link DeliveryController} (endpoint público legacy
+ * {@code POST /api/delivery/claim}, sin cambios). La única diferencia entre ambos
+ * controllers es de dónde sale el {@code userId}: acá del body (Delivery ya autenticó
+ * al repartidor de su lado); en el legacy, del propio body sin autenticar (ver ORD-F2,
+ * fuera de alcance de este cambio).</p>
  */
 @Slf4j
 @RestController
@@ -40,15 +42,15 @@ public class DeliveryClaimController {
 
     @PostMapping("/claim")
     public ApiResponse<Void> claim(@Valid @RequestBody InternalClaimRequest request) {
-        log.debug("POST /api/internal/orders/claim deliveryPersonId={} orderIds={}",
-                request.deliveryPersonId(), request.orderIds());
+        log.debug("POST /api/internal/orders/claim userId={} orderIds={}",
+                request.userId(), request.orderIds());
 
-        UUID deliveryId = IdConverter.toUuid(request.deliveryPersonId());
+        UUID userId = IdConverter.toUuid(request.userId());
         List<UUID> orderIds = request.orderIds().stream()
                 .map(IdConverter::toUuid)
                 .collect(Collectors.toList());
 
-        claimDeliveryOrdersUseCase.executeForResolvedDelivery(deliveryId, orderIds);
+        claimDeliveryOrdersUseCase.execute(userId, orderIds);
         return ApiResponse.success("Pedido reclamado");
     }
 }

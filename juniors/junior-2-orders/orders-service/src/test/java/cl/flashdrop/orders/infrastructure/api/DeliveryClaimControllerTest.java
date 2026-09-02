@@ -27,8 +27,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Cubre el contrato del endpoint interno {@code POST /api/internal/orders/claim}
- * (decisiones D5/D6 de "Plan_ Servicio_delivery.txt").
+ * Cubre el contrato del endpoint interno {@code POST /api/internal/orders/claim}.
+ *
+ * <p>Contrato real, verificado contra la implementación efectiva de Delivery (commit
+ * {@code be86777}, {@code HttpInternalOrdersClientAdapter} +
+ * {@code HttpInternalOrdersClientAdapterTest$RequestBodyShape}): el body es
+ * {@code {"userId": <long>, "orderIds": [<long>, ...]}} — Delivery manda el userId
+ * crudo del JWT, no un {@code delivery.id} ya resuelto.</p>
  *
  * <p>La protección mediante {@code X-Internal-Api-Key} la aplica
  * {@link cl.flashdrop.orders.config.InternalApiKeyFilter} por prefijo de ruta
@@ -53,10 +58,10 @@ class DeliveryClaimControllerTest {
     }
 
     @Test
-    void claimExitoso_conMultiplesOrderIds_delegaAlUseCaseConDeliveryIdDirecto() throws Exception {
+    void claimExitoso_conMultiplesOrderIds_delegaAlUseCaseConElUserIdCrudo() throws Exception {
         String body = """
                 {
-                  "deliveryPersonId": 42,
+                  "userId": 42,
                   "orderIds": [501, 502]
                 }
                 """;
@@ -68,20 +73,21 @@ class DeliveryClaimControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Pedido reclamado"));
 
-        ArgumentCaptor<UUID> deliveryIdCaptor = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<UUID> userIdCaptor = ArgumentCaptor.forClass(UUID.class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UUID>> orderIdsCaptor = ArgumentCaptor.forClass(List.class);
         verify(claimDeliveryOrdersUseCase)
-                .executeForResolvedDelivery(deliveryIdCaptor.capture(), orderIdsCaptor.capture());
+                .execute(userIdCaptor.capture(), orderIdsCaptor.capture());
 
-        // deliveryPersonId=42 se usa DIRECTO (mismo mapeo que IdConverter usa en todo Orders
-        // para representar Longs externos como UUID de dominio) — sin pasar por resolución.
-        assertEquals(IdConverter.toUuid(42L), deliveryIdCaptor.getValue());
+        // El controller delega al flujo canónico execute(userId, orderIds) — la resolución
+        // userId → delivery.id ocurre DENTRO del use case (ver ClaimDeliveryOrdersUseCaseTest),
+        // no acá. userId=42 se convierte con el mismo IdConverter que usa todo Orders.
+        assertEquals(IdConverter.toUuid(42L), userIdCaptor.getValue());
         assertEquals(List.of(IdConverter.toUuid(501L), IdConverter.toUuid(502L)), orderIdsCaptor.getValue());
     }
 
     @Test
-    void deliveryPersonIdFaltante_retornaBadRequest() throws Exception {
+    void userIdFaltante_retornaBadRequest() throws Exception {
         String body = """
                 {
                   "orderIds": [501]
@@ -92,14 +98,16 @@ class DeliveryClaimControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("El deliveryPersonId es obligatorio"));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("El userId es obligatorio"));
     }
 
     @Test
     void orderIdsVacio_retornaBadRequest() throws Exception {
         String body = """
                 {
-                  "deliveryPersonId": 42,
+                  "userId": 42,
                   "orderIds": []
                 }
                 """;
@@ -112,16 +120,61 @@ class DeliveryClaimControllerTest {
     }
 
     @Test
+    void masDeTresOrderIds_seTraduceABadRequestConContratoDelPlan() throws Exception {
+        // La regla de máximo (3) vive en el use case (orders.max-claim-per-route), no en el
+        // DTO — ver ClaimDeliveryOrdersUseCaseTest.excedeMaximoDePedidos_*. Acá solo se
+        // verifica que el controller propaga el 400 con el shape correcto.
+        String body = """
+                {
+                  "userId": 42,
+                  "orderIds": [501, 502, 503, 504]
+                }
+                """;
+
+        doThrow(new OrderDomainException("Debes seleccionar entre 1 y 3 pedidos para tomar la ruta"))
+                .when(claimDeliveryOrdersUseCase).execute(any(), anyList());
+
+        mockMvc.perform(post("/api/internal/orders/claim")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Debes seleccionar entre 1 y 3 pedidos para tomar la ruta"));
+    }
+
+    @Test
+    void deliveryInexistente_seTraduceAForbiddenConContratoDelPlan() throws Exception {
+        String body = """
+                {
+                  "userId": 42,
+                  "orderIds": [501]
+                }
+                """;
+
+        doThrow(new OrderDomainException("El usuario no tiene perfil de repartidor"))
+                .when(claimDeliveryOrdersUseCase).execute(any(), anyList());
+
+        mockMvc.perform(post("/api/internal/orders/claim")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("El usuario no tiene perfil de repartidor"));
+    }
+
+    @Test
     void useCaseLanzaExcepcionDeDominio_seTraduceAErrorDeNegocioConContratoDelPlan() throws Exception {
         String body = """
                 {
-                  "deliveryPersonId": 42,
+                  "userId": 42,
                   "orderIds": [501]
                 }
                 """;
 
         doThrow(new OrderDomainException("Ya tienes pedidos en ruta. Termina tu ruta antes de tomar mas pedidos"))
-                .when(claimDeliveryOrdersUseCase).executeForResolvedDelivery(any(), anyList());
+                .when(claimDeliveryOrdersUseCase).execute(any(), anyList());
 
         mockMvc.perform(post("/api/internal/orders/claim")
                         .contentType(MediaType.APPLICATION_JSON)

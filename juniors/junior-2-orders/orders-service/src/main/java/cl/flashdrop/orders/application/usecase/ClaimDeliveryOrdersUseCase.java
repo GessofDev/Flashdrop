@@ -33,33 +33,22 @@ public class ClaimDeliveryOrdersUseCase {
     @Value("${orders.max-claim-per-route:3}")
     private int maxClaimPerRoute;
 
+    /**
+     * Resuelve el repartidor a partir de su {@code userId} de Auth (vía
+     * {@link DeliveryPort#findDeliveryIdByUserId}) y ejecuta el claim.
+     *
+     * <p>Flujo canónico único: lo usan tanto el endpoint público legacy
+     * ({@code POST /api/delivery/claim}) como el endpoint interno delegado por
+     * Delivery Service ({@code POST /api/internal/orders/claim}) — Delivery manda
+     * el {@code userId} crudo del subject del JWT, no un {@code delivery.id} ya
+     * resuelto (verificado contra la implementación real de Delivery,
+     * {@code HttpInternalOrdersClientAdapter}, commit {@code be86777}).</p>
+     */
     @Transactional
     public void execute(UUID userId, List<UUID> orderIds) {
-        // Resolver el perfil de repartidor a partir del userId de Auth.
-        // Solo aplica al flujo público legacy (POST /api/delivery/claim).
         UUID deliveryId = deliveryPort.findDeliveryIdByUserId(userId)
                 .orElseThrow(() -> new OrderDomainException("El usuario no tiene perfil de repartidor"));
 
-        claimForDelivery(deliveryId, orderIds);
-    }
-
-    /**
-     * Variante del flujo de claim para cuando el llamador (Delivery Service) ya resolvió
-     * el {@code delivery.id} de su lado y lo envía directamente.
-     *
-     * <p>Contrato D5/D6 del plan de mitigación de Delivery ("Plan_ Servicio_delivery.txt"):
-     * el endpoint interno {@code POST /api/internal/orders/claim} recibe {@code deliveryPersonId}
-     * ya resuelto (es el {@code delivery.id}, un Long externo representado aquí como UUID de
-     * dominio vía {@link cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter},
-     * igual que el resto de los IDs de Orders). A diferencia de {@link #execute(UUID, List)},
-     * esta variante NO llama a {@link DeliveryPort#findDeliveryIdByUserId}: el valor recibido
-     * ya es el identificador definitivo, no un userId a resolver.</p>
-     */
-    @Transactional
-    public void executeForResolvedDelivery(UUID deliveryId, List<UUID> orderIds) {
-        if (deliveryId == null) {
-            throw new OrderDomainException("El deliveryPersonId es obligatorio");
-        }
         claimForDelivery(deliveryId, orderIds);
     }
 
