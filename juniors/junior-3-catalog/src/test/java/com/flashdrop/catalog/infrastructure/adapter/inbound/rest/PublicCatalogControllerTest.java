@@ -32,10 +32,10 @@ class PublicCatalogControllerTest {
         mockMvc.perform(get("/catalog/categories"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].name").value("Hamburguesas"))
-                .andExpect(jsonPath("$[0].description").value("Sandwiches y burgers"))
-                .andExpect(jsonPath("$[0].image").value("assets/img/burger1.png"));
+                .andExpect(jsonPath("$[0].id").value(3))
+                .andExpect(jsonPath("$[0].name").value("Bebidas"))
+                .andExpect(jsonPath("$[0].description").value("Bebidas frias"))
+                .andExpect(jsonPath("$[0].image").value("assets/img/bag.png"));
     }
 
     @Test

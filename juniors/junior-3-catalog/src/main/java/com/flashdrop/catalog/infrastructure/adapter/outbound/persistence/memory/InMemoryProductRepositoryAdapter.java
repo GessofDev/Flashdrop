@@ -52,6 +52,20 @@ public class InMemoryProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public List<Product> findByCategoryId(Long categoryId) {
+        return products.stream()
+                .filter(product -> product.getCategoryId().equals(categoryId))
+                .toList();
+    }
+
+    @Override
+    public List<Product> findByRestaurantId(Long restaurantId) {
+        return products.stream()
+                .filter(product -> product.getRestaurantId().equals(restaurantId))
+                .toList();
+    }
+
+    @Override
     public Optional<Product> findById(Long id) {
         return products.stream()
                 .filter(product -> product.getId().equals(id))

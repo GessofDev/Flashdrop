@@ -9,6 +9,8 @@ Puerto del servicio: `8082`.
 ```text
 GET  /health
 GET  /catalog/products
+GET  /catalog/products?categoryId=1
+GET  /catalog/products?restaurantId=1
 POST /catalog/products
 POST /catalog/products/validate
 GET  /catalog/categories

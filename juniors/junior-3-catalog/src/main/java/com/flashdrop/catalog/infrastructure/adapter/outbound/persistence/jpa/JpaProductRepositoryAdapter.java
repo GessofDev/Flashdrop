@@ -38,6 +38,22 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public List<Product> findByCategoryId(Long categoryId) {
+        return repository.findByCategoryId(categoryId)
+                .stream()
+                .map(ProductEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Product> findByRestaurantId(Long restaurantId) {
+        return repository.findByRestaurantId(restaurantId)
+                .stream()
+                .map(ProductEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<Product> findById(Long id) {
         return repository.findById(id)
                 .map(ProductEntity::toDomain);

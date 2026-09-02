@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.application.usecase;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -19,6 +20,9 @@ public class ListCategoriesUseCase {
 
     public List<Category> execute() {
         // Accion del sistema: listar categorias para filtros o formularios.
-        return categoryRepositoryPort.findAll();
+        return categoryRepositoryPort.findAll()
+                .stream()
+                .sorted(Comparator.comparing(Category::getName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 }
