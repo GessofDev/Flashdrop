@@ -30,9 +30,11 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
 
     @Override
     public List<RouteResponse> execute(Long deliveryPersonId) {
-        log.info("Listing delivery routes (deliveryPersonId param={} ignored)", deliveryPersonId);
+        if (deliveryPersonId == null) {
+            throw new IllegalArgumentException("deliveryPersonId is required");
+        }
 
-        List<DeliveryRoute> routes = routeRepository.findAll();
+        List<DeliveryRoute> routes = routeRepository.findByDeliveryPersonId(deliveryPersonId);
         if (routes.isEmpty()) {
             return List.of();
         }
