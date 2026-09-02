@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.config;
 
+import cl.flashdrop.orders.infrastructure.exception.ErrorResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,7 +46,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         String provided = request.getHeader(API_KEY_HEADER);
         if (provided == null || !provided.equals(apiKey)) {
             log.warn("Acceso denegado a {} - X-Internal-Api-Key invalida o ausente", path);
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
+            ErrorResponseWriter.write(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Invalid internal API key");
             return;
         }
 

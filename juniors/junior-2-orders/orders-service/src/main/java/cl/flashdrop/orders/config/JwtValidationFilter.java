@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.config;
 
+import cl.flashdrop.orders.infrastructure.exception.ErrorResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,7 +56,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
 
             } catch (RestClientException e) {
                 logger.warn("Auth service validation failed: {}", e.getMessage());
-                res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
+                ErrorResponseWriter.write(res, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED", "Invalid token");
                 return;
             }
         }

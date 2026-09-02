@@ -121,7 +121,8 @@ class InternalOrdersControllerTest {
     void shouldRequireIdsParameterUsingMockMvc() throws Exception {
         mockMvc.perform(get("/api/internal/orders"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.message").value("Se requiere el parámetro ids"));
     }
 }

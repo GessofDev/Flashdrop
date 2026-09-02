@@ -17,7 +17,7 @@ public interface DeliveryPort {
 
     /**
      * Obtiene el ID de perfil de repartidor (delivery) asociado a un usuario.
-     * Contrato interno: GET /api/internal/delivery/by-user/{userId} (C-5).
+     * Contrato interno: GET /api/internal/delivery-persons?userId={userId} (C-5).
      *
      * @param userId id de usuario en Auth
      * @return el UUID del perfil de repartidor, o vacío si el usuario no es repartidor
@@ -26,19 +26,21 @@ public interface DeliveryPort {
 
     /**
      * Crea la ruta de entrega para un pedido.
-     * Contrato interno: POST /api/internal/delivery/routes (C-6).
+     * Contrato interno: POST /api/internal/routes (C-6).
      */
     void saveRoute(DeliveryRoute route);
 
     /**
      * Sincroniza el estado de la ruta de un pedido al cambiar el estado del pedido.
-     * Contrato interno: PATCH /api/internal/delivery/routes/order/{orderId} (C-7).
+     * Contrato interno: PATCH /api/internal/routes/order/{orderId}/status (C-7, resuelto en
+     * commit 904464d de delivery-service — ver GAP-01/GAP-01b).
      */
     void updateRouteStatusByOrder(UUID orderId, String status);
 
     /**
      * Sincroniza el estado de las rutas de varios pedidos tomados en bloque.
-     * Contrato interno: PATCH /api/internal/delivery/routes (C-7, bulk).
+     * No existe variante bulk en Delivery: internamente hace una llamada
+     * PATCH /api/internal/routes/order/{orderId}/status por cada orderId (C-7).
      */
     void updateRouteStatus(List<UUID> orderIds, String status);
 }

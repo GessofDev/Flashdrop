@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.config;
 
+import cl.flashdrop.orders.infrastructure.exception.ErrorResponseWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -34,9 +35,9 @@ public class SecurityConfig {
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                    ErrorResponseWriter.write(res, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED", "Unauthorized"))
                 .accessDeniedHandler((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden"))
+                    ErrorResponseWriter.write(res, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Forbidden"))
             )
                 .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(internalApiKeyFilter, JwtValidationFilter.class);

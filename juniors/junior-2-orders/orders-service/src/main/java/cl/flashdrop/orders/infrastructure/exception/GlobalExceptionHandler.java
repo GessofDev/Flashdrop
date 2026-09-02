@@ -10,15 +10,16 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
  * Manejador global de excepciones para orders-service.
  *
- * Retorna la estructura exacta definida en openapi.yaml:
- * {@code { "error": "...", "message": "...", "timestamp": "..." }}
- * con el código HTTP apropiado para coincidir con el comportamiento del backend Node.js.
+ * <p>Retorna la estructura {@code { "status": int, "error": "CONSTANTE", "message": "..." } }
+ * definida en {@code MIGRATION_PLAN.md} §10 ("Códigos de error estándar"). El código {@code error}
+ * usa las constantes de esa tabla (BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT,
+ * VALIDATION_ERROR, INTERNAL_ERROR, SERVICE_UNAVAILABLE), no la frase de razón HTTP.</p>
  */
 @Slf4j
 @RestControllerAdvice
@@ -28,24 +29,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDomainException(OrderDomainException ex) {
         log.warn("Excepción de dominio de pedido capturada: {}", ex.getMessage());
         String msg = ex.getMessage();
+        // Mapeo dinámico de estados HTTP para coincidir con las reglas de negocio existentes.
+        // Comparación case-insensitive: los mensajes de dominio no siguen una convención de
+        // capitalización fija (ej. "Ya tienes..." vs. "ya fueron tomados...").
+        String lowerMsg = msg.toLowerCase(Locale.ROOT);
         HttpStatus status = HttpStatus.BAD_REQUEST;
-
-        // Mapeo dinámico de estados HTTP para coincidir con Node.js
-        if (msg.contains("no encontrado") || msg.contains("no existen") || msg.contains("no disponibles")) {
+        if (lowerMsg.contains("no encontrado") || lowerMsg.contains("no existen")
+                || lowerMsg.contains("no disponibles") || lowerMsg.contains("no estan disponibles")) {
             status = HttpStatus.NOT_FOUND;
-        } else if (msg.contains("perfil de repartidor")) {
+        } else if (lowerMsg.contains("perfil de repartidor")) {
             status = HttpStatus.FORBIDDEN;
-        } else if (msg.contains("ya tienes") || msg.contains("ya fueron tomados") || msg.contains("Alguien tomo")) {
+        } else if (lowerMsg.contains("ya tienes") || lowerMsg.contains("ya fueron tomados") || lowerMsg.contains("alguien tomo")) {
             status = HttpStatus.CONFLICT;
         }
 
-        return ResponseEntity.status(status).body(
-            ErrorResponse.builder()
-                .error(status.getReasonPhrase())
-                .message(msg)
-                .timestamp(OffsetDateTime.now())
-                .build()
-        );
+        return build(status, msg);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -54,37 +52,45 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         log.warn("Error de validación de argumentos REST: {}", details);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-            ErrorResponse.builder()
-                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(details)
-                .timestamp(OffsetDateTime.now())
-                .build()
-        );
+        return build(HttpStatus.BAD_REQUEST, details);
     }
 
     @ExceptionHandler(ExternalServiceException.class)
     public ResponseEntity<ErrorResponse> handleExternalService(ExternalServiceException ex) {
         log.warn("Fallo en servicio interno externo: {}", ex.getMessage());
-        return ResponseEntity.status(ex.getStatus()).body(
-            ErrorResponse.builder()
-                .error(ex.getStatus().getReasonPhrase())
-                .message(ex.getMessage())
-                .timestamp(OffsetDateTime.now())
-                .build()
-        );
+        return build(ex.getStatus(), ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Error no controlado capturado: ", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-            ErrorResponse.builder()
-                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .message("Error interno del servidor: " + ex.getMessage())
-                .timestamp(OffsetDateTime.now())
-                .build()
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor: " + ex.getMessage());
+    }
+
+    private static ResponseEntity<ErrorResponse> build(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(
+                ErrorResponse.builder()
+                        .status(status.value())
+                        .error(errorCodeFor(status))
+                        .message(message)
+                        .build()
         );
     }
-}
 
+    /**
+     * Traduce un {@link HttpStatus} a la constante de {@code error} de MIGRATION_PLAN.md §10.
+     * Códigos fuera de la tabla (ej. 502 de un upstream caído) caen al bucket más cercano.
+     */
+    private static String errorCodeFor(HttpStatus status) {
+        return switch (status) {
+            case BAD_REQUEST -> "BAD_REQUEST";
+            case UNAUTHORIZED -> "UNAUTHORIZED";
+            case FORBIDDEN -> "FORBIDDEN";
+            case NOT_FOUND -> "NOT_FOUND";
+            case CONFLICT -> "CONFLICT";
+            case UNPROCESSABLE_ENTITY -> "VALIDATION_ERROR";
+            case SERVICE_UNAVAILABLE, BAD_GATEWAY, GATEWAY_TIMEOUT -> "SERVICE_UNAVAILABLE";
+            default -> status.is5xxServerError() ? "INTERNAL_ERROR" : "BAD_REQUEST";
+        };
+    }
+}
