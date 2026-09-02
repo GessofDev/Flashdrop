@@ -102,6 +102,46 @@ class JpaRouteRepositoryAdapterTest {
     }
 
     @Nested
+    @DisplayName("findByDeliveryPersonId mapping")
+    class FindByDeliveryPersonIdMapping {
+
+        @Test
+        @DisplayName("TC10: delegates to Spring Data and maps deliveryPersonId back to domain")
+        void delegatesAndMapsDeliveryPersonId() {
+            DeliveryRouteJpaEntity e1 = new DeliveryRouteJpaEntity(
+                    1L, 101L, 7L, "Pickup1", "Delivery1",
+                    new java.math.BigDecimal("3.0"), 15,
+                    "Pendiente", Instant.now());
+            DeliveryRouteJpaEntity e2 = new DeliveryRouteJpaEntity(
+                    2L, 102L, 7L, "Pickup2", "Delivery2",
+                    new java.math.BigDecimal("4.0"), 25,
+                    "En camino", Instant.now());
+            when(jpaRepository.findByDeliveryPersonId(7L)).thenReturn(List.of(e1, e2));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            List<DeliveryRoute> result = adapter.findByDeliveryPersonId(7L);
+
+            verify(jpaRepository, times(1)).findByDeliveryPersonId(7L);
+            assertThat(result).hasSize(2);
+            assertThat(result).allMatch(r -> r.getDeliveryPersonId() != null && r.getDeliveryPersonId() == 7L);
+            assertThat(result.get(0).getOrderId()).isEqualTo(101L);
+            assertThat(result.get(1).getOrderId()).isEqualTo(102L);
+        }
+
+        @Test
+        @DisplayName("TC11: returns empty list when no routes for the courier")
+        void returnsEmptyWhenNoRoutesForCourier() {
+            when(jpaRepository.findByDeliveryPersonId(99L)).thenReturn(List.of());
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            List<DeliveryRoute> result = adapter.findByDeliveryPersonId(99L);
+
+            verify(jpaRepository, times(1)).findByDeliveryPersonId(99L);
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("findAll mapping")
     class FindAllMapping {
 
