@@ -76,6 +76,32 @@ public class SupabaseRestProductRepositoryAdapter implements ProductRepositoryPo
     }
 
     @Override
+    public List<Product> findByCategoryId(Long categoryId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("category_id", "eq." + categoryId)
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
+    public List<Product> findByRestaurantId(Long restaurantId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("restaurant_id", "eq." + restaurantId)
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
     public Product save(Product product) {
         // POST a /rest/v1/products: aqui ocurre el insert real en Supabase.
         String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)

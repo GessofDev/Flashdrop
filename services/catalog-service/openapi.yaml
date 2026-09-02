@@ -69,8 +69,23 @@ paths:
     get:
       tags: [Products]
       summary: Listar todos los productos
-      description: Retorna la lista completa de productos disponibles.
+      description: Retorna productos disponibles. Permite filtrar por categoria y/o restaurante.
       operationId: listProducts
+      parameters:
+        - in: query
+          name: categoryId
+          required: false
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - in: query
+          name: restaurantId
+          required: false
+          schema:
+            type: integer
+            format: int64
+          example: 1
       responses:
         '200':
           description: Lista de productos
