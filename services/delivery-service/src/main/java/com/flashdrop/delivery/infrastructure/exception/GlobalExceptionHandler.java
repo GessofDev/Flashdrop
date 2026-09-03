@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -35,6 +36,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRouteNotFound(RouteNotFoundException ex) {
         log.error("Route not found: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    /**
+     * Spring 6.1+ throws this for any path the DispatcherServlet cannot route
+     * to a controller (e.g. typos, unmapped sub-paths, missing static resources).
+     * Without this handler the catch-all {@link #handleGenericException(Exception)}
+     * would map it to 500, which is misleading — the request simply targets a
+     * non-existent resource.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(NoResourceFoundException ex) {
+        String message = "No handler found for "
+                + (ex.getHttpMethod() != null ? ex.getHttpMethod() : "?") + " "
+                + (ex.getResourcePath() != null ? ex.getResourcePath() : ex.getMessage());
+        log.warn("No resource found: {}", message);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, message);
     }
 
     @ExceptionHandler(RouteAlreadyAssignedException.class)
