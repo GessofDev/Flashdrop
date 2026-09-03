@@ -67,6 +67,12 @@ public class CreateOrderUseCase {
             throw new OrderDomainException("Uno o mas productos no existen");
         }
 
+        // 1b. Rechazar el pedido completo si algún producto existe pero no está disponible
+        boolean hayProductoNoDisponible = products.stream().anyMatch(product -> !product.isAvailable());
+        if (hayProductoNoDisponible) {
+            throw new OrderDomainException("Uno o mas productos no estan disponibles");
+        }
+
         // 2. Validar que todos los productos sean del mismo restaurante
         Order.validateSingleRestaurant(products);
         UUID restaurantId = products.get(0).getRestaurantId();

@@ -125,4 +125,35 @@ class CreateOrderUseCaseTest {
 
         verify(orderRepository, never()).save(any());
     }
+
+    @Test
+    void shouldThrowExceptionWhenProductIsUnavailable() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID();
+
+        CreateOrderCommand command = CreateOrderCommand.builder()
+                .userId(userId)
+                .address("Av. Providencia")
+                .items(List.of(
+                        CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()
+                ))
+                .build();
+
+        ProductInfo productNoDisponible = ProductInfo.builder()
+                .id(productId)
+                .restaurantId(restaurantId)
+                .price(BigDecimal.valueOf(1000))
+                .name("Burger")
+                .available(false)
+                .build();
+
+        when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(productNoDisponible));
+
+        assertThrows(OrderDomainException.class, () -> createOrderUseCase.execute(command));
+
+        verify(orderRepository, never()).save(any());
+        verify(deliveryPort, never()).saveRoute(any());
+        verify(eventPublisher, never()).publish(any(), any());
+    }
 }
