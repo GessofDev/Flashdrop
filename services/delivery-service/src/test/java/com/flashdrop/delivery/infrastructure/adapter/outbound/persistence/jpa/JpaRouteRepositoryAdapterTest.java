@@ -1,6 +1,8 @@
 package com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa;
 
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
+import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
+import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.List;
@@ -240,6 +243,93 @@ class JpaRouteRepositoryAdapterTest {
             DeliveryRoute result = adapter.updateStatus(7L, "Entregado");
 
             assertThat(result.getStatus()).isEqualTo(RouteStatus.ENTREGADO);
+        }
+    }
+
+    @Nested
+    @DisplayName("assignDeliveryPerson — plan §9.5 D8")
+    class AssignDeliveryPerson {
+
+        @Test
+        @DisplayName("TC12: row not pre-created → RouteNotPrecreatedException")
+        void notPreCreated_throwsRouteNotPrecreated() {
+            when(jpaRepository.findByOrderIdForUpdate(601L)).thenReturn(Optional.empty());
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> adapter.assignDeliveryPerson(601L, 7L))
+                    .isInstanceOf(RouteNotPrecreatedException.class)
+                    .hasMessageContaining("601");
+        }
+
+        @Test
+        @DisplayName("TC13: row exists but already has deliveryPersonId → RouteAlreadyAssignedException")
+        void alreadyAssigned_throwsRouteAlreadyAssigned() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 602L, 99L,
+                    "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Pendiente", Instant.now()
+            );
+            // Constructor (id, orderId, deliveryPersonId, ...) — see entity overload set
+            existing = new DeliveryRouteJpaEntity(1L, 602L, 99L,
+                    "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "ASSIGNED", Instant.now());
+            when(jpaRepository.findByOrderIdForUpdate(602L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> adapter.assignDeliveryPerson(602L, 7L))
+                    .isInstanceOf(RouteAlreadyAssignedException.class)
+                    .hasMessageContaining("602");
+        }
+
+        @Test
+        @DisplayName("TC14: save throws DataIntegrityViolationException (UNIQUE) → translated to RouteAlreadyAssignedException")
+        void uniqueViolation_translatedToRouteAlreadyAssigned() {
+            // The row was pre-created with NULL deliveryPersonId; both this
+            // claim and a concurrent one passed the FOR UPDATE lock window.
+            // The DB-level UNIQUE(order_id) constraint (V5) catches it.
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 603L, null,
+                    "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Pendiente", Instant.now()
+            );
+            when(jpaRepository.findByOrderIdForUpdate(603L)).thenReturn(Optional.of(existing));
+            when(jpaRepository.save(any(DeliveryRouteJpaEntity.class)))
+                    .thenThrow(new DataIntegrityViolationException(
+                            "ERROR: duplicate key value violates unique constraint \"uq_delivery_routes_order_id\""));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> adapter.assignDeliveryPerson(603L, 7L))
+                    .isInstanceOf(RouteAlreadyAssignedException.class)
+                    .hasMessageContaining("603");
+        }
+
+        @Test
+        @DisplayName("TC15: happy path — assigns courier, flips status to ASSIGNED, returns updated route")
+        void happyPath_returnsAssignedRoute() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 604L, null,
+                    "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Pendiente", Instant.now()
+            );
+            when(jpaRepository.findByOrderIdForUpdate(604L)).thenReturn(Optional.of(existing));
+            when(jpaRepository.save(any(DeliveryRouteJpaEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            DeliveryRoute result = adapter.assignDeliveryPerson(604L, 7L);
+
+            assertThat(result.getOrderId()).isEqualTo(604L);
+            assertThat(result.getDeliveryPersonId()).isEqualTo(7L);
+            assertThat(result.getStatus()).isEqualTo(RouteStatus.ASSIGNED);
         }
     }
 }

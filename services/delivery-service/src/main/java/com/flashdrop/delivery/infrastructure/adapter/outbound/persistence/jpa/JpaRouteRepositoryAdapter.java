@@ -10,6 +10,7 @@ import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 import com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa.entity.DeliveryRouteJpaEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -82,7 +83,12 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
      *   <li>{@link RouteNotPrecreatedException} when no row exists for the
      *       given {@code orderId} (Orders has not published the route yet);</li>
      *   <li>{@link RouteAlreadyAssignedException} when the row exists but its
-     *       {@code delivery_person_id} is already set.</li>
+     *       {@code delivery_person_id} is already set;</li>
+     *   <li>{@link RouteAlreadyAssignedException} also when the underlying
+     *       {@code UNIQUE(order_id)} constraint (added in V5) fires — this is
+     *       the defence-in-depth path called out in D8 that catches a race
+     *       that slipped past the FOR UPDATE lock (e.g. lock_wait timeout,
+     *       different isolation level, manual intervention).</li>
      * </ul>
      * The transition {@code PENDIENTE → ASSIGNED} is applied on the same
      * managed entity so the lock is released only after the UPDATE flushes
@@ -103,8 +109,19 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
         entity.setDeliveryPersonId(deliveryPersonId);
         entity.setStatus(RouteStatus.ASSIGNED.getDbValue());
         entity.setUpdatedAt(Instant.now());
-        DeliveryRouteJpaEntity saved = jpaRepository.save(entity);
-        return toDomain(saved);
+        try {
+            DeliveryRouteJpaEntity saved = jpaRepository.save(entity);
+            return toDomain(saved);
+        } catch (DataIntegrityViolationException ex) {
+            // V5 UNIQUE(order_id) fired — the row already has a delivery
+            // assignment visible from another transaction. Convert to the
+            // same 409-shaped exception as the in-process check above so
+            // the API contract is uniform regardless of which path caught
+            // the collision.
+            log.warn("UNIQUE(order_id) violation on claim for orderId={}, deliveryPersonId={}: {}",
+                    orderId, deliveryPersonId, ex.getMostSpecificCause().getMessage());
+            throw new RouteAlreadyAssignedException(orderId);
+        }
     }
 
     private DeliveryRoute toDomain(DeliveryRouteJpaEntity entity) {
