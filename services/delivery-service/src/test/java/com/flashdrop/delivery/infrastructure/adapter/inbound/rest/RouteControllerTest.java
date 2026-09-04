@@ -58,7 +58,7 @@ class RouteControllerTest {
         @DisplayName("TC1: PUT /delivery/routes/{id}/status with valid status — returns 200 wrapped in ApiResponse")
         void updateStatus_valid_returns200WithApiResponse() throws Exception {
             Long routeId = 1L;
-            RouteResponse updated = makeRouteResponse(routeId, "ENTREGADO");
+            RouteResponse updated = makeRouteResponse(routeId, "Entregado");
             when(updateRouteStatusUseCase.execute(eq(routeId), any(UpdateRouteStatusRequest.class)))
                     .thenReturn(updated);
 
@@ -67,7 +67,7 @@ class RouteControllerTest {
                             .content("{\"status\":\"ENTREGADO\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+                    .andExpect(jsonPath("$.data.status").value("Entregado"));
         }
     }
 }

@@ -98,7 +98,7 @@ public class InternalRoutesController {
                 route.getDeliveryAddress(),
                 route.getDistanceKm() != null ? route.getDistanceKm().getValue().doubleValue() : null,
                 route.getEstimatedMinutes() != null ? route.getEstimatedMinutes().getMinutes() : null,
-                route.getStatus() != null ? route.getStatus().name() : null,
+                route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt(),
                 null
         );

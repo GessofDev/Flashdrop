@@ -84,7 +84,7 @@ class InternalRoutesControllerContractTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.orderId").value(100))
-                .andExpect(jsonPath("$.data.status").value("PENDIENTE"))
+                .andExpect(jsonPath("$.data.status").value("Pendiente"))
                 .andExpect(jsonPath("$.data.pickupAddress").value("Pickup A"));
     }
 
@@ -125,7 +125,7 @@ class InternalRoutesControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+                .andExpect(jsonPath("$.data.status").value("Entregado"));
     }
 
     @Test
@@ -172,6 +172,6 @@ class InternalRoutesControllerContractTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(42))
                 .andExpect(jsonPath("$.data.orderId").value(100))
-                .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+                .andExpect(jsonPath("$.data.status").value("Entregado"));
     }
 }

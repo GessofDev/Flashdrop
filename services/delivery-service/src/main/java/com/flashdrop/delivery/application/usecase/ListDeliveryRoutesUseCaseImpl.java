@@ -62,7 +62,7 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
                 route.getDeliveryAddress(),
                 route.getDistanceKm().getValue().doubleValue(),
                 route.getEstimatedMinutes().getMinutes(),
-                route.getStatus() != null ? route.getStatus().name() : null,
+                route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt(),
                 code
         );

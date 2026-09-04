@@ -67,7 +67,7 @@ class RouteControllerSecurityTest {
         @DisplayName("TC1: PUT /delivery/routes/{id}/status with valid status — returns 200 wrapped in ApiResponse")
         void updateStatus_valid_returns200WithApiResponse() throws Exception {
             Long routeId = 1L;
-            RouteResponse updated = makeRouteResponse(routeId, "ENTREGADO");
+            RouteResponse updated = makeRouteResponse(routeId, "Entregado");
             when(updateRouteStatusUseCase.execute(eq(routeId), any(UpdateRouteStatusRequest.class)))
                     .thenReturn(updated);
 
@@ -76,7 +76,7 @@ class RouteControllerSecurityTest {
                             .content("{\"status\":\"ENTREGADO\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.data.status").value("ENTREGADO"));
+                    .andExpect(jsonPath("$.data.status").value("Entregado"));
         }
     }
 
@@ -107,8 +107,8 @@ class RouteControllerSecurityTest {
             injectAuth("42");
             when(deliveryPersonRepository.findByUserId("42")).thenReturn(Optional.of(new DeliveryPerson(7L, "42", null, null)));
             when(listDeliveryRoutesUseCase.execute(eq(7L))).thenReturn(List.of(
-                    makeRouteResponse(1L, "PENDIENTE"),
-                    makeRouteResponse(2L, "PENDIENTE")
+                    makeRouteResponse(1L, "Pendiente"),
+                    makeRouteResponse(2L, "Pendiente")
             ));
 
             mockMvc.perform(get("/delivery/routes")
@@ -127,7 +127,7 @@ class RouteControllerSecurityTest {
         void apiAlias_authenticatedWithCourierProfile_returns200() throws Exception {
             injectAuth("42");
             when(deliveryPersonRepository.findByUserId("42")).thenReturn(Optional.of(new DeliveryPerson(7L, "42", null, null)));
-            when(listDeliveryRoutesUseCase.execute(eq(7L))).thenReturn(List.of(makeRouteResponse(1L, "PENDIENTE")));
+            when(listDeliveryRoutesUseCase.execute(eq(7L))).thenReturn(List.of(makeRouteResponse(1L, "Pendiente")));
 
             mockMvc.perform(get("/api/delivery/routes")
                             .contentType(MediaType.APPLICATION_JSON))
