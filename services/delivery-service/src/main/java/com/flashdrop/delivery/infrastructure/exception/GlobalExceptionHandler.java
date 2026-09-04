@@ -4,6 +4,7 @@ import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
 import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
+import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -58,6 +59,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRouteAlreadyAssigned(
             RouteAlreadyAssignedException ex) {
         log.error("Route already assigned: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
+     * Plan §9.5 D8: claim rejected because Orders has not yet published the
+     * route for the given orderId. Same status code as "already claimed" (409)
+     * but the message distinguishes the cause for the caller.
+     */
+    @ExceptionHandler(RouteNotPrecreatedException.class)
+    public ResponseEntity<Map<String, Object>> handleRouteNotPrecreated(
+            RouteNotPrecreatedException ex) {
+        log.error("Route not pre-created: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 

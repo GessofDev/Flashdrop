@@ -9,27 +9,21 @@ import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
 import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
-import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
-import com.flashdrop.delivery.domain.valueobjects.Distance;
-import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
-import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ClaimDeliveryOrdersUseCaseImpl.class);
-    private static final BigDecimal DEFAULT_DISTANCE_KM = new BigDecimal("3.2");
-    private static final Integer DEFAULT_ESTIMATED_MINUTES = 20;
 
     private final DeliveryPersonRepository deliveryPersonRepository;
     private final RouteRepository routeRepository;
@@ -49,7 +43,14 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
         this.delegateToOrdersEnabled = delegateToOrdersEnabled;
     }
 
+    /**
+     * Plan §9.5 D8 — claim is now UPDATE-based: looks up the route pre-created
+     * by Orders (C-6: {@code POST /api/internal/routes}) and binds the
+     * courier. The whole claim batch runs in a single transaction so a 409 on
+     * one route rolls back every other assignment.
+     */
     @Override
+    @Transactional
     public List<DeliveryPersonResponse> execute(Long userId, ClaimDeliveryRequest request) {
         // Resolve the courier from the JWT subject (no longer from the body — IDOR fix).
         DeliveryPerson deliveryPerson = deliveryPersonRepository
@@ -63,9 +64,16 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
             throw new IllegalArgumentException("All orders must be from the same restaurant");
         }
 
+        List<DeliveryRoute> claimedRoutes = new ArrayList<>(orders.size());
         for (OrderServicePort.OrderInfo order : orders) {
-            DeliveryRoute route = createRouteForOrder(order);
-            routeRepository.save(route);
+            // Throws RouteNotPrecreatedException (Orders hasn't published the
+            // route yet) or RouteAlreadyAssignedException (another courier
+            // won the race). Both extend RuntimeException — Spring's default
+            // rollback rules trigger on RuntimeException, so the transaction
+            // unwinds and no partial claim persists.
+            DeliveryRoute claimed = routeRepository.assignDeliveryPerson(
+                    order.id(), deliveryPerson.getId());
+            claimedRoutes.add(claimed);
         }
 
         // -------------------------------------------------------------------
@@ -78,16 +86,18 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
         //   Headers: X-Internal-Api-Key: ${internal.api.key}
         //   Body:    { "userId": <long>, "orderIds": [<long>, ...] }
         //
-        // Orphan-route semantics: the routes above are already persisted by
-        // the time we get here. If the orders call fails, those routes are
-        // orphan (delivery has them, orders doesn't reflect them). This is
-        // STRICTLY BETTER than today's behavior — today, ALL routes are
-        // orphan; with PR-B, only flag-ON-and-failed-upstream routes are.
+        // Orphan-route semantics: the routes above are already mutated by
+        // the time we get here (UPDATE, not INSERT — they're already owned
+        // by Orders). If the orders call fails, those updates are NOT
+        // orphan — delivery's row is internally consistent. What is missing
+        // is the orders-side state: orders doesn't know who claimed what.
         // A future reconciliation job will close the gap (plan §Out of scope).
         //
         // The OrderClaimFailedException is intentionally re-thrown: the global
         // exception handler maps it to a structured 5xx response so the
-        // courier knows the claim partially failed.
+        // courier knows the claim partially failed. Because we are inside a
+        // @Transactional method, the runtime exception causes Spring to roll
+        // back the route assignments too.
         // -------------------------------------------------------------------
         if (delegateToOrdersEnabled) {
             List<Long> uniqueOrderIds = request.orderIds().stream().distinct().toList();
@@ -101,7 +111,7 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
         }
 
         log.info("Successfully claimed {} orders for delivery person (userId={})",
-                orders.size(), userId);
+                claimedRoutes.size(), userId);
 
         return List.of(toDeliveryPersonResponse(deliveryPerson));
     }
@@ -110,25 +120,6 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
         if (orders.size() != requestedOrderIds.size()) {
             throw new IllegalArgumentException("Some orders were not found");
         }
-
-        for (Long orderId : requestedOrderIds) {
-            if (routeRepository.existsByOrderId(orderId)) {
-                throw new RouteAlreadyAssignedException(orderId);
-            }
-        }
-    }
-
-    private DeliveryRoute createRouteForOrder(OrderServicePort.OrderInfo order) {
-        return new DeliveryRoute(
-                null,
-                order.id(),
-                order.pickupAddress(),
-                order.deliveryAddress(),
-                Distance.of(DEFAULT_DISTANCE_KM),
-                EstimatedTime.of(DEFAULT_ESTIMATED_MINUTES),
-                RouteStatus.PENDIENTE,
-                Instant.now()
-        );
     }
 
     private DeliveryPersonResponse toDeliveryPersonResponse(DeliveryPerson deliveryPerson) {

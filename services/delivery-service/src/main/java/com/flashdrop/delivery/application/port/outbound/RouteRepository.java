@@ -20,4 +20,21 @@ public interface RouteRepository {
     boolean existsByOrderId(Long orderId);
 
     DeliveryRoute updateStatus(Long id, String status);
+
+    /**
+     * Plan §9.5 D8: assigns an existing pre-created route (created upstream
+     * by Orders via {@code POST /api/internal/routes}, C-6) to a delivery
+     * person. The implementation is required to:
+     *
+     * <ul>
+     *   <li>throw {@link com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException}
+     *       when no route exists for the given {@code orderId};</li>
+     *   <li>throw {@link com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException}
+     *       when the route already has a {@code deliveryPersonId};</li>
+     *   <li>acquire a row-level lock (e.g. {@code SELECT … FOR UPDATE}) so two
+     *       concurrent claims cannot both win the same {@code orderId};</li>
+     *   <li>transition {@code status} from {@code PENDIENTE} to {@code ASSIGNED}.</li>
+     * </ul>
+     */
+    DeliveryRoute assignDeliveryPerson(Long orderId, Long deliveryPersonId);
 }
