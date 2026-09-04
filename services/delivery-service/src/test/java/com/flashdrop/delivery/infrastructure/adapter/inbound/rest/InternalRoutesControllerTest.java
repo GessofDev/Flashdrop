@@ -66,10 +66,35 @@ class InternalRoutesControllerTest {
             DeliveryRoute saved = new DeliveryRoute(
                     1L, 1001L, "Pickup A", "Delivery B",
                     Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
-                    RouteStatus.ASSIGNED, Instant.parse("2024-01-01T10:00:00Z")
+                    RouteStatus.PENDIENTE, Instant.parse("2024-01-01T10:00:00Z")
             );
             when(routeRepository.save(any(DeliveryRoute.class))).thenReturn(saved);
 
+            String body = """
+                {
+                  "orderId": 1001,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.orderId").value(1001))
+                    .andExpect(jsonPath("$.data.pickupAddress").value("Pickup A"))
+                    .andExpect(jsonPath("$.data.status").value("PENDIENTE"));
+        }
+
+        @Test
+        @DisplayName("returns 400 when status is missing")
+        void createRoute_missingStatus_returns400() throws Exception {
             String body = """
                 {
                   "orderId": 1001,
@@ -84,10 +109,28 @@ class InternalRoutesControllerTest {
                             .header(INTERNAL_KEY_HEADER, VALID_KEY)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
-                    .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.data.orderId").value(1001))
-                    .andExpect(jsonPath("$.data.pickupAddress").value("Pickup A"));
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("returns 400 when status is not a valid RouteStatus value")
+        void createRoute_invalidStatus_returns400() throws Exception {
+            String body = """
+                {
+                  "orderId": 1001,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "INVALID_VALUE"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
         }
     }
 

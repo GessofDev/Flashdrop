@@ -49,7 +49,7 @@ public class InternalRoutesController {
                         ? BigDecimal.valueOf(request.distanceKm())
                         : null),
                 EstimatedTime.of(request.estimatedMinutes()),
-                RouteStatus.ASSIGNED,
+                RouteStatus.fromAnyValue(request.status()),
                 null
         );
 

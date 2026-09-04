@@ -62,7 +62,7 @@ class InternalRoutesControllerContractTest {
         DeliveryRoute saved = new DeliveryRoute(
                 1L, 100L, "Pickup A", "Delivery B",
                 Distance.of(BigDecimal.valueOf(5.0)), EstimatedTime.of(30),
-                RouteStatus.ASSIGNED, Instant.now()
+                RouteStatus.PENDIENTE, Instant.now()
         );
         when(routeRepository.save(any(DeliveryRoute.class))).thenReturn(saved);
 
@@ -75,7 +75,8 @@ class InternalRoutesControllerContractTest {
                                   "pickupAddress": "Pickup A",
                                   "deliveryAddress": "Delivery B",
                                   "distanceKm": 5.0,
-                                  "estimatedMinutes": 30
+                                  "estimatedMinutes": 30,
+                                  "status": "Pendiente"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -83,7 +84,7 @@ class InternalRoutesControllerContractTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.orderId").value(100))
-                .andExpect(jsonPath("$.data.status").value("ASSIGNED"))
+                .andExpect(jsonPath("$.data.status").value("PENDIENTE"))
                 .andExpect(jsonPath("$.data.pickupAddress").value("Pickup A"));
     }
 
