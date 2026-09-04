@@ -3,6 +3,9 @@ package com.flashdrop.delivery.infrastructure.config;
 import com.flashdrop.delivery.application.port.inbound.ClaimDeliveryOrdersUseCase;
 import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase;
 import com.flashdrop.delivery.application.port.inbound.UpdateRouteStatusUseCase;
+import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.domain.model.DeliveryPerson;
+import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.delivery.infrastructure.adapter.inbound.rest.DeliveryController;
 import com.flashdrop.delivery.infrastructure.adapter.inbound.rest.RouteController;
 import com.flashdrop.delivery.infrastructure.security.JwtAuthenticationFilter;
@@ -22,7 +25,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,6 +72,14 @@ class SecurityConfigTest {
 
     @MockBean
     private ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase;
+
+    /**
+     * RouteController resolves deliveryPersonId by calling
+     * {@code findByUserId} on this repo (PR-A: IDOR fix / list-routes filter).
+     * WebMvcTest does not load @Repository adapters, so we mock the port here.
+     */
+    @MockBean
+    private DeliveryPersonRepository deliveryPersonRepository;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -126,6 +139,12 @@ class SecurityConfigTest {
         @Test
         @DisplayName("TC3: GET /api/delivery/routes with auth → 200")
         void getRoutes_withAuth_returns200() throws Exception {
+            // RouteController resolves deliveryPersonId via findByUserId before
+            // delegating to the use case. Stub it so the controller reaches the
+            // mocked ListDeliveryRoutesUseCase (returns 200 with empty list).
+            when(deliveryPersonRepository.findByUserId("42"))
+                    .thenReturn(Optional.of(new DeliveryPerson(
+                            5L, "42", VehicleType.MOTO, Instant.now())));
             when(listDeliveryRoutesUseCase.execute(any()))
                     .thenReturn(List.of());
 
