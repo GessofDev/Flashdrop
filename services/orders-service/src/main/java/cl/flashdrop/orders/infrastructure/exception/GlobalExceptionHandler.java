@@ -5,6 +5,7 @@ import cl.flashdrop.orders.infrastructure.api.dto.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,6 +60,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExternalService(ExternalServiceException ex) {
         log.warn("Fallo en servicio interno externo: {}", ex.getMessage());
         return build(ex.getStatus(), ex.getMessage());
+    }
+
+    /**
+     * GAP-03/GAP-04 (auditoría 2026-09-04): {@link cl.flashdrop.orders.infrastructure.api.CurrentUserResolver}
+     * y los controllers lanzan esta excepción de Spring Security cuando el usuario autenticado intenta operar
+     * con una identidad que no es la suya (ej. userId ajeno en {@code POST /api/orders} o
+     * {@code GET /api/orders?user_id=}). Se mapea a 403/FORBIDDEN, no al 500 genérico que
+     * produciría el handler de {@code Exception.class} si esta excepción no se declarara aquí.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Acceso denegado: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

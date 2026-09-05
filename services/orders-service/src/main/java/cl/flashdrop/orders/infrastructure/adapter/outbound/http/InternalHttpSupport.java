@@ -21,7 +21,12 @@ public final class InternalHttpSupport {
         return new ExternalServiceException(status, service + " error: " + e.getMessage(), e);
     }
 
+    /**
+     * GAP (auditoría 2026-09-04): MIGRATION_PLAN.md §10 define 503/SERVICE_UNAVAILABLE
+     * explícitamente para "servicio dependiente caído o timeout" — antes se devolvía 502
+     * (BAD_GATEWAY), que no aparece en la tabla de códigos del plan.
+     */
     public static ExternalServiceException connectionFailure(String service, ResourceAccessException e) {
-        return new ExternalServiceException(HttpStatus.BAD_GATEWAY, service + " no disponible", e);
+        return new ExternalServiceException(HttpStatus.SERVICE_UNAVAILABLE, service + " no disponible", e);
     }
 }

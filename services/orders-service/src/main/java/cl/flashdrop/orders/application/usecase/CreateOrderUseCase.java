@@ -97,7 +97,9 @@ public class CreateOrderUseCase {
                     .build();
         }).collect(Collectors.toList());
 
-        // 5. Resolver cliente (por userId o primer cliente disponible en modo demo)
+        // 5. Resolver cliente a partir del userId autenticado (ver OrderController /
+        // CurrentUserResolver — GAP-04). No existe fallback: si el usuario no tiene un
+        // perfil de cliente en la tabla propia `client`, la creación falla explícitamente.
         UUID clientId = clientPort.findClientIdByUserId(command.getUserId())
                 .orElseThrow(() -> new OrderDomainException("No existe cliente para crear pedido"));
 

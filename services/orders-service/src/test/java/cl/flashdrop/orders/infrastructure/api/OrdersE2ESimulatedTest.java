@@ -15,10 +15,13 @@ import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ApiResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.OrderDetailResponse;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
@@ -33,11 +36,20 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 /**
- * Validación E2E Simulada de Orders Service.
+ * Validación E2E Simulada de Orders Service — camino LEGACY/Supabase.
  *
  * <p>Prueba el flujo completo (CreateOrder -> Claim -> GetOrderDetail)
  * conectando los adaptadores reales de Orders (HTTP y PostgREST) hacia
  * servidores WireMock que simulan Catalog, Auth, Delivery y Supabase DB.</p>
+ *
+ * <p><b>Alcance (auditoría 2026-09-04, GAP-02):</b> esta prueba ejercita deliberadamente
+ * {@code SupabaseRestClientAdapter}/{@code SupabaseRestOrderRepositoryAdapter} (perfil
+ * {@code supabase}, legacy/transición) — NO el camino de producción migrado
+ * ({@code JpaOrderRepositoryAdapter}/{@code JpaClientAdapter}, perfil {@code postgres},
+ * activo por defecto). Se conserva como cobertura de compatibilidad del flujo de negocio
+ * end-to-end contra un adapter HTTP genérico, pero la evidencia de que la arquitectura
+ * migrada (JPA + PostgreSQL propio) funciona vive en
+ * {@code JpaOrderRepositoryAdapterTest}/{@code JpaClientAdapterTest} (Testcontainers).</p>
  */
 class OrdersE2ESimulatedTest {
 
@@ -110,8 +122,22 @@ class OrdersE2ESimulatedTest {
                 orderRepositoryAdapter, deliveryAdapter);
         ReflectionTestUtils.setField(claimDeliveryOrdersUseCase, "maxClaimPerRoute", 3);
 
-        orderController = new OrderController(createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase, updateOrderStatusUseCase);
-        deliveryController = new DeliveryController(claimDeliveryOrdersUseCase);
+        CurrentUserResolver currentUserResolver = new CurrentUserResolver();
+        orderController = new OrderController(createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase,
+                updateOrderStatusUseCase, currentUserResolver);
+        deliveryController = new DeliveryController(claimDeliveryOrdersUseCase, currentUserResolver);
+
+        // GAP-04/GAP-03: OrderController.createOrder() y DeliveryController.claimOrders()
+        // ahora resuelven el userId desde el JWT autenticado (CurrentUserResolver), no del
+        // body. USER_UUID = IdConverter.toUuid(1L) simula al mismo usuario "1" que antes
+        // se enviaba en el body de ambos requests.
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("1", null, List.of()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -126,7 +152,7 @@ class OrdersE2ESimulatedTest {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("[{\"id\":101,\"restaurantId\":7,\"name\":\"Burger\",\"description\":\"Delicious\",\"image\":\"img.jpg\",\"price\":1000,\"available\":true}]")));
+                        .withBody("[{\"id\":101,\"restaurantId\":7,\"name\":\"Burger\",\"description\":\"Delicious\",\"image\":\"img.jpg\",\"price\":1000,\"isAvailable\":true}]")));
 
         // 2. Catalog (C-2): GET /api/internal/restaurants/7
         wireMock.stubFor(get(urlEqualTo("/api/internal/restaurants/7"))
