@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.config;
 
+import cl.flashdrop.orders.infrastructure.exception.ErrorResponseWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,9 +16,12 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     private final JwtValidationFilter jwtValidationFilter;
+    private final InternalApiKeyFilter internalApiKeyFilter;
 
-    public SecurityConfig(JwtValidationFilter jwtValidationFilter) {
+    public SecurityConfig(JwtValidationFilter jwtValidationFilter,
+                          InternalApiKeyFilter internalApiKeyFilter) {
         this.jwtValidationFilter = jwtValidationFilter;
+        this.internalApiKeyFilter = internalApiKeyFilter;
     }
 
     @Bean
@@ -26,16 +30,22 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/orders/**").authenticated()
+                // GAP-03 (auditoría 2026-09-04): POST /api/delivery/claim aceptaba
+                // deliveryPersonId directo del body sin ninguna autenticación (IDOR).
+                // Ahora exige el mismo JWT que /api/orders/** y DeliveryController
+                // resuelve la identidad real desde el token (CurrentUserResolver),
+                // ignorando el deliveryPersonId del body para efectos de autorización.
+                .requestMatchers("/api/orders/**", "/api/delivery/**").authenticated()
                 .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
+                    ErrorResponseWriter.write(res, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED", "Unauthorized"))
                 .accessDeniedHandler((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden"))
+                    ErrorResponseWriter.write(res, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Forbidden"))
             )
-            .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(internalApiKeyFilter, JwtValidationFilter.class);
 
         return http.build();
     }

@@ -5,7 +5,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
+import org.springframework.context.annotation.Profile;
+
 @Configuration
+@Profile("supabase")
 public class SupabaseRestClientConfig {
 
     @Bean

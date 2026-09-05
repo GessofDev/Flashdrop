@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +28,21 @@ import java.util.stream.Collectors;
  *
  * Mapea los endpoints expuestos en '/api/orders' respetando
  * la estructura de entrada y salida JSON del sistema original.
+ *
+ * <p><b>GAP-04 (auditoría 2026-09-04):</b> {@code /api/orders/**} ya exigía JWT
+ * ({@code SecurityConfig}), pero ningún handler comprobaba que el {@code userId}
+ * recibido en el body/query realmente correspondiera al usuario autenticado. Se cierra
+ * para los dos puntos donde ese campo existe y es explotable:
+ * <ul>
+ *   <li>{@code createOrder}: el {@code userId} del pedido pasa a ser SIEMPRE el del JWT,
+ *       nunca el del body (que se ignora para este propósito).</li>
+ *   <li>{@code listOrders}: si se envía {@code user_id}, debe coincidir con el del JWT
+ *       (403 si no); sin {@code user_id} se preserva el comportamiento existente
+ *       (lista completa) — ver informe de auditoría, sección de riesgos residuales.</li>
+ * </ul>
+ * {@code getOrderDetail} y {@code updateOrderStatus} no reciben ningún {@code userId}
+ * suplantable en su request; no se les agregó un modelo de ownership nuevo que
+ * MIGRATION_PLAN.md no define (queda documentado como riesgo residual).</p>
  */
 @Slf4j
 @RestController
@@ -38,10 +54,17 @@ public class OrderController {
     private final GetOrderDetailUseCase getOrderDetailUseCase;
     private final ListOrdersUseCase listOrdersUseCase;
     private final UpdateOrderStatusUseCase updateOrderStatusUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) UUID userId) {
         log.debug("GET /api/orders, user_id={}", userId);
+        if (userId != null) {
+            UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
+            if (!authenticatedUserId.equals(userId)) {
+                throw new AccessDeniedException("No puedes consultar pedidos de otro usuario");
+            }
+        }
         List<Order> orders = listOrdersUseCase.execute(userId);
         List<OrderListResponse> response = orders.stream()
                 .map(this::toListResponse)
@@ -78,8 +101,12 @@ public class OrderController {
                     .build());
         }
 
+        // GAP-04: el userId del pedido es SIEMPRE el del JWT autenticado, nunca el del
+        // body — el campo request.getUserId() se ignora a propósito (ver clase Javadoc).
+        UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
+
         CreateOrderCommand command = CreateOrderCommand.builder()
-                .userId(request.getUserId())
+                .userId(authenticatedUserId)
                 .address(request.getAddress())
                 .paymentMethod(request.getPaymentMethod())
                 .distanceKm(request.getDistanceKm())

@@ -2,7 +2,9 @@ package cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.supabase
 
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
-import cl.flashdrop.orders.infrastructure.persistence.dto.*;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
+import cl.flashdrop.orders.infrastructure.persistence.dto.OrderItemRow;
+import cl.flashdrop.orders.infrastructure.persistence.dto.OrderRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
@@ -10,7 +12,17 @@ import org.springframework.web.client.RestClient;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Adaptador REST a Supabase (PostgREST) para las tablas PROPIAS de Orders:
+ * {@code orders} y {@code order_items}.
+ *
+ * <p>No accede a tablas externas (products, restaurant, users, delivery, delivery_routes);
+ * esas consultas se resuelven vía los adaptadores HTTP ({@code Catalog}, {@code Auth}, {@code Delivery}).</p>
+ */
+import org.springframework.context.annotation.Profile;
+
 @Repository
+@Profile("supabase")
 @RequiredArgsConstructor
 public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
@@ -25,7 +37,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public Optional<Order> findById(UUID id) {
-        String rawId = extractRawId(id);
+        long rawId = IdConverter.toLong(id);
         OrderRow[] rows = supabaseRestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
@@ -50,13 +62,14 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public List<Order> findAll(UUID restaurantId) {
+        String select = "*";
         OrderRow[] rows;
         if (restaurantId != null) {
             rows = supabaseRestClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/orders")
-                            .queryParam("restaurant_id", "eq." + extractRawId(restaurantId))
-                            .queryParam("select", "*")
+                            .queryParam("restaurant_id", "eq." + IdConverter.toLong(restaurantId))
+                            .queryParam("select", select)
                             .queryParam("order", "id.desc")
                             .build())
                     .retrieve()
@@ -65,7 +78,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
             rows = supabaseRestClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/orders")
-                            .queryParam("select", "*")
+                            .queryParam("select", select)
                             .queryParam("order", "id.desc")
                             .build())
                     .retrieve()
@@ -77,7 +90,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public void updateStatus(UUID orderId, OrderStatus status) {
-        String rawId = extractRawId(orderId);
+        long rawId = IdConverter.toLong(orderId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", status.getValue());
         supabaseRestClient.patch()
@@ -92,12 +105,12 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public int claimOrders(List<UUID> orderIds, UUID deliveryId, OrderStatus status) {
-        String rawDeliveryId = extractRawId(deliveryId);
-        List<String> rawIds = orderIds.stream().map(this::extractRawId).collect(Collectors.toList());
+        long rawDeliveryId = IdConverter.toLong(deliveryId);
+        List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("delivery_id", rawDeliveryId);
         body.put("status", status.getValue());
-        String inClause = String.join(",", rawIds);
+        String inClause = rawIds.stream().map(Object::toString).collect(Collectors.joining(","));
         supabaseRestClient.patch()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
@@ -111,7 +124,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public int countActiveOrdersByDelivery(UUID deliveryId) {
-        String rawId = extractRawId(deliveryId);
+        long rawId = IdConverter.toLong(deliveryId);
         OrderRow[] rows = supabaseRestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
@@ -127,8 +140,8 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public List<Order> findByIdsForClaim(List<UUID> orderIds) {
-        List<String> rawIds = orderIds.stream().map(this::extractRawId).collect(Collectors.toList());
-        String inClause = String.join(",", rawIds);
+        List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
+        String inClause = rawIds.stream().map(Object::toString).collect(Collectors.joining(","));
         OrderRow[] rows = supabaseRestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
@@ -142,96 +155,34 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
-    public void saveRoute(DeliveryRoute route) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("order_id", extractRawId(route.getOrderId()));
-        body.put("pickup_address", route.getPickupAddress());
-        body.put("delivery_address", route.getDeliveryAddress());
-        body.put("distance_km", route.getDistanceKm());
-        body.put("estimated_minutes", route.getEstimatedMinutes());
-        body.put("status", route.getStatus());
-        supabaseRestClient.post()
-                .uri("/delivery_routes")
-                .header("Prefer", "return=representation")
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    @Override
-    public void updateRouteStatus(List<UUID> orderIds, String status) {
-        List<String> rawIds = orderIds.stream().map(this::extractRawId).collect(Collectors.toList());
-        String inClause = String.join(",", rawIds);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("status", status);
-        supabaseRestClient.patch()
+    public List<Order> findByIds(List<UUID> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) return List.of();
+        List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
+        String inClause = rawIds.stream().map(Object::toString).collect(Collectors.joining(","));
+        OrderRow[] rows = supabaseRestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/delivery_routes")
-                        .queryParam("order_id", "in.(" + inClause + ")")
-                        .build())
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    @Override
-    public void updateRouteStatusByOrder(UUID orderId, String status) {
-        String rawId = extractRawId(orderId);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("status", status);
-        supabaseRestClient.patch()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/delivery_routes")
-                        .queryParam("order_id", "eq." + rawId)
-                        .build())
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    @Override
-    public List<Order> findAllRoutesWithOrders() {
-        DeliveryRouteRow[] routeRows = supabaseRestClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/delivery_routes")
+                        .path("/orders")
+                        .queryParam("id", "in.(" + inClause + ")")
                         .queryParam("select", "*")
-                        .queryParam("order", "id.desc")
                         .build())
                 .retrieve()
-                .body(DeliveryRouteRow[].class);
-        if (routeRows == null) return List.of();
-        return Arrays.stream(routeRows).map(r -> {
-            OrderRow[] orderRows = supabaseRestClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/orders")
-                            .queryParam("id", "eq." + r.orderId())
-                            .queryParam("select", "*")
-                            .build())
-                    .retrieve()
-                    .body(OrderRow[].class);
-            OrderRow orderRow = (orderRows != null && orderRows.length > 0) ? orderRows[0] : null;
-            if (orderRow == null) return null;
-            Order order = mapToOrder(orderRow, List.of());
-            order.setRoute(DeliveryRoute.builder()
-                    .id(new UUID(0, r.id()))
-                    .orderId(new UUID(0, r.orderId()))
-                    .pickupAddress(r.pickupAddress())
-                    .deliveryAddress(r.deliveryAddress())
-                    .distanceKm(r.distanceKm())
-                    .estimatedMinutes(r.estimatedMinutes() != null ? r.estimatedMinutes() : 0)
-                    .status(r.status())
-                    .build());
-            return order;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
+                .body(OrderRow[].class);
+        if (rows == null) return List.of();
+        List<UUID> idList = orderIds.stream().map(IdConverter::toLong).map(IdConverter::toUuid).collect(Collectors.toList());
+        Set<UUID> idSet = new HashSet<>(idList);
+        return Arrays.stream(rows)
+                .map(r -> mapToOrder(r, List.of()))
+                .filter(o -> idSet.contains(o.getId()))
+                .collect(Collectors.toList());
     }
 
     // ------ private helpers ------
 
     private OrderRow saveOrder(Order order) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("client_id", extractRawId(order.getClientId()));
-        body.put("restaurant_id", extractRawId(order.getRestaurantId()));
-        if (order.getDeliveryId() != null) body.put("delivery_id", extractRawId(order.getDeliveryId()));
+        body.put("client_id", IdConverter.toLong(order.getClientId()));
+        body.put("restaurant_id", IdConverter.toLong(order.getRestaurantId()));
+        if (order.getDeliveryId() != null) body.put("delivery_id", IdConverter.toLong(order.getDeliveryId()));
         body.put("status", order.getStatus().getValue());
         body.put("address", order.getAddress());
         body.put("subtotal", order.getSubtotal());
@@ -254,7 +205,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
         List<Map<String, Object>> itemBodies = items.stream().map(item -> {
             Map<String, Object> b = new LinkedHashMap<>();
             b.put("order_id", orderId);
-            b.put("product_id", extractRawId(item.getProductId()));
+            b.put("product_id", IdConverter.toLong(item.getProductId()));
             b.put("quantity", item.getQuantity());
             b.put("unit_price", item.getUnitPrice());
             b.put("total", item.getLineTotal());
@@ -271,21 +222,11 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
         return Arrays.asList(result);
     }
 
-    private String extractRawId(UUID uuid) {
-        return uuid.getLeastSignificantBits() <= Integer.MAX_VALUE
-                ? String.valueOf(uuid.getLeastSignificantBits())
-                : uuid.toString();
-    }
-
-    private UUID toUuid(Long rawId) {
-        return rawId != null ? new UUID(0, rawId) : null;
-    }
-
     private Order mapToOrder(OrderRow row, List<OrderItemRow> itemRows) {
         List<OrderItem> items = itemRows.stream()
                 .map(ir -> OrderItem.builder()
-                        .id(toUuid(ir.id()))
-                        .productId(toUuid(ir.productId()))
+                        .id(IdConverter.toUuid(ir.id()))
+                        .productId(IdConverter.toUuid(ir.productId()))
                         .quantity(ir.quantity())
                         .unitPrice(ir.unitPrice())
                         .lineTotal(ir.total())
@@ -293,10 +234,10 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
                 .collect(Collectors.toList());
 
         return Order.builder()
-                .id(toUuid(row.id()))
-                .clientId(toUuid(row.clientId()))
-                .restaurantId(toUuid(row.restaurantId()))
-                .deliveryId(toUuid(row.deliveryId()))
+                .id(IdConverter.toUuid(row.id()))
+                .clientId(IdConverter.toUuid(row.clientId()))
+                .restaurantId(IdConverter.toUuid(row.restaurantId()))
+                .deliveryId(row.deliveryId() != null ? IdConverter.toUuid(row.deliveryId()) : null)
                 .status(OrderStatus.fromValue(row.status()))
                 .address(row.address())
                 .subtotal(row.subtotal())

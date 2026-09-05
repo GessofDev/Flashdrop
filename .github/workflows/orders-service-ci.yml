@@ -1,0 +1,48 @@
+name: Orders Service CI
+
+# GAP-02 (auditoria Orders, 2026-09-04/05): los tests JpaClientAdapterTest y
+# JpaOrderRepositoryAdapterTest usan Testcontainers para levantar PostgreSQL real.
+# En Windows local, docker-java no logra hablar con el proxy named-pipe de Docker
+# Desktop (confirmado incluso fuera de Maven, con una JVM standalone). Este workflow
+# corre en ubuntu-latest, donde Testcontainers usa el Docker Engine nativo del
+# runner (socket unix) sin ninguna configuracion especial.
+
+on:
+  push:
+    paths:
+      - "services/orders-service/**"
+      - ".github/workflows/orders-service-ci.yml"
+  pull_request:
+    paths:
+      - "services/orders-service/**"
+      - ".github/workflows/orders-service-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: mvnw test (incluye JPA + Testcontainers)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/orders-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # El repo trackea mvnw con modo 100644 (no ejecutable) — sin este paso
+      # "./mvnw test" falla con Permission denied en Linux.
+      - name: Dar permiso de ejecucion a mvnw
+        run: chmod +x mvnw
+
+      # Sin services: postgres — Testcontainers levanta el contenedor el mismo
+      # (PostgresIntegrationTestSupport) usando el Docker Engine del runner.
+      # Sin variables de entorno de BD: la URL/usuario/password los inyecta
+      # dinamicamente Testcontainers via @DynamicPropertySource.
+      - name: Run tests
+        run: ./mvnw test

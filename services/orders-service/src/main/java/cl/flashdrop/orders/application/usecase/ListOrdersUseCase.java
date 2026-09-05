@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.application.usecase;
 
+import cl.flashdrop.orders.application.OrderEnricher;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Caso de uso: Listar Pedidos.
@@ -24,6 +26,7 @@ public class ListOrdersUseCase {
 
     private final OrderRepositoryPort orderRepository;
     private final CatalogPort catalogPort;
+    private final OrderEnricher enricher;
 
     @Transactional(readOnly = true)
     public List<Order> execute(UUID userId) {
@@ -37,6 +40,8 @@ public class ListOrdersUseCase {
             }
         }
 
-        return orderRepository.findAll(restaurantId);
+        return orderRepository.findAll(restaurantId).stream()
+                .peek(enricher::enrich)
+                .collect(Collectors.toList());
     }
 }
