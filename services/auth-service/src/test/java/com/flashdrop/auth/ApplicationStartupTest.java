@@ -43,7 +43,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
+                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration,"
+                // Las propiedades declaradas aca reemplazan a las de
+                // application.yml, no se suman: hay que repetir la exclusion de
+                // la autoconfiguracion de observabilidad (ver ObservabilityConfig).
+                + "com.flashdrop.observability.config.ObservabilityAutoConfiguration"
 })
 @AutoConfigureMockMvc
 @MockBean({UserRepository.class, CredentialStore.class,
