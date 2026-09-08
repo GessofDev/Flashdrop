@@ -548,38 +548,57 @@ step7: "7. Respuesta al cliente\n201 Created" {
 step1 -> step2 -> step3 -> step4 -> step5 -> step6 -> step7
 ```
 
+> **Estado de la ruta al salir de §8.3 step 6**: el `status` lo elige Orders en el body del request (validado contra el enum `RouteStatus`); `delivery_person_id = NULL` server-side (todavía sin repartidor). Ver §9.4 para el contrato del request y §9.5 D3.
+
 ### 8.4 Flujo completo: Repartidor reclama órdenes (secuencia)
 
 ```d2
 direction: down
 
-step1: "1. Repartidor envía\nclaim orders [1, 2]" {
+step1: "1. Repartidor envía\nPOST /api/delivery/claim\nbody: {orderIds: [1, 2]}" {
   shape: rectangle
   style.fill: "#f3e5f5"
 }
 
-step2: "2. Delivery → Orders\nGET /api/internal/orders?ids=1,2\n(obtiene órdenes y valida estado)" {
-  shape: rectangle
-  style.fill: "#fff3e0"
-}
-
-step3: "3. Delivery → Catalog\nGET /api/internal/restaurants/1\n(obtiene dirección pickup)" {
-  shape: rectangle
-  style.fill: "#e3f2fd"
-}
-
-step4: "4. Delivery crea\nrutas en su BD" {
+step2: "2. Delivery resuelve\nrepartidor desde JWT subject\n(deliveryPersonId NO viene del body)" {
   shape: rectangle
   style.fill: "#fce4ec"
 }
 
-step5: "5. Respuesta al repartidor\n200 OK + rutas creadas" {
+step3: "3. Delivery → Orders\nGET /api/internal/orders?ids=1,2\n(obtiene órdenes y valida estado)" {
+  shape: rectangle
+  style.fill: "#fff3e0"
+}
+
+step4: "4. Delivery valida:\nmismo restaurante, órdenes existen" {
+  shape: rectangle
+  style.fill: "#fce4ec"
+}
+
+step5: "5. Delivery actualiza\nrutas en su BD\n(delivery_person_id =<courier.id>)" {
+  shape: rectangle
+  style.fill: "#fce4ec"
+}
+
+step6: "6. Si delivery.claim.delegate-to-orders.enabled:\nDelivery → Orders\nPOST /api/internal/orders/claim" {
+  shape: rectangle
+  style.fill: "#fff3e0"
+  style.stroke-dash: 4
+}
+
+step7: "7. Respuesta al repartidor\n201 Created" {
   shape: rectangle
   style.fill: "#f3e5f5"
 }
 
-step1 -> step2 -> step3 -> step4 -> step5
+step1 -> step2 -> step3 -> step4 -> step5 -> step6 -> step7
 ```
+
+> **Notas del flujo**:
+> - **Step 2 (identidad)**: el `userId` (repartidor) se resuelve desde el JWT subject (`Long.parseLong(authentication.getName())`). El body del request **nunca** trae `deliveryPersonId`. Esto cierra el vector IDOR que existía antes.
+> - **Step 6 (hook a orders, opcional)**: solo se ejecuta si la property `delivery.claim.delegate-to-orders.enabled=true` (default OFF). Su propósito es que orders actualice `orders.delivery_id` y `orders.status` para mantener consistencia cross-service. El detalle del wire contract vive en `infra/handoffs/delivery-claim-coordination-felipe-2026-09-01.md` — el plan no lo duplica por ser territorio de Felipe.
+> - **Si el hook falla**: delivery ya persistió las rutas locales. El courier recibe 5xx estructurado y las rutas quedan registradas localmente pero `orders` no refleja la asignación. Esto es estrictamente mejor que hoy (donde ninguna ruta local se persistía). Una tarea futura de reconciliación cerrará el gap. Ver §9.6 D5.
+> - **Todas las órdenes del mismo restaurante**: validación obligatoria (step 4). Mezclar restaurantes en un mismo claim → 400.
 
 ---
 
@@ -587,7 +606,7 @@ step1 -> step2 -> step3 -> step4 -> step5
 
 Para evitar descoordinaciones entre quien expone y quien consume, estos son los **contratos exactos** de cada endpoint interno. Los nombres de campos, tipos y nullabilidad son obligatorios.
 
-### 8.1 Auth Service (Nicolás expone → Felipe y Sebastián consumen)
+### 9.1 Auth Service (Nicolás expone → Felipe y Sebastián consumen)
 
 **`GET /api/internal/users/{userId}`**
 
@@ -619,7 +638,7 @@ Para evitar descoordinaciones entre quien expone y quien consume, estos son los 
 ]
 ```
 
-### 8.2 Catalog Service (Javier expone → Felipe y Sebastián consumen)
+### 9.2 Catalog Service (Javier expone → Felipe y Sebastián consumen)
 
 **`GET /api/internal/products?ids=1,2,3`**
 
@@ -661,7 +680,7 @@ Para evitar descoordinaciones entre quien expone y quien consume, estos son los 
 
 Mismo formato de respuesta que `GET /api/internal/restaurants/{id}`. Retorna 404 si el usuario no tiene restaurante.
 
-### 8.3 Orders Service (Felipe expone → Sebastián consume)
+### 9.3 Orders Service (Felipe expone → Sebastián consume)
 
 **`GET /api/internal/orders?ids=1,2,3`**
 
@@ -679,7 +698,7 @@ Mismo formato de respuesta que `GET /api/internal/restaurants/{id}`. Retorna 404
 ]
 ```
 
-### 8.4 Delivery Service (Sebastián expone → Felipe consume)
+### 9.4 Delivery Service (Sebastián expone → Felipe consume)
 
 **`GET /api/internal/delivery-persons?userId={userId}`**
 
@@ -746,6 +765,21 @@ Mismo formato de respuesta que `GET /api/internal/restaurants/{id}`. Retorna 404
   "status": "En camino"
 }
 ```
+
+### 9.5 Decisiones cerradas de claim wire-up (delivery-side)
+
+Decisiones ya implementadas y commiteadas en `feat/delivery-orders-http-adapter-supabase-removal`. Esta sección es la **fuente de verdad** para QA y para cualquier revisión cruzada — si encontrás una divergencia con el código, esto manda.
+
+| # | Decisión | Estado | Referencia |
+|---|----------|--------|------------|
+| **D1** | El `deliveryPersonId` del repartidor se resuelve desde el **JWT subject** (`Long.parseLong(auth.getName())`). El body del request **nunca** trae `deliveryPersonId`. | Cerrado | PR-A: `ClaimDeliveryRequest` ahora es `record(List<Long> orderIds)`; `DeliveryController.claimDelivery()` extrae `userId` desde `SecurityContextHolder`. Cierra IDOR. |
+| **D2** | `delivery_routes.delivery_person_id` persiste el `DeliveryPerson.id` (FK Long) del repartidor que tomó la orden. | Cerrado | PR-A design AD-1; `DeliveryRoute` tiene campo + setter. |
+| **D3** | Cuando Orders crea la ruta (vía `§8.3 step 6` → `POST /api/internal/routes`): el `status` lo **elige Orders** en el body del request (validado contra `RouteStatus` enum); `delivery_person_id` siempre `NULL` server-side. | Cerrado | Ver §9.4 contrato del request body. Implementación: `CreateDeliveryRouteRequest.status` + `RouteStatus.fromAnyValue()` en `InternalRoutesController.createRoute()`. |
+| **D4** | Validación obligatoria: todas las órdenes de un mismo claim deben ser del **mismo restaurante**. Si no → 400. | Cerrado | `ClaimDeliveryOrdersUseCaseImpl.execute()` llama `OrderServicePort.areOrdersFromSameRestaurant(request.orderIds())`. |
+| **D5** | El claim **reutiliza** las rutas creadas por Orders (no crea rutas duplicadas). Para cada `orderId`, la ruta ya existe en `delivery_routes` — el claim la asigna al repartidor. | Cerrado (por convención del flujo §8.3 + §8.4) | El claim **no** llama `POST /api/internal/routes`. Las rutas nacen en §8.3 step 6. |
+| **D6** | Hook post-save opcional a Orders: si `delivery.claim.delegate-to-orders.enabled=true`, después de actualizar rutas locales, Delivery llama `POST /api/internal/orders/claim` con `{userId, orderIds}` para que Orders sincronice `orders.delivery_id` y `orders.status`. Default **OFF**. | Cerrado | PR-B: feature flag en `application-delivery.yml` + `docker-compose.stack.yml`; cliente HTTP en `HttpInternalOrdersClientAdapter`. Detalle del contrato vive en `infra/handoffs/delivery-claim-coordination-felipe-2026-09-01.md`. |
+| **D7** | Si el hook a Orders falla (5xx, timeout): delivery ya persistió las rutas locales. El courier recibe 5xx estructurado. Las rutas quedan registradas localmente pero `orders` no refleja la asignación. **No hay rollback** — esto es estrictamente mejor que el comportamiento previo (donde ninguna ruta se persistía). Reconciliación → tarea futura, fuera de alcance de PR-B. | Cerrado (trade-off aceptado) | PR-B invariant documentado en `ClaimDeliveryOrdersUseCaseImpl.java`. |
+| **D8** | **Claim atómico y reservado**: el claim **busca la ruta pre-creada por Orders** (`routeRepository.findByOrderId`) y la **actualiza** con `delivery_person_id = <courier.id>`; **no** crea rutas nuevas. Para cada `orderId`: si la ruta no existe → `409 ROUTE_NOT_PRECREATED` (Orders tiene que crearla antes); si existe con `delivery_person_id NOT NULL` → `409 ROUTE_ALREADY_CLAIMED`; si existe con `delivery_person_id IS NULL` → UPDATE + status `PENDIENTE → ASSIGNED`. **Concurrencia**: `SELECT … FOR UPDATE` por row + UNIQUE(order_id) en `delivery_routes` (migración V5) → el segundo claim concurrente se choca con la UNIQUE constraint y se traduce a `RouteAlreadyAssignedException`. **Batch**: todo el claim corre dentro de un único `@Transactional`; si una sola ruta falla (no pre-creada o ya reclamada) **se hace rollback de las demás** (todo-o-nada). **Enum**: pre-claim una ruta está en `PENDIENTE`; al ser reclamada pasa a `ASSIGNED`; las transiciones a `RETIRAR_PEDIDO/EN_CAMINO/ENTREGADO` las dispara Orders vía `PATCH /api/internal/routes/order/{orderId}/status` (C-7 — ver `feature/orders-migracion`). | Cerrado | Migración V5 (`V5__delivery-routes-unique-order-id.sql`); `RouteRepository.assignDeliveryPerson(orderId, courierId)` con lock pesimista en `JpaDeliveryRouteRepository.findByOrderIdForUpdate`; `ClaimDeliveryOrdersUseCaseImpl.execute` anotado `@Transactional`. |
 
 ---
 

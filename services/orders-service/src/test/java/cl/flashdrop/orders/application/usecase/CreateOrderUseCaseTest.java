@@ -7,6 +7,7 @@ import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -35,6 +36,8 @@ class CreateOrderUseCaseTest {
     private OrderRepositoryPort orderRepository;
     @Mock
     private CatalogPort catalogPort;
+    @Mock
+    private ClientPort clientPort;
     @Mock
     private DeliveryPort deliveryPort;
     @Mock
@@ -83,7 +86,7 @@ class CreateOrderUseCaseTest {
                 .build();
 
         when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(product));
-        when(deliveryPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(restaurant));
 
         Order mockSavedOrder = Order.builder()
@@ -99,7 +102,7 @@ class CreateOrderUseCaseTest {
         assertEquals(0, BigDecimal.valueOf(4500).compareTo(result.total()));
 
         verify(orderRepository).save(any(Order.class));
-        verify(orderRepository).saveRoute(any());
+        verify(deliveryPort).saveRoute(any());
         verify(eventPublisher).publish(eq("order.created"), any());
     }
 
@@ -121,5 +124,65 @@ class CreateOrderUseCaseTest {
         assertThrows(OrderDomainException.class, () -> createOrderUseCase.execute(command));
 
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldThrowExceptionWhenProductIsUnavailable() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID();
+
+        CreateOrderCommand command = CreateOrderCommand.builder()
+                .userId(userId)
+                .address("Av. Providencia")
+                .items(List.of(
+                        CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()
+                ))
+                .build();
+
+        ProductInfo productNoDisponible = ProductInfo.builder()
+                .id(productId)
+                .restaurantId(restaurantId)
+                .price(BigDecimal.valueOf(1000))
+                .name("Burger")
+                .available(false)
+                .build();
+
+        when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(productNoDisponible));
+
+        assertThrows(OrderDomainException.class, () -> createOrderUseCase.execute(command));
+
+        verify(orderRepository, never()).save(any());
+        verify(deliveryPort, never()).saveRoute(any());
+        verify(eventPublisher, never()).publish(any(), any());
+    }
+
+    /**
+     * Requisito MIGRATION_PLAN.md §12.2 "CreateOrderTest — Lista de productos vacía lanza
+     * excepción": hasta ahora sólo estaba probado a nivel de dominio puro
+     * (OrderDomainTest.shouldThrowExceptionWhenProductListIsEmpty), sin verificar que el
+     * caso de uso completo (con sus dependencias mockeadas) realmente dispare la regla en
+     * este punto exacto del flujo.
+     */
+    @Test
+    void shouldThrowExceptionWhenItemsListIsEmpty() {
+        UUID userId = UUID.randomUUID();
+
+        CreateOrderCommand command = CreateOrderCommand.builder()
+                .userId(userId)
+                .address("Av. Providencia 1200")
+                .items(List.of())
+                .build();
+
+        when(catalogPort.findProductsByIds(List.of())).thenReturn(List.of());
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(command));
+
+        assertEquals("El pedido debe contener al menos un producto", ex.getMessage());
+        verify(orderRepository, never()).save(any());
+        verify(clientPort, never()).findClientIdByUserId(any());
+        verify(deliveryPort, never()).saveRoute(any());
+        verify(eventPublisher, never()).publish(any(), any());
     }
 }

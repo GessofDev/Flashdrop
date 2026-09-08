@@ -5,6 +5,7 @@ import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -34,6 +35,7 @@ public class CreateOrderUseCase {
 
     private final OrderRepositoryPort orderRepository;
     private final CatalogPort catalogPort;
+    private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
 
@@ -65,6 +67,12 @@ public class CreateOrderUseCase {
             throw new OrderDomainException("Uno o mas productos no existen");
         }
 
+        // 1b. Rechazar el pedido completo si algún producto existe pero no está disponible
+        boolean hayProductoNoDisponible = products.stream().anyMatch(product -> !product.isAvailable());
+        if (hayProductoNoDisponible) {
+            throw new OrderDomainException("Uno o mas productos no estan disponibles");
+        }
+
         // 2. Validar que todos los productos sean del mismo restaurante
         Order.validateSingleRestaurant(products);
         UUID restaurantId = products.get(0).getRestaurantId();
@@ -89,8 +97,10 @@ public class CreateOrderUseCase {
                     .build();
         }).collect(Collectors.toList());
 
-        // 5. Resolver cliente (por userId o primer cliente disponible en modo demo)
-        UUID clientId = deliveryPort.findClientIdByUserId(command.getUserId())
+        // 5. Resolver cliente a partir del userId autenticado (ver OrderController /
+        // CurrentUserResolver — GAP-04). No existe fallback: si el usuario no tiene un
+        // perfil de cliente en la tabla propia `client`, la creación falla explícitamente.
+        UUID clientId = clientPort.findClientIdByUserId(command.getUserId())
                 .orElseThrow(() -> new OrderDomainException("No existe cliente para crear pedido"));
 
         // 6. Calcular totales
@@ -129,7 +139,7 @@ public class CreateOrderUseCase {
                 .status("Pendiente")
                 .build();
 
-        orderRepository.saveRoute(route);
+        deliveryPort.saveRoute(route);
 
         // 9. Publicar evento
         eventPublisher.publish(orderCreatedRoutingKey, OrderCreatedEvent.builder()
