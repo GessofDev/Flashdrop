@@ -30,7 +30,12 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/orders/**").authenticated()
+                // GAP-03 (auditoría 2026-09-04): POST /api/delivery/claim aceptaba
+                // deliveryPersonId directo del body sin ninguna autenticación (IDOR).
+                // Ahora exige el mismo JWT que /api/orders/** y DeliveryController
+                // resuelve la identidad real desde el token (CurrentUserResolver),
+                // ignorando el deliveryPersonId del body para efectos de autorización.
+                .requestMatchers("/api/orders/**", "/api/delivery/**").authenticated()
                 .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex

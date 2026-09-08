@@ -1,5 +1,7 @@
 package cl.flashdrop.orders.infrastructure.adapter.outbound.http.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -16,6 +18,6 @@ public record InternalProductDto(
         String description,
         String image,
         BigDecimal price,
-        Boolean available
+        @JsonProperty("isAvailable") Boolean available
 ) {
 }

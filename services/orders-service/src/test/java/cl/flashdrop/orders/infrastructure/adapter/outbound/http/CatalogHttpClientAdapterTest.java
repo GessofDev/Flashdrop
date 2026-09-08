@@ -157,7 +157,9 @@ class CatalogHttpClientAdapterTest {
     }
 
     @Test
-    void shouldThrowExternalServiceExceptionBadGatewayWhenServiceDownOrTimeout() {
+    void shouldThrowExternalServiceExceptionServiceUnavailableWhenServiceDownOrTimeout() {
+        // MIGRATION_PLAN.md §10: "servicio dependiente caído o timeout" -> 503
+        // SERVICE_UNAVAILABLE (antes 502 BAD_GATEWAY, corregido en la auditoría 2026-09-04).
         RestClient offlineClient = RestClient.builder()
                 .baseUrl("http://localhost:59999")
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
@@ -167,7 +169,7 @@ class CatalogHttpClientAdapterTest {
         var ex = assertThrows(cl.flashdrop.orders.infrastructure.exception.ExternalServiceException.class,
                 () -> offlineAdapter.findProductsByIds(List.of(toUuid(101L))));
 
-        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatus());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatus());
         assertTrue(ex.getMessage().contains("Catalog no disponible"));
     }
 

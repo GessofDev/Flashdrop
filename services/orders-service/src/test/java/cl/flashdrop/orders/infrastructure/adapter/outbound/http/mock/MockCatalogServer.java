@@ -32,7 +32,7 @@ public final class MockCatalogServer {
                                                      String name, String description, String image,
                                                      double price, boolean available) {
         String json = String.format(
-                "[{\"id\":%d,\"restaurantId\":%d,\"name\":\"%s\",\"description\":\"%s\",\"image\":\"%s\",\"price\":%s,\"available\":%s}]",
+                "[{\"id\":%d,\"restaurantId\":%d,\"name\":\"%s\",\"description\":\"%s\",\"image\":\"%s\",\"price\":%s,\"isAvailable\":%s}]",
                 id, restaurantId, name, description, image, String.valueOf((long) price), available);
         stubGetProductsByIdsOk(wm, json);
     }

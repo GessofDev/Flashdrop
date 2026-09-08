@@ -156,4 +156,33 @@ class CreateOrderUseCaseTest {
         verify(deliveryPort, never()).saveRoute(any());
         verify(eventPublisher, never()).publish(any(), any());
     }
+
+    /**
+     * Requisito MIGRATION_PLAN.md §12.2 "CreateOrderTest — Lista de productos vacía lanza
+     * excepción": hasta ahora sólo estaba probado a nivel de dominio puro
+     * (OrderDomainTest.shouldThrowExceptionWhenProductListIsEmpty), sin verificar que el
+     * caso de uso completo (con sus dependencias mockeadas) realmente dispare la regla en
+     * este punto exacto del flujo.
+     */
+    @Test
+    void shouldThrowExceptionWhenItemsListIsEmpty() {
+        UUID userId = UUID.randomUUID();
+
+        CreateOrderCommand command = CreateOrderCommand.builder()
+                .userId(userId)
+                .address("Av. Providencia 1200")
+                .items(List.of())
+                .build();
+
+        when(catalogPort.findProductsByIds(List.of())).thenReturn(List.of());
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(command));
+
+        assertEquals("El pedido debe contener al menos un producto", ex.getMessage());
+        verify(orderRepository, never()).save(any());
+        verify(clientPort, never()).findClientIdByUserId(any());
+        verify(deliveryPort, never()).saveRoute(any());
+        verify(eventPublisher, never()).publish(any(), any());
+    }
 }

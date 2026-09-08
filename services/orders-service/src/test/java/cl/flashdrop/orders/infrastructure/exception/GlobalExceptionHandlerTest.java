@@ -70,10 +70,25 @@ class GlobalExceptionHandlerTest {
     @Test
     void externalServiceException_serviceUnavailable_mapeaCodigoDelPlan() {
         ResponseEntity<ErrorResponse> response = handler.handleExternalService(
-                new ExternalServiceException(HttpStatus.BAD_GATEWAY, "Delivery no disponible"));
+                new ExternalServiceException(HttpStatus.SERVICE_UNAVAILABLE, "Delivery no disponible"));
 
-        // 502 no está en la tabla del plan; el status HTTP real se preserva,
-        // pero el código "error" cae al bucket más cercano (SERVICE_UNAVAILABLE).
+        // MIGRATION_PLAN.md §10: "servicio dependiente caído o timeout" -> 503.
+        // InternalHttpSupport.connectionFailure() ya construye la excepción con este status
+        // (corregido en la auditoría 2026-09-04; antes era 502 BAD_GATEWAY).
+        assertEquals(503, response.getBody().status());
+        assertEquals("SERVICE_UNAVAILABLE", response.getBody().error());
+    }
+
+    @Test
+    void externalServiceException_upstreamBadGatewayLiteral_caeEnElBucketMasCercano() {
+        // Si el servicio dependiente en sí devuelve un 502 (no un timeout/caído detectado
+        // por Orders, sino la respuesta HTTP literal de, por ej., un proxy intermedio),
+        // InternalHttpSupport.httpError() preserva ese status real; 502 no está en la
+        // tabla de §10, así que el código "error" cae al bucket más cercano
+        // (SERVICE_UNAVAILABLE) sin inventar un código no documentado por el plan.
+        ResponseEntity<ErrorResponse> response = handler.handleExternalService(
+                new ExternalServiceException(HttpStatus.BAD_GATEWAY, "Catalog error: 502 Bad Gateway"));
+
         assertEquals(502, response.getBody().status());
         assertEquals("SERVICE_UNAVAILABLE", response.getBody().error());
     }
@@ -84,5 +99,21 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(500, response.getBody().status());
         assertEquals("INTERNAL_ERROR", response.getBody().error());
+    }
+
+    /**
+     * GAP-03/GAP-04 (auditoría 2026-09-04): CurrentUserResolver y los controllers lanzan
+     * AccessDeniedException cuando el usuario autenticado intenta operar con una identidad
+     * que no es la suya. Sin este handler explícito, caería en handleGenericException
+     * (500 INTERNAL_ERROR) en vez de 403 FORBIDDEN.
+     */
+    @Test
+    void accessDeniedException_mapeaA403ConCodigoDelPlan() {
+        ResponseEntity<ErrorResponse> response = handler.handleAccessDenied(
+                new org.springframework.security.access.AccessDeniedException("No puedes consultar pedidos de otro usuario"));
+
+        assertEquals(403, response.getBody().status());
+        assertEquals("FORBIDDEN", response.getBody().error());
+        assertEquals("No puedes consultar pedidos de otro usuario", response.getBody().message());
     }
 }
