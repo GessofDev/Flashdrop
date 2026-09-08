@@ -26,4 +26,9 @@ public class JpaCategoryRepositoryAdapter implements CategoryRepositoryPort {
                 .map(categoryEntity -> categoryEntity.toDomain())
                 .toList();
     }
+
+    @Override
+    public boolean existsById(Long id) {
+        return id != null && repository.existsById(id);
+    }
 }

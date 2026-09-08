@@ -9,10 +9,21 @@ Puerto del servicio: `8082`.
 ```text
 GET  /health
 GET  /catalog/products
+GET  /catalog/products?categoryId=1
+GET  /catalog/products?restaurantId=1
 POST /catalog/products
 POST /catalog/products/validate
 GET  /catalog/categories
 GET  /catalog/restaurants
+GET  /api/internal/products?ids=1,2,3
+GET  /api/internal/restaurants/{restaurantId}
+GET  /api/internal/restaurants?userId={userId}
+```
+
+Los `POST` publicos y todos los endpoints `/api/internal/**` requieren:
+
+```text
+X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
 ```
 
 Ejemplo de validacion:
@@ -27,20 +38,44 @@ Ejemplo de validacion:
 
 ```text
 local     Usa datos en memoria
-supabase  Usa Supabase REST API con SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
-postgres  Usa JPA/PostgreSQL directo con POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER y POSTGRES_PASSWORD
+postgres  Usa JPA/PostgreSQL directo con DB_URL, DB_USERNAME y DB_PASSWORD
+supabase  Adapter legacy via Supabase REST API
 ```
 
-## Levantar con Supabase
+## Levantar con Floci/PostgreSQL
+
+```powershell
+ssh -N -L 7001:127.0.0.1:7001 dev@76.13.168.23
+```
+
+En otra terminal, crea un `.env` local con:
+
+```text
+SPRING_PROFILES_ACTIVE=postgres
+DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
+DB_USERNAME=catalog_app
+DB_PASSWORD=tu_password
+INTERNAL_API_KEY=dev-key
+CATALOG_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4200
+```
+
+Luego levanta el servicio:
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+Flyway crea automaticamente las tablas propias de Catalog desde `src/main/resources/db/migration`.
+
+## Levantar con Supabase legacy
 
 ```powershell
 .\gradlew.bat bootRun --args="--spring.profiles.active=supabase"
 ```
 
-Este es el modo recomendado para probar desde el equipo local, porque usa `SUPABASE_URL` y
-`SUPABASE_SERVICE_ROLE_KEY`.
+Ese perfil queda solo como compatibilidad. Para Floci/PostgreSQL usar `postgres`.
 
-## Levantar local sin Supabase
+## Levantar local sin base real
 
 ```powershell
 .\gradlew.bat bootRun --args="--spring.profiles.active=local"
@@ -52,15 +87,16 @@ Este es el modo recomendado para probar desde el equipo local, porque usa `SUPAB
 docker compose up --build
 ```
 
-Por defecto Docker levanta el servicio con el perfil `supabase`, usando la API REST del
-Kong/PostgREST de la empresa.
+Por defecto Docker levanta el servicio con el perfil configurado en `.env`.
 
 El archivo `.env` real debe quedar en el servidor, no en GitHub:
 
 ```text
-SPRING_PROFILES_ACTIVE=supabase
-SUPABASE_URL=http://supabasekong-wymwq8rktid7ov678oe4va90.76.13.169.150.sslip.io
-SUPABASE_SERVICE_ROLE_KEY=********
+SPRING_PROFILES_ACTIVE=postgres
+DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
+DB_USERNAME=catalog_app
+DB_PASSWORD=********
+INTERNAL_API_KEY=********
 ```
 
 Luego se levanta con:
@@ -78,24 +114,6 @@ http://localhost:8082/catalog/categories
 http://localhost:8082/catalog/restaurants
 ```
 
-## Alternativa PostgreSQL dentro del VPS
-
-Si el microservicio corre dentro de la misma red Docker/VPS donde existe el contenedor
-`db`, se puede usar PostgreSQL directo:
-
-```text
-SPRING_PROFILES_ACTIVE=postgres
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
-POSTGRES_DB=postgres
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=********
-POSTGRES_SSLMODE=disable
-```
-
-Nota: `POSTGRES_HOST=db` funciona solo si este servicio corre dentro de la misma red Docker/VPS
-donde existe el contenedor `db`. Desde el equipo local normalmente no resuelve.
-
 ## Seguridad de claves
 
 No subir nunca el archivo `.env` real a GitHub. En el repositorio solo debe existir
@@ -103,6 +121,34 @@ No subir nunca el archivo `.env` real a GitHub. En el repositorio solo debe exis
 
 La `SUPABASE_SERVICE_ROLE_KEY` es una clave de backend. No debe ir en Flutter, React,
 Next.js publico ni ningun frontend.
+
+## Endpoints internos
+
+Los endpoints bajo `/api/internal/**` son para comunicacion entre microservicios. No son
+para la app mobile ni para el panel admin.
+
+Todos requieren el header:
+
+```text
+X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
+```
+
+Ejemplos:
+
+```powershell
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/products?ids=1,2,3"
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restaurants/1"
+curl -H "X-Internal-Api-Key: dev-key" "http://localhost:8082/api/internal/restaurants?userId=2"
+```
+
+Las migraciones que preparan la base propia de Catalog estan en:
+
+```text
+src/main/resources/db/migration/V1__create_schema.sql
+src/main/resources/db/migration/V2__seed_development.sql
+```
+
+Con el perfil `postgres`, Flyway las ejecuta automaticamente al levantar el servicio.
 
 Para probar sin base real:
 

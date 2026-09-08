@@ -10,4 +10,8 @@ import com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.ent
 public interface SpringDataProductRepository extends JpaRepository<ProductEntity, Long> {
 
     List<ProductEntity> findByIdIn(Collection<Long> ids);
+
+    List<ProductEntity> findByCategoryId(Long categoryId);
+
+    List<ProductEntity> findByRestaurantId(Long restaurantId);
 }

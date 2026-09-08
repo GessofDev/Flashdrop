@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flashdrop.catalog.application.usecase.GetProductsByIdsUseCase;
@@ -62,9 +63,12 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> listProducts() {
+    public List<ProductResponse> listProducts(
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long restaurantId
+    ) {
         // GET /catalog/products: lista productos y los transforma a respuesta publica.
-        return listProductsUseCase.execute()
+        return listProductsUseCase.execute(categoryId, restaurantId)
                 .stream()
                 .map(ProductResponse::fromDomain)
                 .toList();
