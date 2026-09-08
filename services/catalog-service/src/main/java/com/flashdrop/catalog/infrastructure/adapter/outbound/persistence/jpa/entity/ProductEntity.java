@@ -31,7 +31,7 @@ public class ProductEntity {
 
     private String description;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
     private String image;
@@ -71,5 +71,15 @@ public class ProductEntity {
                 image,
                 available
         );
+    }
+
+    public void updateFrom(Product product) {
+        this.categoryId = product.getCategoryId();
+        this.restaurantId = product.getRestaurantId();
+        this.name = product.getName();
+        this.description = product.getDescription();
+        this.price = product.getPrice().amount();
+        this.image = product.getImage();
+        this.available = product.isAvailable();
     }
 }

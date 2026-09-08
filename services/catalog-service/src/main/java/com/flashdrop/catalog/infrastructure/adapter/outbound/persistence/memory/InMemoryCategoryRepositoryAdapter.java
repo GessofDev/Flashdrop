@@ -22,4 +22,10 @@ public class InMemoryCategoryRepositoryAdapter implements CategoryRepositoryPort
     public List<Category> findAll() {
         return categories;
     }
+
+    @Override
+    public boolean existsById(Long id) {
+        return categories.stream()
+                .anyMatch(category -> category.getId().equals(id));
+    }
 }

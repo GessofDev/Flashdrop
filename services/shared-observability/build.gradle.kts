@@ -1,17 +1,11 @@
 plugins {
     `java-library`
-    id("io.spring.dependency-management")
+    id("io.spring.dependency-management") version "1.1.6"
 }
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:3.3.4")
     }
 }
 

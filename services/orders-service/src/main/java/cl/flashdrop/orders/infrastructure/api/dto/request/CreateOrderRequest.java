@@ -22,7 +22,15 @@ import java.util.UUID;
 @NoArgsConstructor
 public class CreateOrderRequest {
 
-    /** ID del usuario (opcional, se resuelve por fallback en el servidor) */
+    /**
+     * ID del usuario que envía el pedido.
+     *
+     * @deprecated GAP-04 (auditoría 2026-09-04): este campo ya NO se usa para crear el
+     * pedido — {@code OrderController.createOrder()} siempre usa el userId resuelto desde
+     * el JWT autenticado ({@code CurrentUserResolver}), nunca este valor. Se conserva sólo
+     * por compatibilidad de forma del JSON con clientes existentes que lo envían.
+     */
+    @Deprecated
     @JsonAlias("user_id")
     private UUID userId;
 

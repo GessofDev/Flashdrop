@@ -15,7 +15,10 @@ import java.util.UUID;
 @Builder
 public class CreateOrderCommand {
 
-    /** ID del usuario que realiza el pedido (puede ser null en modo demo) */
+    /**
+     * ID del usuario que realiza el pedido. Desde GAP-04 (auditoría 2026-09-04) siempre
+     * lo fija {@code OrderController} a partir del JWT autenticado, nunca del cliente.
+     */
     private final UUID userId;
 
     /** Dirección de entrega */

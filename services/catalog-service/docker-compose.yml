@@ -7,6 +7,6 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-supabase}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-postgres}
       POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
     restart: unless-stopped

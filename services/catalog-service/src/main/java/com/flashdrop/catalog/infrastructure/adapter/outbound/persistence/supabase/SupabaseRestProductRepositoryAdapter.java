@@ -3,6 +3,7 @@ package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.supaba
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
@@ -70,6 +71,37 @@ public class SupabaseRestProductRepositoryAdapter implements ProductRepositoryPo
     }
 
     @Override
+    public Optional<Product> findById(Long id) {
+        return findByIds(List.of(id)).stream().findFirst();
+    }
+
+    @Override
+    public List<Product> findByCategoryId(Long categoryId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("category_id", "eq." + categoryId)
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
+    public List<Product> findByRestaurantId(Long restaurantId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("restaurant_id", "eq." + restaurantId)
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
     public Product save(Product product) {
         // POST a /rest/v1/products: aqui ocurre el insert real en Supabase.
         String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
@@ -98,6 +130,41 @@ public class SupabaseRestProductRepositoryAdapter implements ProductRepositoryPo
 
         if (rows == null || rows.length == 0) {
             throw new IllegalStateException("Supabase no devolvio el producto creado");
+        }
+
+        return rows[0].toDomain();
+    }
+
+    @Override
+    public Product update(Product product) {
+        // PATCH a /rest/v1/products?id=eq.X: actualiza el registro existente en Supabase.
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("id", "eq." + product.getId())
+                .queryParam("select", PRODUCT_SELECT)
+                .build()
+                .toUriString();
+
+        ProductInsertRequest request = new ProductInsertRequest(
+                product.getCategoryId(),
+                product.getRestaurantId(),
+                product.getName(),
+                product.getDescription(),
+                product.getPrice().amount(),
+                product.getImage(),
+                product.isAvailable()
+        );
+
+        ProductRow[] rows = restClient.patch()
+                .uri(url)
+                .header("Prefer", "return=representation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ProductRow[].class);
+
+        if (rows == null || rows.length == 0) {
+            throw new IllegalStateException("Supabase no devolvio el producto actualizado");
         }
 
         return rows[0].toDomain();

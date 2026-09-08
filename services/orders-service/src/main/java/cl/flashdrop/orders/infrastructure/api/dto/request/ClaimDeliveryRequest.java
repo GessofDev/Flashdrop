@@ -61,10 +61,15 @@ public class ClaimDeliveryRequest {
     }
 
     /**
-     * Retorna el userId efectivo para resolución de perfil de repartidor.
-     * En el formato openapi.yaml, deliveryPersonId es el ID del perfil de delivery,
-     * no el user_id. En esta fase, se trata como userId para compatibilidad.
+     * @deprecated GAP-03 (auditoría 2026-09-04): {@code DeliveryController} ya NO usa este
+     * valor para resolver la identidad del repartidor — se resuelve exclusivamente desde el
+     * JWT autenticado ({@code CurrentUserResolver}), para cerrar el IDOR que permitía
+     * reclamar pedidos indicando cualquier {@code deliveryPersonId}/{@code user_id} ajeno en
+     * el body. El campo se conserva sólo por compatibilidad de forma del JSON con clientes
+     * existentes (no se elimina la validación {@code @NotNull} para no romper requests que
+     * ya lo envían), pero su contenido es ignorado para autorización.
      */
+    @Deprecated
     public UUID getUserId() {
         return deliveryPersonId;
     }
