@@ -50,7 +50,7 @@ services:
   # ============================================================
   catalog-service:
     build:
-      context: ../../juniors/junior-3-catalog
+      context: ../../services/catalog-service
       dockerfile: Dockerfile
     container_name: stack-catalog
     environment:
