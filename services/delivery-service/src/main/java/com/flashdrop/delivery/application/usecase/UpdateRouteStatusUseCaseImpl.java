@@ -34,12 +34,7 @@ public class UpdateRouteStatusUseCaseImpl implements UpdateRouteStatusUseCase {
     public RouteResponse execute(Long routeId, UpdateRouteStatusRequest request) {
         log.info("Updating route {} status to {}", routeId, request.status());
 
-        RouteStatus newStatus;
-        try {
-            newStatus = RouteStatus.fromDbValue(request.status());
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid status: " + request.status());
-        }
+        RouteStatus newStatus = RouteStatus.fromAnyValue(request.status());
 
         DeliveryRoute updated = routeRepository.updateStatus(routeId, newStatus.getDbValue());
         log.info("Route {} status updated to {}", routeId, newStatus);
@@ -64,7 +59,7 @@ public class UpdateRouteStatusUseCaseImpl implements UpdateRouteStatusUseCase {
                 route.getDeliveryAddress(),
                 route.getDistanceKm().getValue().doubleValue(),
                 route.getEstimatedMinutes().getMinutes(),
-                route.getStatus() != null ? route.getStatus().name() : null,
+                route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt(),
                 code
         );

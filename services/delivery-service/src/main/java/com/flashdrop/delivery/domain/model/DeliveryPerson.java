@@ -7,14 +7,14 @@ import java.time.Instant;
 public class DeliveryPerson {
 
     private Long id;
-    private Long userId;
+    private String userId;
     private VehicleType vehicle;
     private Instant createdAt;
 
     public DeliveryPerson() {
     }
 
-    public DeliveryPerson(Long id, Long userId, VehicleType vehicle, Instant createdAt) {
+    public DeliveryPerson(Long id, String userId, VehicleType vehicle, Instant createdAt) {
         this.id = id;
         this.userId = userId;
         this.vehicle = vehicle;
@@ -29,11 +29,11 @@ public class DeliveryPerson {
         this.id = id;
     }
 
-    public Long getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 
