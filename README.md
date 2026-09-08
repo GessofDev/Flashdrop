@@ -100,12 +100,14 @@ Endpoints internos:
 
 ### Delivery Service (puerto 8084)
 
-Repartidores y rutas. Dueño de `delivery`, `delivery_routes`.
+Repartidores y rutas. Dueño de `delivery_db` (PostgreSQL, schema `internal`), accedido via Spring Data JPA + Flyway. Reemplaza el adaptador anterior que leía las tablas `delivery` y `delivery_routes` via Supabase REST.
 
 Endpoints internos:
 - `GET /api/internal/delivery-persons?userId={userId}` → perfil del repartidor
 - `POST /api/internal/routes` → crea ruta de entrega para una orden
 - `PATCH /api/internal/routes/{orderId}/status` → actualiza estado de ruta
+
+Inter-service: `delivery-service` lee datos de `orders-service` via HTTP (`HttpOrderServiceClientAdapter`). El cliente REST envia `X-Internal-Api-Key` en cada request y tiene graceful degradation: si `orders-service` no responde, retorna lista vacia (loggea WARN con trace ID). Perfil `mock-orders` activa un mock para desarrollo local sin necesidad de correr `orders-service`.
 
 ### Shared Observability (módulo Gradle)
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Appender de logs JSON estructurados. Cada línea incluye traceId (del MDC)
+  y el nombre del servicio. Los servicios lo activan con:
+    <include resource="observability-logback.xml"/>
+-->
+<included>
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <customFields>{"service":"${springAppName:-unknown}"}</customFields>
+        </encoder>
+    </appender>
+</included>

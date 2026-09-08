@@ -63,7 +63,7 @@ class UpdateRouteStatusUseCaseImplTest {
             RouteResponse result = useCase.execute(routeId, request);
 
             assertThat(result.id()).isEqualTo(routeId);
-            assertThat(result.status()).isEqualTo("ENTREGADO");
+            assertThat(result.status()).isEqualTo("Entregado");
             assertThat(result.code()).isEqualTo("ORD-001");
         }
 
