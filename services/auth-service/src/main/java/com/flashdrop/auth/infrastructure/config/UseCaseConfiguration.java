@@ -53,4 +53,9 @@ public class UseCaseConfiguration {
     GetUserProfileUseCase getUserProfileUseCase(UserRepository users) {
         return new GetUserProfileService(users);
     }
+
+    @Bean
+    GetInternalUserUseCase getInternalUserUseCase(UserRepository users) {
+        return new GetInternalUserService(users);
+    }
 }

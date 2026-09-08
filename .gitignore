@@ -36,3 +36,12 @@ dependency-reduced-pom.xml
 
 # Spring Boot
 *.original
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Secretos: nunca versionar un .env, solo el ejemplo
+*.env
+!.env.example
