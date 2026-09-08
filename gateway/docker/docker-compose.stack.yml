@@ -74,7 +74,7 @@ services:
   # ============================================================
   orders-service:
     build:
-      context: ../../juniors/junior-2-orders/orders-service
+      context: ../../services/orders-service
       dockerfile: Dockerfile
     container_name: stack-orders
     environment:

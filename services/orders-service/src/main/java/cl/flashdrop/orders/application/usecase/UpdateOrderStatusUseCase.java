@@ -3,6 +3,7 @@ package cl.flashdrop.orders.application.usecase;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
+import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import cl.flashdrop.orders.infrastructure.messaging.event.OrderStatusUpdatedEvent;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class UpdateOrderStatusUseCase {
 
     private final OrderRepositoryPort orderRepository;
+    private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
 
     @Value("${orders.rabbitmq.routing-key.order-status-updated:order.status.updated}")
@@ -51,7 +53,7 @@ public class UpdateOrderStatusUseCase {
         orderRepository.updateStatus(orderId, newStatus);
 
         // Sincronizar la ruta de entrega con el mismo estado
-        orderRepository.updateRouteStatusByOrder(orderId, newStatus.getValue());
+        deliveryPort.updateRouteStatusByOrder(orderId, newStatus.getValue());
 
         // Publicar evento
         eventPublisher.publish(statusUpdatedRoutingKey, OrderStatusUpdatedEvent.builder()
