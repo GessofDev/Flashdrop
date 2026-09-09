@@ -236,9 +236,15 @@ services:
       - REDIS_URL=redis://redis-cache:6379
       - LOG_LEVEL=info
     volumes:
-      # En ECS esto no se traduce: Fargate no tiene volumenes del host. Hay que
-      # decidir si la configuracion se hornea en la imagen o se trae de otro
-      # lado — pendiente de Javier.
+      # En ECS esto no se traduce: Fargate no tiene volumenes del host.
+      # Decidido con Javier: la configuracion se hornea en la imagen y las
+      # URLs, origenes CORS y secretos entran por variables de entorno desde la
+      # task definition. El loader del gateway ya interpola ${VAR} y aborta con
+      # MissingEnvVarError si falta alguna, asi que falla cerrado.
+      #
+      # Requiere un COPY en gateway/docker/Dockerfile: hoy no hornea ningun
+      # YAML, aunque declara CONFIG_PATH=/app/config/gateway.yaml. Esa ruta
+      # existe solo por este volumen.
       - ./gateway.yaml:/app/config/gateway.yaml:ro
     ports:
       - "127.0.0.1:3000:3000"
