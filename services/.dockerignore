@@ -1,0 +1,21 @@
+# Docker lee el .dockerignore de la RAIZ DEL CONTEXTO. Los Dockerfile de
+# auth-service y delivery-service se construyen con contexto services/, asi que
+# el que manda es este; los .dockerignore que viven dentro de cada modulo solo
+# aplican a los servicios que se construyen con su propia carpeta como contexto
+# (catalog-service, orders-service).
+.git
+.gitignore
+.gradle
+**/.gradle
+**/build
+**/bin
+**/.idea
+**/*.iml
+**/.vscode
+
+# Nunca dentro de una imagen.
+**/.env
+**/.env.*
+!**/.env.example
+
+**/*.log
