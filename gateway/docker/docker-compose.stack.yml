@@ -142,10 +142,17 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8081
       - CATALOG_SERVICE_URL=http://catalog-service:8082
       - DELIVERY_SERVICE_URL=http://delivery-service:8084
-      # PENDIENTE — Felipe. Orders publica eventos por AMQP. Si hace falta un
-      # broker, hay que agregar el contenedor de RabbitMQ a este archivo y
-      # apuntar RABBITMQ_HOST a el.
-      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      # Sin broker de RabbitMQ, confirmado. Orders publica eventos pero
+      # ningun servicio los consume: no hay un solo @RabbitListener en el
+      # repositorio, y delivery y catalog ni siquiera declaran la dependencia
+      # AMQP. Hoy los eventos no llegan a nadie.
+      #
+      # El publisher envuelve el envio en try/catch y solo loguea WARN, y el
+      # health indicator de Rabbit esta deshabilitado, asi que la ausencia del
+      # broker no impide arrancar ni marca el servicio como caido.
+      #
+      # Cuando alguien implemente el consumidor, hay que agregar el contenedor
+      # aca y apuntarle RABBITMQ_HOST.
     ports:
       - "127.0.0.1:8083:8083"
     healthcheck:
