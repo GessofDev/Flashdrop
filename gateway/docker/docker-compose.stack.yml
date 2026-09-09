@@ -167,18 +167,27 @@ services:
     container_name: stack-delivery
     networks: [stack, floci_default]
     environment:
-      # PENDIENTE — Sebastian. `mock-orders` se creo cuando orders-service no
-      # existia. Si queda prendido, el flujo end-to-end prueba contra un mock y
-      # da verde sin haber probado nada.
-      - SPRING_PROFILES_ACTIVE=${DELIVERY_PROFILES:?PENDIENTE Sebastian - delivery a secas o delivery,mock-orders}
+      # `delivery` a secas, confirmado por Sebastian: sin `mock-orders`, el
+      # adaptador real (HttpOrderServiceClientAdapter) se activa solo porque
+      # depende de `orders.service.url`, que ya viene con valor.
+      #
+      # Cuidado con ORDERS_SERVICE_MOCK: esta documentada pero NO esta cableada
+      # al bean. Ponerla en true no enciende el mock; lo unico que lo enciende
+      # es agregar el perfil.
+      - SPRING_PROFILES_ACTIVE=delivery
       - SERVER_PORT=8084
       - DELIVERY_DB_HOST=172.16.1.2
       - DELIVERY_DB_PORT=7005
       - DELIVERY_DB_NAME=delivery_db
-      # PENDIENTE — Sebastian. La instancia esta creada con `adminfloci`, pero
-      # la configuracion del servicio espera `delivery_svc`. Es el unico de los
-      # cuatro sin usuario propio.
-      - DELIVERY_DB_USER=${DELIVERY_DB_USER:?PENDIENTE Sebastian - adminfloci o delivery_svc}
+      # `delivery_svc`, confirmado por Sebastian. Lo crea
+      # infra/coolify/01-postgres-init.sql, que le da ALL PRIVILEGES sobre
+      # delivery_db y hace falta porque Flyway ejecuta CREATE SCHEMA en la V1.
+      #
+      # OJO: ese script se escribio para Coolify y la instancia de Floci se
+      # bootstrapeo con `adminfloci`, asi que este usuario probablemente
+      # todavia NO existe ahi. Hay que crearlo antes de levantar; si no, el
+      # arranque falla con autenticacion rechazada.
+      - DELIVERY_DB_USER=${DELIVERY_DB_USER:-delivery_svc}
       - DELIVERY_DB_PASSWORD=${DELIVERY_DB_PASSWORD:?falta DELIVERY_DB_PASSWORD en .env}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:?falta INTERNAL_API_KEY en .env}
       - AUTH_SERVICE_JWKS_URI=http://auth-service:8081/auth/.well-known/jwks.json
