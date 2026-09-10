@@ -1,0 +1,40 @@
+{
+  "family": "catalog-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "catalog-service",
+      "image": "catalog-service:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 8082, "hostPort": 8082, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "postgres" },
+        { "name": "SERVER_PORT", "value": "8082" },
+        { "name": "DB_URL", "value": "jdbc:postgresql://172.16.1.2:7001/flashdrop_catalog" },
+        { "name": "DB_USERNAME", "value": "catalog_app" }
+      ],
+      "secrets": [
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:catalog/db-password"
+        },
+        {
+          "name": "INTERNAL_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 10,
+        "startPeriod": 40
+      }
+    }
+  ]
+}

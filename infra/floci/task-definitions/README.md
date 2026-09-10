@@ -72,10 +72,45 @@ comprobar. Mientras tanto, `docker logs`.
 
 ## Estado
 
-| Servicio | Task definition |
-| --- | --- |
-| auth-service | ✅ `auth-service.dev.json` |
-| catalog-service | pendiente |
-| orders-service | pendiente |
-| delivery-service | pendiente |
-| gateway | pendiente |
+| Servicio | Task definition | Listo para registrar |
+| --- | --- | --- |
+| auth-service | `auth-service.dev.json` | sí |
+| catalog-service | `catalog-service.dev.json` | sí |
+| orders-service | `orders-service.dev.json` | falta confirmar `FLYWAY_ENABLED` |
+| delivery-service | `delivery-service.dev.json` | sí |
+| gateway | `gateway.dev.json` | falta hornear el YAML en la imagen |
+
+## Lo que falta antes de registrarlas
+
+**`FLYWAY_ENABLED` de orders está en `true` de forma provisional.** El comentario
+GAP-06 de su `application.properties` dice que no se cambia el default sin
+confirmar contra qué instancia corre cada entorno. Si `flashdrop_orders` ya
+tiene tablas **sin** `flyway_schema_history`, con `true` el servicio no arranca:
+falla con *Found non-empty schema without schema history table*, porque orders
+no define `baseline-on-migrate`. Se confirma con:
+
+```sql
+select table_name from information_schema.tables where table_schema = 'public';
+```
+
+**El gateway no tiene su configuración dentro de la imagen.** Su Dockerfile no
+copia ningún YAML, aunque declara `CONFIG_PATH=/app/config/gateway.yaml`: esa
+ruta existe solo por el volumen que monta el compose, y en Fargate no hay
+volúmenes del host. Hasta que se agregue el `COPY`, esta task definition
+registra pero el contenedor no encuentra su configuración.
+
+Las URLs y el JWKS ya van como variables de entorno acá, que es la forma
+acordada: el loader del gateway interpola `${VAR}` en el YAML y aborta con
+`MissingEnvVarError` si falta alguna.
+
+**Redis no tiene task definition.** El gateway lo necesita para el rate
+limiting. Hay que decidir si va como una tarea más o como un contenedor aparte.
+
+**Los nombres DNS entre servicios dependen de service discovery.** Las URLs
+`http://auth-service:8081` funcionan en Docker Compose por el DNS de la red;
+en ECS hace falta registrar el service discovery, que todavía no está hecho.
+
+**Las imágenes apuntan a etiquetas locales.** Cuando se empujen a ECR hay que
+cambiarlas por
+`000000000000.dkr.ecr.us-east-1.localhost:5100/flashdrop/<servicio>`, y antes
+comprobar que ese host resuelva desde dentro de una tarea.
