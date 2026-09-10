@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,8 +40,8 @@ class ListDeliveryRoutesUseCaseImplTest {
         useCase = new ListDeliveryRoutesUseCaseImpl(routeRepository, orderServicePort);
     }
 
-    private DeliveryRoute newRoute(Long id, Long orderId, String pickup, String delivery) {
-        return new DeliveryRoute(id, orderId, pickup, delivery,
+    private DeliveryRoute newRoute(Long id, Long orderId, Long deliveryPersonId, String pickup, String delivery) {
+        return new DeliveryRoute(id, orderId, deliveryPersonId, pickup, delivery,
                 Distance.of(new BigDecimal("3.5")),
                 EstimatedTime.of(20),
                 RouteStatus.PENDIENTE, Instant.now());
@@ -51,41 +52,38 @@ class ListDeliveryRoutesUseCaseImplTest {
     class Execute {
 
         @Test
-        @DisplayName("TC1: null deliveryPersonId — returns all routes with code from OrderServicePort")
-        void nullDeliveryPersonId_returnsAllRoutes() {
-            DeliveryRoute route = newRoute(1L, 101L, "Pickup", "Delivery");
-            when(routeRepository.findAll()).thenReturn(List.of(route));
-            when(orderServicePort.getOrdersByIds(List.of(101L)))
-                    .thenReturn(List.of(new OrderServicePort.OrderInfo(101L, 10L, "Pickup", "Delivery", "ORD-001")));
+        @DisplayName("filterByDeliveryPersonId_returnsOnlyMatchingRoutes")
+        void filterByDeliveryPersonId_returnsOnlyMatchingRoutes() {
+            DeliveryRoute routeA1 = newRoute(1L, 101L, 7L, "PickupA1", "DeliveryA1");
+            DeliveryRoute routeA2 = newRoute(2L, 102L, 7L, "PickupA2", "DeliveryA2");
+            DeliveryRoute routeB = newRoute(3L, 103L, 99L, "PickupB", "DeliveryB");
+            when(routeRepository.findByDeliveryPersonId(7L)).thenReturn(List.of(routeA1, routeA2));
+            when(orderServicePort.getOrdersByIds(List.of(101L, 102L)))
+                    .thenReturn(List.of(
+                            new OrderServicePort.OrderInfo(101L, 10L, "PickupA1", "DeliveryA1", "ORD-001"),
+                            new OrderServicePort.OrderInfo(102L, 10L, "PickupA2", "DeliveryA2", "ORD-002")));
 
-            List<RouteResponse> result = useCase.execute(null);
+            List<RouteResponse> result = useCase.execute(7L);
 
-            assertThat(result).hasSize(1);
+            assertThat(result).hasSize(2);
             assertThat(result.get(0).id()).isEqualTo(1L);
-            assertThat(result.get(0).code()).isEqualTo("ORD-001");
+            assertThat(result.get(1).id()).isEqualTo(2L);
         }
 
         @Test
-        @DisplayName("TC2: deliveryPersonId provided — param is ignored, returns all routes")
-        void withDeliveryPersonId_returnsAllRoutes() {
-            DeliveryRoute route = newRoute(2L, 102L, "Pickup2", "Delivery2");
-            when(routeRepository.findAll()).thenReturn(List.of(route));
-            when(orderServicePort.getOrdersByIds(List.of(102L)))
-                    .thenReturn(List.of(new OrderServicePort.OrderInfo(102L, 10L, "Pickup2", "Delivery2", "ORD-002")));
-
-            List<RouteResponse> result = useCase.execute(42L);
-
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).id()).isEqualTo(2L);
-            assertThat(result.get(0).code()).isEqualTo("ORD-002");
+        @DisplayName("nullDeliveryPersonId_throwsIllegalArgumentException")
+        void nullDeliveryPersonId_throwsIllegalArgumentException() {
+            assertThatThrownBy(() -> useCase.execute(null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("required");
         }
 
         @Test
-        @DisplayName("TC3: empty DB — returns empty list")
+        @DisplayName("emptyDatabase_returnsEmptyList")
         void emptyDatabase_returnsEmptyList() {
-            when(routeRepository.findAll()).thenReturn(Collections.emptyList());
+            when(routeRepository.findByDeliveryPersonId(7L)).thenReturn(Collections.emptyList());
 
-            List<RouteResponse> result = useCase.execute(null);
+            List<RouteResponse> result = useCase.execute(7L);
 
             assertThat(result).isEmpty();
         }

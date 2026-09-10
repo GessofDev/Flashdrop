@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record DeliveryPersonResponse(
         Long id,
-        Long userId,
+        String userId,
         String vehicle,
         Instant createdAt
 ) {

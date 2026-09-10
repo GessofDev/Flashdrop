@@ -1,8 +1,10 @@
 package com.flashdrop.delivery.infrastructure.exception;
 
 import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
+import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
+import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -36,11 +39,53 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    /**
+     * Spring 6.1+ throws this for any path the DispatcherServlet cannot route
+     * to a controller (e.g. typos, unmapped sub-paths, missing static resources).
+     * Without this handler the catch-all {@link #handleGenericException(Exception)}
+     * would map it to 500, which is misleading — the request simply targets a
+     * non-existent resource.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(NoResourceFoundException ex) {
+        String message = "No handler found for "
+                + (ex.getHttpMethod() != null ? ex.getHttpMethod() : "?") + " "
+                + (ex.getResourcePath() != null ? ex.getResourcePath() : ex.getMessage());
+        log.warn("No resource found: {}", message);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, message);
+    }
+
     @ExceptionHandler(RouteAlreadyAssignedException.class)
     public ResponseEntity<Map<String, Object>> handleRouteAlreadyAssigned(
             RouteAlreadyAssignedException ex) {
         log.error("Route already assigned: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
+     * Plan §9.5 D8: claim rejected because Orders has not yet published the
+     * route for the given orderId. Same status code as "already claimed" (409)
+     * but the message distinguishes the cause for the caller.
+     */
+    @ExceptionHandler(RouteNotPrecreatedException.class)
+    public ResponseEntity<Map<String, Object>> handleRouteNotPrecreated(
+            RouteNotPrecreatedException ex) {
+        log.error("Route not pre-created: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
+     * PR-B: orders-service claim delegation failed. Maps the upstream status
+     * (carried by the exception) to the response. Routes may already be saved
+     * (orphan) — the caller decides whether to reconcile.
+     */
+    @ExceptionHandler(OrderClaimFailedException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderClaimFailed(
+            OrderClaimFailedException ex) {
+        HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.BAD_GATEWAY;
+        log.error("Order claim delegation failed (upstreamStatus={}): {}",
+                status, ex.getMessage(), ex);
+        return buildErrorResponse(status, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

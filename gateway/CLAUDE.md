@@ -280,6 +280,10 @@ Variables leídas por el proceso (defaults fijados en `docker/Dockerfile`, algun
 - **Error handler & centralized envelope**: todos los plugins (CORS, rate-limit, JWT, circuit-breaker, health) y el handler global usan `buildErrorResponse()` (`src/errors/responses.ts`) para producir un sobre JSON uniforme con la forma `{ statusCode, error, message, requestId?, timestamp, stack? }`. El campo `stack` **solo se incluye fuera de producción** (`NODE_ENV !== 'production'`); en producción se omite por completo. Direcciones IP internas y nombres de backends jamás se exponen al cliente.
 - **Dev tooling** (via `docker-compose.example.yml`): Dozzle (localhost:9999) for live log viewing, Prometheus (localhost:9090), Grafana (localhost:3001) with pre-provisioned "Gateway Overview" dashboard.
 
+### Delivery Service (port 8084)
+
+`delivery-service` now owns its own `delivery_db` (PostgreSQL, schema `internal`), accessed via Spring Data JPA + Flyway (profile `delivery`). The gateway routes `/api/delivery/*` → `http://flashdrop-delivery:8084/api/delivery/*` using the `delivery-service` prefix. The internal endpoints (`/api/internal/*`) are protected by `X-Internal-Api-Key` and are NOT routed through the gateway. Required env vars for delivery-service: `DELIVERY_DB_HOST`, `DELIVERY_DB_PORT`, `DELIVERY_DB_NAME`, `DELIVERY_DB_USER`, `DELIVERY_DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=delivery`.
+
 ### CORS Metrics
 
 Métricas Prometheus registradas por el plugin CORS:

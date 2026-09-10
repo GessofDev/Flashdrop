@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "jira": {
+      "command": "node",
+      "args": ["D:/desarrollo/workspace/2027/mcp-jira/dist/index.js"],
+      "env": {
+        "JIRA_BASE_URL": "https://gessof.atlassian.net/",
+        "JIRA_EMAIL": "sebastian.rozas@gessof.cl",
+        "JIRA_API_TOKEN": "ATATT3xFfGF0qOwA1khD7HomNWUGPga-049Nb_GC3lfMpS8dhcfhc8R41XVPtdjB6chr_ZkHbTeMhmWSk1QzIqPz5fLUCNYCeoZ0U4C9aTm0WWQy2IoA5WgEtFAbfCR4N1cixtAx5n-1z0RnAcGuUq67KviJQ9zwFaChfy59bGUfKsX0hLeP6-4=C14F81EF"
+      }
+    }
+  }
+}

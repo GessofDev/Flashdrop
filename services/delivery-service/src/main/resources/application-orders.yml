@@ -1,0 +1,18 @@
+# =============================================================================
+# Orders-service HTTP client configuration
+# =============================================================================
+# Activated when orders.service.url is set (e.g. via SPRING_PROFILES_ACTIVE=orders
+# or ORDERS_SERVICE_URL env var).
+#
+# The RestClient sends X-Internal-Api-Key on every request for inter-service
+# authentication. Graceful degradation: if orders-service is unavailable, the
+# HttpOrderServiceClientAdapter returns an empty list and logs a warning with
+# the current trace ID — suitable for automated testing.
+# =============================================================================
+
+orders:
+  service:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+    # Set to true to use MockOrderServiceClientAdapter instead of HTTP client.
+    # Useful for local development without running orders-service.
+    mock: ${ORDERS_SERVICE_MOCK:false}

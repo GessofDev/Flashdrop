@@ -18,3 +18,10 @@ logging:
   level:
     com.flashdrop: DEBUG
     org.springframework.web: INFO
+
+# JWT auth (RS256) — base defaults so unit tests that don't load a profile
+# (e.g. @WebMvcTest) still see the same property keys. The `auth-service`
+# hostname is the Coolify resource name; tests override via @TestPropertySource.
+auth:
+  jwks-uri: ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}
