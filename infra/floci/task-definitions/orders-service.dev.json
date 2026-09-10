@@ -17,7 +17,7 @@
         { "name": "SERVER_PORT", "value": "8083" },
         { "name": "DB_URL", "value": "jdbc:postgresql://172.16.1.2:7002/flashdrop_orders" },
         { "name": "DB_USERNAME", "value": "orders_app" },
-        { "name": "FLYWAY_ENABLED", "value": "true" },
+        { "name": "FLYWAY_ENABLED", "value": "false" },
         { "name": "AUTH_SERVICE_URL", "value": "http://auth-service:8081" },
         { "name": "CATALOG_SERVICE_URL", "value": "http://catalog-service:8082" },
         { "name": "DELIVERY_SERVICE_URL", "value": "http://delivery-service:8084" }

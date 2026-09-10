@@ -82,12 +82,27 @@ comprobar. Mientras tanto, `docker logs`.
 
 ## Lo que falta antes de registrarlas
 
-**`FLYWAY_ENABLED` de orders está en `true` de forma provisional.** El comentario
-GAP-06 de su `application.properties` dice que no se cambia el default sin
-confirmar contra qué instancia corre cada entorno. Si `flashdrop_orders` ya
-tiene tablas **sin** `flyway_schema_history`, con `true` el servicio no arranca:
-falla con *Found non-empty schema without schema history table*, porque orders
-no define `baseline-on-migrate`. Se confirma con:
+**`FLYWAY_ENABLED` de orders está en `false`, y no es arbitrario.** Se consultó
+la base el 2026-09-10 y devolvió tres tablas —`client`, `order_items`,
+`orders`— **sin `flyway_schema_history`**. O sea que alguien creó ese esquema
+fuera de Flyway.
+
+Con `true`, orders no arranca: corta con *Found non-empty schema without schema
+history table*, porque no define `baseline-on-migrate`. Es el caso que el propio
+comentario GAP-06 de su `application.properties` anticipaba.
+
+`false` desbloquea el despliegue sin tocar código: las tablas ya están y
+`ddl-auto` es `none`, así que el servicio trabaja contra lo que hay. **Pero es
+un parche**: mientras siga así, ninguna migración futura de orders se va a
+aplicar, y nadie va a enterarse hasta que falte una columna.
+
+La solución de fondo es agregar `spring.flyway.baseline-on-migrate=true` en
+orders. Flyway crea entonces la tabla de historial, marca la `V1` como aplicada
+—que es lo correcto, porque las tablas existen— y de ahí en adelante las
+migraciones nuevas corren normalmente. Es una línea, y es de orders. Cuando esté,
+esta variable vuelve a `true`.
+
+Para volver a consultar el estado de la base:
 
 ```sql
 select table_name from information_schema.tables where table_schema = 'public';
