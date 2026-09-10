@@ -16,8 +16,9 @@ info:
     ## Notas para el desarrollador
     - Los IDs en la base de datos son **UUID**, pero este servicio puede usar Long internamente
     - Las operaciones GET son **públicas** (no requieren JWT)
-    - Las operaciones POST requieren JWT válido (futuro)
-    - El perfil `supabase` usa la API REST de Supabase
+    - Las operaciones POST requieren `X-Internal-Api-Key`
+    - El perfil `postgres` usa PostgreSQL con Flyway/JPA
+    - El perfil `supabase` se mantiene como adapter legacy
     - El perfil `local` usa datos en memoria (para desarrollo rápido)
 
     ## Arquitectura
@@ -40,6 +41,8 @@ tags:
     description: Restaurantes
   - name: Health
     description: Health checks
+  - name: Internal
+    description: Endpoints internos entre microservicios
 
 paths:
   /health:
@@ -66,8 +69,23 @@ paths:
     get:
       tags: [Products]
       summary: Listar todos los productos
-      description: Retorna la lista completa de productos disponibles.
+      description: Retorna productos disponibles. Permite filtrar por categoria y/o restaurante.
       operationId: listProducts
+      parameters:
+        - in: query
+          name: categoryId
+          required: false
+          schema:
+            type: integer
+            format: int64
+          example: 1
+        - in: query
+          name: restaurantId
+          required: false
+          schema:
+            type: integer
+            format: int64
+          example: 1
       responses:
         '200':
           description: Lista de productos
@@ -83,8 +101,14 @@ paths:
       summary: Crear nuevo producto
       description: |
         Crea un nuevo producto en el catálogo.
-        **Requiere JWT válido** (futuro).
+        Requiere header `X-Internal-Api-Key`.
       operationId: createProduct
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -100,6 +124,10 @@ paths:
                 $ref: '#/components/schemas/ProductResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /catalog/products/validate:
     post:
@@ -108,7 +136,14 @@ paths:
       description: |
         Valida si una lista de IDs de productos existe en el catálogo.
         Usado por el orders-service antes de crear un pedido.
+        Requiere header `X-Internal-Api-Key`.
       operationId: validateProducts
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -122,6 +157,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidateProductsResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /catalog/categories:
     get:
@@ -152,6 +189,151 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RestaurantResponse'
+
+  /api/internal/products:
+    get:
+      tags: [Internal]
+      summary: Obtener productos por IDs para otros microservicios
+      parameters:
+        - in: query
+          name: ids
+          required: true
+          schema:
+            type: string
+          example: "1,2,3"
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Productos encontrados. Si no hay coincidencias retorna array vacio.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InternalProductResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Internal]
+      summary: Crear producto desde otro microservicio
+      description: Endpoint interno para que un servicio autorizado cree productos en Catalog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      parameters:
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/internal/products/{productId}:
+    patch:
+      tags: [Internal]
+      summary: Actualizar producto desde otro microservicio
+      description: Endpoint interno para actualizar parcialmente un producto existente en Catalog.
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/internal/restaurants/{restaurantId}:
+    get:
+      tags: [Internal]
+      summary: Obtener restaurante por ID
+      parameters:
+        - in: path
+          name: restaurantId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurante encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalRestaurantResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/internal/restaurants:
+    get:
+      tags: [Internal]
+      summary: Obtener restaurante por userId
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurante encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalRestaurantResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   schemas:
@@ -187,6 +369,43 @@ components:
         available:
           type: boolean
           description: Si el producto está disponible (default: true)
+          example: true
+
+    UpdateProductRequest:
+      type: object
+      description: Campos opcionales para actualizar parcialmente un producto.
+      properties:
+        categoryId:
+          type: integer
+          description: ID de la categoría
+          example: 3
+        restaurantId:
+          type: integer
+          description: ID del restaurante
+          example: 3
+        name:
+          type: string
+          description: Nombre del producto
+          example: Hamburguesa Clásica actualizada
+        description:
+          type: string
+          nullable: true
+          description: Descripción del producto
+          example: Doble carne, queso cheddar, lechuga y tomate
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+          description: Precio en CLP (pesos chilenos)
+          example: 9990
+        image:
+          type: string
+          nullable: true
+          description: URL o path de imagen
+          example: assets/img/burger1.png
+        available:
+          type: boolean
+          description: Si el producto está disponible
           example: true
 
     ProductResponse:
@@ -287,19 +506,76 @@ components:
     ErrorResponse:
       type: object
       properties:
+        status:
+          type: integer
+          example: 404
         error:
           type: string
-          example: Bad Request
+          example: NOT_FOUND
         message:
           type: string
-          example: Nombre del producto es obligatorio
-        timestamp:
+          example: Restaurant not found with id: 99
+
+    InternalProductResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        restaurantId:
+          type: integer
+          example: 1
+        name:
           type: string
-          format: date-time
+          example: Burger doble
+        description:
+          type: string
+          nullable: true
+          example: Doble carne...
+        price:
+          type: number
+          format: decimal
+          example: 8990.00
+        image:
+          type: string
+          nullable: true
+          example: assets/img/burger1.png
+        isAvailable:
+          type: boolean
+          example: true
+
+    InternalRestaurantResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        userId:
+          type: integer
+          example: 2
+        name:
+          type: string
+          example: Urban Burger Demo
+        address:
+          type: string
+          nullable: true
+          example: Av. Providencia 1200
 
   responses:
     BadRequest:
       description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: API key interna invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso no encontrado
       content:
         application/json:
           schema:

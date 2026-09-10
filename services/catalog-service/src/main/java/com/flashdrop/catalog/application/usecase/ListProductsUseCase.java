@@ -20,4 +20,23 @@ public class ListProductsUseCase {
         // Accion del sistema: listar productos disponibles para el catalogo.
         return productRepositoryPort.findAll();
     }
+
+    public List<Product> execute(Long categoryId, Long restaurantId) {
+        if (categoryId != null && restaurantId != null) {
+            return productRepositoryPort.findByCategoryId(categoryId)
+                    .stream()
+                    .filter(product -> restaurantId.equals(product.getRestaurantId()))
+                    .toList();
+        }
+
+        if (categoryId != null) {
+            return productRepositoryPort.findByCategoryId(categoryId);
+        }
+
+        if (restaurantId != null) {
+            return productRepositoryPort.findByRestaurantId(restaurantId);
+        }
+
+        return execute();
+    }
 }

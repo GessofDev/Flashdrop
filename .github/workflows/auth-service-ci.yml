@@ -1,0 +1,73 @@
+name: auth-service CI
+
+# GitHub solo ejecuta workflows que viven en .github/workflows/ EN LA RAIZ del
+# repositorio. Este archivo estaba en el modulo de auth, donde nunca se
+# ejecuto: ni el build ni los tests corrieron jamas en CI.
+#
+# Se limita por 'paths' al modulo de auth para no dispararse con cambios de
+# Catalog, Orders, Delivery o el gateway.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/auth-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/auth-service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/auth-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/auth-service-ci.yml'
+
+jobs:
+  build:
+    name: Build y tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # La raiz del proyecto Gradle es services/, no la raiz del repo.
+        working-directory: services
+    env:
+      # Los tests no necesitan una base real: los de persistencia levantan su
+      # propio PostgreSQL con Testcontainers, y el resto desactiva el acceso a
+      # datos. Estas variables solo evitan que falte una al construir el
+      # contexto.
+      DB_URL: jdbc:postgresql://localhost:5432/no-se-usa
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+      INTERNAL_API_KEY: dummy-internal-key-for-ci
+      JWT_ALLOW_EPHEMERAL: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            services/**/*.gradle.kts
+            services/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Dar permisos de ejecucion a gradlew
+        run: chmod +x ./gradlew
+
+      # --configure-on-demand es NECESARIO, no una optimizacion: hoy main no
+      # compila porque services/catalog-service/build.gradle.kts pide Spring
+      # Boot 3.5.16 mientras la raiz fija 3.3.5, y Gradle falla al configurar
+      # ese modulo aunque solo se pida :auth-service. Con esta bandera solo se
+      # configura lo que la tarea necesita. Cuando se arregle el conflicto de
+      # versiones, la bandera se puede quitar.
+      - name: Build y tests de auth-service
+        run: ./gradlew :auth-service:build --configure-on-demand --no-daemon
+
+      - name: Publicar resultados de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-auth-service
+          path: services/auth-service/build/reports/tests/test
+          if-no-files-found: ignore
