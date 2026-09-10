@@ -33,9 +33,19 @@ de un servicio emulado sin recursos, no la de uno inexistente.
 | ECR                | ✅ verificado   | Imágenes de los 5 servicios          | 5 repositorios creados |
 | ELBv2 (ALB / NLB)  | ✅ verificado   | Public-facing load balancing         | Sin recursos todavía |
 | IAM / STS          | ✅              | Task roles, cross-service auth       | Planned       |
-| CloudWatch Logs    | ❓ sin verificar | Logs de las tareas ECS              | Por eso las task definitions no declaran `logConfiguration` |
+| CloudWatch Logs    | ✅ verificado   | Logs de las tareas ECS              | **Active** — Floci ya crea grupos por instancia RDS |
 | S3, SQS, SNS       | ✅ (not used)   | Reserved for future needs            | n/a           |
 | Lambda             | ✅ (not used)   | Reserved for future needs            | n/a           |
+
+**CloudWatch Logs está emulado.** Verificado el 2026-09-10: `describe-log-groups`
+responde, y Floci crea grupos por su cuenta — uno por instancia RDS
+(`/aws/rds/instance/<nombre>/error`) y otro para el registro de imágenes. Las
+task definitions declaran sus logs en `/ecs/<servicio>` con
+`awslogs-create-group`, así que no hay que crearlos a mano:
+
+```bash
+aws --endpoint-url http://127.0.0.1:4566 logs tail /ecs/auth-service --follow
+```
 
 El registro de imágenes responde en
 `000000000000.dkr.ecr.us-east-1.localhost:5100`. Falta comprobar que ese host
