@@ -1,7 +1,9 @@
 {
   "family": "orders-service",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "512",
   "memory": "1024",
   "containerDefinitions": [
@@ -10,17 +12,45 @@
       "image": "orders-service:latest",
       "essential": true,
       "portMappings": [
-        { "containerPort": 8083, "hostPort": 8083, "protocol": "tcp" }
+        {
+          "containerPort": 8083,
+          "hostPort": 8083,
+          "protocol": "tcp"
+        }
       ],
       "environment": [
-        { "name": "SPRING_PROFILES_ACTIVE", "value": "postgres" },
-        { "name": "SERVER_PORT", "value": "8083" },
-        { "name": "DB_URL", "value": "jdbc:postgresql://172.16.1.2:7002/flashdrop_orders" },
-        { "name": "DB_USERNAME", "value": "orders_app" },
-        { "name": "FLYWAY_ENABLED", "value": "false" },
-        { "name": "AUTH_SERVICE_URL", "value": "http://auth-service:8081" },
-        { "name": "CATALOG_SERVICE_URL", "value": "http://catalog-service:8082" },
-        { "name": "DELIVERY_SERVICE_URL", "value": "http://delivery-service:8084" }
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "postgres"
+        },
+        {
+          "name": "SERVER_PORT",
+          "value": "8083"
+        },
+        {
+          "name": "DB_URL",
+          "value": "jdbc:postgresql://172.16.1.2:7002/flashdrop_orders"
+        },
+        {
+          "name": "DB_USERNAME",
+          "value": "orders_app"
+        },
+        {
+          "name": "FLYWAY_ENABLED",
+          "value": "false"
+        },
+        {
+          "name": "AUTH_SERVICE_URL",
+          "value": "http://auth-service:8081"
+        },
+        {
+          "name": "CATALOG_SERVICE_URL",
+          "value": "http://catalog-service:8082"
+        },
+        {
+          "name": "DELIVERY_SERVICE_URL",
+          "value": "http://delivery-service:8084"
+        }
       ],
       "secrets": [
         {
@@ -33,11 +63,23 @@
         }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"],
+        "command": [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8083/actuator/health || exit 1"
+        ],
         "interval": 15,
         "timeout": 5,
         "retries": 10,
         "startPeriod": 40
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/orders-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
       }
     }
   ]

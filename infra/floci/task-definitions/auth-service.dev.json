@@ -1,7 +1,9 @@
 {
   "family": "auth-service",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "512",
   "memory": "1024",
   "containerDefinitions": [
@@ -17,10 +19,22 @@
         }
       ],
       "environment": [
-        { "name": "PORT", "value": "8081" },
-        { "name": "DB_URL", "value": "jdbc:postgresql://172.16.1.2:7004/flashdrop_auth" },
-        { "name": "DB_USERNAME", "value": "auth_app" },
-        { "name": "FLYWAY_LOCATIONS", "value": "classpath:db/migration,classpath:db/seed" }
+        {
+          "name": "PORT",
+          "value": "8081"
+        },
+        {
+          "name": "DB_URL",
+          "value": "jdbc:postgresql://172.16.1.2:7004/flashdrop_auth"
+        },
+        {
+          "name": "DB_USERNAME",
+          "value": "auth_app"
+        },
+        {
+          "name": "FLYWAY_LOCATIONS",
+          "value": "classpath:db/migration,classpath:db/seed"
+        }
       ],
       "secrets": [
         {
@@ -41,11 +55,23 @@
         }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"],
+        "command": [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8081/actuator/health || exit 1"
+        ],
         "interval": 15,
         "timeout": 5,
         "retries": 10,
         "startPeriod": 40
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/auth-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
       }
     }
   ]

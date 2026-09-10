@@ -66,9 +66,15 @@ aws --endpoint-url http://127.0.0.1:4566 rds describe-db-instances \
   --query 'DBInstances[].{id:DBInstanceIdentifier,port:Endpoint.Port}' --output table
 ```
 
-**Logs.** No se declara `logConfiguration` porque está sin verificar si Floci
-emula CloudWatch Logs; `INFRASTRUCTURE.md` lo marca como pendiente de
-comprobar. Mientras tanto, `docker logs`.
+**Logs.** Verificado el 2026-09-10: Floci **sí** emula CloudWatch Logs, y de
+hecho ya crea grupos solo — uno por instancia RDS y otro para el registro de
+imágenes. Las cinco task definitions declaran `logConfiguration` con el driver
+`awslogs`, cada una a su grupo `/ecs/<servicio>`, y con
+`awslogs-create-group: "true"` para no tener que crearlos a mano. Para leerlos:
+
+```bash
+aws --endpoint-url http://127.0.0.1:4566 logs tail /ecs/auth-service --follow
+```
 
 ## Estado
 
