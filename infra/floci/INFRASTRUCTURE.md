@@ -1,7 +1,8 @@
 # FloCI Infrastructure — FlashDrop Dev Environment
 
 > **Status**: Living document. Updated as the FloCI deployment evolves toward production parity.
-> **Last update**: 2026-08-27.
+> **Last update**: 2026-09-10 — se corrigieron la tabla de bases, la cobertura
+> de servicios y los ejemplos de secretos, que estaban desactualizados.
 
 ## 1. Purpose
 
@@ -17,15 +18,28 @@ to real AWS the change is plumbing-only.
 
 ## 2. AWS services we use (and FloCI's coverage)
 
+Verificado contra la instalación el 2026-09-09. La consola web **no muestra ECS
+en su menú** y «Compute» resulta ser EC2, así que había motivos para dudar de
+que el plan de esta sección fuera ejecutable. La API dice otra cosa, y la API es
+la que manda: `ecs list-clusters`, `ecr describe-repositories` y
+`elbv2 describe-load-balancers` responden con lista vacía, que es la respuesta
+de un servicio emulado sin recursos, no la de uno inexistente.
+
 | AWS service        | FloCI emulation | Used by                              | Status today |
 | ------------------ | --------------- | ------------------------------------ | ------------- |
-| RDS (Postgres)     | ✅              | All service databases                | **Active**    |
-| ECS                | ✅              | All microservice runtimes            | Planned       |
-| Secrets Manager    | ✅              | DB passwords, internal API key, JWT  | Planned       |
+| RDS (Postgres)     | ✅              | All service databases                | **Active** — 4 instancias |
+| Secrets Manager    | ✅              | DB passwords, internal API key, JWT  | **Active** — 5 secretos |
+| ECS                | ✅ verificado   | All microservice runtimes            | Cluster `flashdrop-dev` creado |
+| ECR                | ✅ verificado   | Imágenes de los 5 servicios          | 5 repositorios creados |
+| ELBv2 (ALB / NLB)  | ✅ verificado   | Public-facing load balancing         | Sin recursos todavía |
 | IAM / STS          | ✅              | Task roles, cross-service auth       | Planned       |
-| ELBv2 (ALB / NLB)  | ✅              | Public-facing load balancing         | Planned       |
+| CloudWatch Logs    | ❓ sin verificar | Logs de las tareas ECS              | Por eso las task definitions no declaran `logConfiguration` |
 | S3, SQS, SNS       | ✅ (not used)   | Reserved for future needs            | n/a           |
 | Lambda             | ✅ (not used)   | Reserved for future needs            | n/a           |
+
+El registro de imágenes responde en
+`000000000000.dkr.ecr.us-east-1.localhost:5100`. Falta comprobar que ese host
+resuelva desde dentro de una tarea antes de apuntar ahí las task definitions.
 
 Sources: FloCI project documentation (https://github.com/floci/floci).
 
@@ -62,27 +76,101 @@ External access:
 
 ### Databases (created via AWS CLI against FloCI)
 
-| DB name       | User           | Password (dev)      | Endpoint            | Created  |
-| ------------- | -------------- | ------------------- | ------------------- | -------- |
-| `delivery_db` | `delivery_svc` | `DevDelivery2026!`  | `172.16.1.8:7005`   | 2026-08  |
-| `auth_db`     | `auth_svc`     | _pending_           | _pending_           | —        |
-| `catalog_db`  | `catalog_svc`  | _pending_           | _pending_           | —        |
-| `orders_db`   | `orders_svc`   | _pending_           | _pending_           | —        |
+**Las cuatro existen.** Ninguna está pendiente de crear. Datos verificados con
+`rds describe-db-instances` el 2026-09-09:
 
-Bootstrap script: `infra/coolify/01-postgres-init.sql` (used both for Coolify
-production and FloCI dev — single source of truth for users/grants per DB).
+| Servicio | Instancia                    | Endpoint          | Base                | Usuario        |
+| -------- | ---------------------------- | ----------------- | ------------------- | -------------- |
+| auth     | `flashdrop-auth-postgres`    | `172.16.1.2:7004` | `flashdrop_auth`    | `auth_app`     |
+| catalog  | `flashdrop-catalog-postgres` | `172.16.1.2:7001` | `flashdrop_catalog` | `catalog_app`  |
+| orders   | `flashdrop-orders-postgres`  | `172.16.1.2:7002` | `flashdrop_orders`  | `orders_app`   |
+| delivery | `delivery-rds`               | `172.16.1.2:7005` | `delivery_db`       | `delivery_svc` |
 
-**Security**: dev passwords only. They will be rotated when the first production
-deploy happens. None of these passwords must appear in any committed file other
-than this dev-tracked document.
+Las cuatro son PostgreSQL 16.3 y salen por `172.16.1.2`, que es el contenedor de
+FloCI haciendo de proxy.
+
+**Ojo con los nombres de usuario.** Son `<servicio>_app`, no `<servicio>_svc`
+como dice el script de bootstrap — salvo delivery, que sí quedó como
+`delivery_svc`. Las contraseñas no se listan acá: viven en Secrets Manager.
+
+**Los puertos son dinámicos.** FloCI los asigna dentro del rango 7001-7010 al
+crear cada instancia, y se reordenan si alguien recrea una. En agosto el 7002
+era una instancia de prueba. Ningún puerto debe quedar escrito como valor por
+defecto en el código; para confirmarlos:
+
+```bash
+aws --endpoint-url http://127.0.0.1:4566 rds describe-db-instances   --query 'DBInstances[].{id:DBInstanceIdentifier,port:Endpoint.Port,db:DBName,user:MasterUsername}'   --output table
+```
+
+**`infra/coolify/01-postgres-init.sql` NUNCA se corrió contra FloCI.** Se
+escribió para Coolify y crea usuarios `<servicio>_svc`; las instancias de FloCI
+se crearon aparte, con los usuarios de la tabla de arriba. Esta confusión ya
+hizo perder tiempo dos veces —una creyendo que `delivery_svc` no existía, otra
+creyendo que había que provisionar `orders_db`—, así que: **no hace falta correr
+ese script; las bases y sus usuarios ya están.**
+
+**Ninguna contraseña va en este archivo.** Este repositorio es público. Antes
+había una en texto plano acá y se eliminó; esa clave debe considerarse
+comprometida. Todas viven en Secrets Manager.
+
+### Secrets
+
+Convención: `<servicio>/db-password`, uno por servicio y creado por su dueño.
+
+| Secreto                      | Estado  |
+| ---------------------------- | ------- |
+| `flashdrop/internal-api-key` | creado  |
+| `auth/db-password`           | creado  |
+| `auth/jwt-private-key`       | creado  |
+| `auth/jwt-public-key`        | creado  |
+| `delivery/db-password`       | creado  |
+| `catalog/db-password`        | pendiente |
+| `orders/db-password`         | pendiente |
+
+**`flashdrop/internal-api-key` es UNA SOLA para los cinco servicios.** No crear
+una por servicio: en cuanto alguien rote una y no las otras, todas las llamadas
+a `/api/internal/**` empiezan a devolver 403 y el síntoma no apunta a la causa.
+Referenciarla por su ARN:
+
+```
+arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key-REB7PU
+```
+
+**El par RSA de los JWT es nuevo.** El que estaba versionado en
+`gateway/docker/secrets/jwt-private.pem` quedó publicado y hay que darlo por
+comprometido; el reemplazo es el de la tabla. Crear un secreto sin que la clave
+aparezca en pantalla ni en el historial del shell:
+
+```bash
+read -s -p "Clave: " CLAVE; echo
+aws --endpoint-url http://127.0.0.1:4566 secretsmanager create-secret   --name <servicio>/db-password --secret-string "$CLAVE"
+unset CLAVE
+```
+
+Antes de cualquier comando `aws`, en cada sesión nueva:
+
+```bash
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1
+```
+
+FloCI no valida credenciales — su propia consola muestra la cuenta como
+`0000-0000-0000`. Sin ese `export`, los comandos fallan con `NoRegion`.
 
 ### Service containers (today: manual `docker run`)
 
-- **delivery-service** is currently the only service running.
-  - Image: `delivery-service:test` (local Docker build via `dbuild/` standalone context)
-  - Profile: `mock-orders` (orders-service and catalog-service don't exist yet)
-  - Env: hardcoded `internal.api.key` and `DELIVERY_DB_PASSWORD` — **temporary**,
-    will move to Secrets Manager in the migration.
+- **delivery-service** sigue siendo el único servicio corriendo, levantado a
+  mano, y ocupa el puerto **8084**. Hay que apagarlo antes de levantar el stack
+  completo: si no, el contenedor nuevo no puede bindear ese puerto.
+  - Perfil: `delivery,mock-orders` — está hablando con un **mock** de orders, no
+    con el servicio real. Se levantó cuando orders-service no existía, así que
+    cualquier prueba hecha contra ese puerto pasó por un simulador.
+  - Su `DELIVERY_DB_PASSWORD` ya quedó guardada en Secrets Manager como
+    `delivery/db-password`.
+
+El resto del stack se levanta con
+`gateway/docker/docker-compose.stack.yml`, que apunta a las bases de la tabla de
+arriba. Cada servicio va en **dos redes**: la del stack, que da el DNS interno,
+y `floci_default`, porque `172.16.1.2` no se alcanza desde otro bridge.
 
 ### What this looks like at the moment
 
@@ -147,17 +235,22 @@ the current `docker run` uses.
 
 ### Step 2 — Migrate secrets to Secrets Manager
 
-Move the hardcoded values into Secrets Manager:
+**Hecho para 5 de 7** — ver la tabla de la sección 4. Faltan
+`catalog/db-password` y `orders/db-password`, que crea cada dueño.
 
-```bash
-aws --endpoint-url http://127.0.0.1:4566 secretsmanager create-secret \
-  --name delivery/db-password     --secret-string 'DevDelivery2026!'
-aws --endpoint-url http://127.0.0.1:4566 secretsmanager create-secret \
-  --name delivery/internal-api-key --secret-string 'dev-only-secret-...'
-```
+El ejemplo que había acá traía la contraseña literal escrita dentro del comando.
+Eso tiene dos problemas: la deja en un archivo versionado de un repositorio
+público —esa clave ya se dio por comprometida— y la guarda en el historial del
+shell del servidor. La forma correcta está en la sección 4: pedirla con
+`read -s`.
 
-Then `secretRef` them from the task definition. **Never** put the literal password
-in the task definition JSON or any committed file.
+**Y no crear una clave interna por servicio.** Es una sola,
+`flashdrop/internal-api-key`, compartida por los cinco. Duplicarla es cómo
+aparecen los 403 cruzados entre servicios.
+
+Después se referencian con `secrets[].valueFrom` desde la task definition.
+**Nunca** el valor literal en el JSON ni en ningún archivo versionado.
+
 
 ### Step 3 — Create cluster + service
 
