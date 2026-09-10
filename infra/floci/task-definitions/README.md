@@ -1,10 +1,16 @@
 # Task definitions
 
-Un archivo por servicio. Se registran contra Floci con:
+Un archivo por servicio y por entorno: `<servicio>.<entorno>.json`. Hoy solo
+existe `dev`, que es Floci. El equivalente productivo del mismo servicio se
+diferencia sobre todo en dos cosas — no lleva `FLYWAY_LOCATIONS` y apunta a
+otra base — así que conviene que el entorno se lea en el nombre del archivo y
+no haya que abrir el JSON para saber a qué apunta.
+
+Se registran contra Floci con:
 
 ```bash
 aws --endpoint-url http://127.0.0.1:4566 ecs register-task-definition \
-  --cli-input-json file://infra/floci/task-definitions/auth-service.json
+  --cli-input-json file://infra/floci/task-definitions/auth-service.dev.json
 ```
 
 El mismo archivo sirve contra AWS real quitando `--endpoint-url`, que es el
@@ -33,7 +39,7 @@ Secretos que espera auth-service:
 | `auth/jwt-private-key` | clave privada RSA en PEM |
 | `auth/jwt-public-key` | clave pública RSA en PEM |
 
-## Notas sobre auth-service.json
+## Notas sobre auth-service.dev.json
 
 **Las claves JWT son obligatorias.** `jwt.allow-ephemeral-key` es `false` por
 defecto y así debe quedar. Ponerlo en `true` para que la tarea levante parece
@@ -68,7 +74,7 @@ comprobar. Mientras tanto, `docker logs`.
 
 | Servicio | Task definition |
 | --- | --- |
-| auth-service | ✅ este archivo |
+| auth-service | ✅ `auth-service.dev.json` |
 | catalog-service | pendiente |
 | orders-service | pendiente |
 | delivery-service | pendiente |
