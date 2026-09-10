@@ -237,9 +237,12 @@ paths:
         controller). **NO** usa JWT.
 
         **Wire shape:** `userId` y `orderIds` son **Long** (no UUID), de extremo
-        a extremo en el límite entre servicios. Orders resuelve
-        `userId → delivery.id` internamente vía `DeliveryPort.findDeliveryIdByUserId`
-        antes de aplicar las reglas de negocio.
+        a extremo en el límite entre servicios (decisión D5 confirmada por
+        delivery-service vía `HttpInternalOrdersClientAdapter` y por Orders
+        vía `DeliveryClaimController` + `InternalClaimRequest`). Orders
+        resuelve `userId → delivery.id` internamente vía
+        `DeliveryPort.findDeliveryIdByUserId` antes de aplicar las reglas
+        de negocio.
 
         **Restricciones (mismas que el flujo legacy):**
         - Entre 1 y 3 pedidos (configurable por `orders.max-claim-per-route`)
@@ -248,8 +251,8 @@ paths:
         - Optimistic lock: sólo aplica si los pedidos siguen disponibles
 
         Activación: el caller (delivery-service) mantiene el feature flag
-        `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=false` mientras este contrato esté
-        en negociación.
+        `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=false` por defecto hasta que los
+        tests de integración E2E pasen en Floci.
       operationId: internalClaimOrders
       security:
         - internalApiKey: []
@@ -389,9 +392,11 @@ components:
 
     # NOTA: el endpoint legacy `POST /api/delivery/claim` documentado arriba usa
     # `ClaimDeliveryRequest` con UUID. El endpoint interno `POST /api/internal/orders/claim`
-    # usa **Long** (no UUID) en el wire, decisión D6/D3 ya tomada en el lado de Orders
-    # (commit 96c69ec). Si delivery-service aún envía UUID, el controller de Orders responde
-    # 400 antes de llegar al use case.
+    # usa **Long** (no UUID) en el wire, decisión D5/D6 ya implementada por
+    # ambas partes (delivery-service: `HttpInternalOrdersClientAdapter`,
+    # orders-service: `DeliveryClaimController` + este `InternalClaimRequest`,
+    # commit 96c69ec). El "desajuste" que mencionaba el plan viejo de
+    # Sebastián ya no existe: ambos lados coinciden en Long.
     InternalClaimRequest:
       type: object
       required: [userId, orderIds]
