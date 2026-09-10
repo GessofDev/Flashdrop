@@ -1,96 +1,93 @@
-# FlashDrop Microservices Monorepo
+# auth-service
 
-Arquitectura de microservicios basada en **Spring Boot 3**, **Java 21** y **Gradle Multi-proyecto**.
+Emisor de identidad de FlashDrop: registro, login, refresco de tokens y JWT
+RS256. Spring Boot 3.3.5, Java 21, arquitectura hexagonal. Puerto `8081`.
 
-## 🚀 Cómo Empezar (Guía para Desarrolladores)
-
-### 1. Prerrequisitos
-- **Java 21** instalado (`$env:JAVA_HOME` configurado correctamente).
-- **Docker Desktop** o similar corriendo.
-
-### 2. Variables de Entorno
-Copia el archivo de ejemplo y configura tus valores locales:
-```powershell
-cp .env.example .env
-```
-*(Nota: El archivo `.env` está en el `.gitignore` para no subir secretos).*
-
-### 3. Levantar la Base de Datos
-El proyecto requiere PostgreSQL. Levántalo usando Docker Compose:
-```powershell
-docker compose up -d
-```
-Esto levantará la BD expuesta en el puerto `5432` con las credenciales de tu `.env`.
-
-### 4. Ejecutar los Microservicios
-Levanta los servicios que necesites. En consolas separadas:
-
-**Auth Service (Migraciones, Login, Registro):**
-```powershell
-.\gradlew.bat :auth-service:bootRun
-```
-*Importante:* El `auth-service` es el **único** responsable de ejecutar Flyway (creación de tablas). Levántalo primero.
-
-**Catalog Service (Productos, Categorías, Restaurantes):**
-```powershell
-.\gradlew.bat :catalog-service:bootRun
-```
-*Nota:* Por defecto el catalog arranca con el perfil `local` (datos en memoria). Para apuntarlo a la BD, levántalo así:
-```powershell
-.\gradlew.bat :catalog-service:bootRun --args="--spring.profiles.active=default"
-```
-
-## 🏗️ Arquitectura y Reglas
-
-- **IDs:** Todos los microservicios usan `UUID` (no autoincrementales numéricos).
-- **Seguridad:** Autenticación vía JWT (RS256). Solo `auth-service` emite tokens. El resto de los servicios solo los **validan** usando la Clave Pública.
-- **Base de Datos Compartida:** Durante el desarrollo temprano, todos los servicios apuntan a `flashdrop_auth` pero a nivel de esquema actúan como si fueran separados. Las migraciones SQL se agregan en `auth-service/src/main/resources/db/migration/`.
-
----
-
-## auth-service
-
-### Endpoints
-
-- `POST /auth/register` — registrar un usuario
-- `POST /auth/login` — autenticarse y obtener tokens
-- `POST /auth/refresh` — refrescar el access token
-- `POST /auth/logout` — cerrar sesion
-- `GET /auth/profile` — datos del usuario del token
-- `GET /auth/.well-known/jwks.json` — clave publica para que el gateway valide los JWT
-- `GET /health` — estado del servicio (lo consulta el gateway en cada ciclo)
-
-Endpoints internos, consumidos por Orders y Delivery (MIGRATION_PLAN seccion 3.1):
-
-- `GET /api/internal/users/{userId}`
-- `GET /api/internal/users?ids=1,2,3` — variante batch, para que el consumidor no haga una llamada por registro al listar
-- `GET /api/internal/users/{userId}/roles`
-
-Todos los `/api/internal/**` exigen la cabecera `X-Internal-Api-Key`. Si la
-variable `INTERNAL_API_KEY` no esta definida, el filtro responde 403 a todo:
-falla cerrado a proposito.
-
-### Base de datos
-
-auth-service es dueño exclusivo de cinco tablas: `users`, `login`, `roles`,
-`user_has_roles` y `refresh_tokens`. El esquema y el seed estan en
-[`db/`](db/README.md) y se aplican a mano — no hay Flyway ni JPA, el acceso es
-por PostgREST.
-
-```bash
-psql "$AUTH_DB_URL" -f db/01_schema.sql
-```
-
-Ninguna otra tabla del sistema pertenece a este servicio. Orders, Catalog y
+Es dueño exclusivo de cinco tablas —`users`, `login`, `roles`,
+`user_has_roles`, `refresh_tokens`— en su propia base. Ninguna otra tabla del
+sistema le pertenece, y ningún otro servicio lee las suyas: Orders, Catalog y
 Delivery obtienen los datos de usuario por `GET /api/internal/users/{id}`.
 
-### Tests
+## Levantarlo
 
 ```bash
-./gradlew :auth-service:test
+cp .env.example .env     # y completar DB_URL, DB_USERNAME, DB_PASSWORD, INTERNAL_API_KEY
+bash run-auth.sh
 ```
 
-Cubre los minimos de MIGRATION_PLAN seccion 12.1: unitarios de registro,
-autenticacion y refresh; integracion de los endpoints internos; el test de
-contrato que fija los campos exactos de `/api/internal/users/{id}`; y un test
-que arranca el contexto completo de Spring contra la cadena de filtros real.
+El script valida que estén las cuatro variables obligatorias y falla con un
+mensaje claro si falta alguna. No hay perfil que activar.
+
+La base no se levanta localmente: vive en Floci RDS
+(`flashdrop-auth-postgres`). Flyway crea el esquema al arrancar; ver
+[`db/README.md`](db/README.md) para el detalle de las migraciones y del seed.
+
+Para construir la imagen, el contexto es `services/`, no esta carpeta —
+auth-service depende del módulo hermano `shared-observability`:
+
+```bash
+docker build -t auth-service:latest -f auth-service/Dockerfile .
+```
+
+## Endpoints
+
+| Método | Ruta | Para qué |
+|---|---|---|
+| POST | `/auth/register` | registrar un usuario |
+| POST | `/auth/login` | autenticarse y obtener tokens |
+| POST | `/auth/refresh` | refrescar el access token |
+| POST | `/auth/logout` | cerrar sesión |
+| GET | `/auth/profile` | datos del usuario del token |
+| GET | `/auth/validate` | validar un token |
+| GET | `/auth/.well-known/jwks.json` | clave pública, para que el gateway y delivery validen los JWT |
+| GET | `/health` · `/actuator/health` | estado del servicio |
+
+Internos, consumidos por Orders y Delivery (MIGRATION_PLAN sección 3.1):
+
+| Método | Ruta | Para qué |
+|---|---|---|
+| GET | `/api/internal/users/{userId}` | datos de un usuario |
+| GET | `/api/internal/users?ids=1,2,3` | variante batch, para no hacer una llamada por registro al listar |
+| GET | `/api/internal/users/{userId}/roles` | roles asignados |
+
+Todos los `/api/internal/**` exigen la cabecera `X-Internal-Api-Key`. Si
+`INTERNAL_API_KEY` no está definida, el filtro responde 403 a todo: falla
+cerrado a propósito. El contrato completo está en
+[`openapi.yaml`](openapi.yaml).
+
+## Decisiones que conviene no deshacer sin leer
+
+- **IDs numéricos**, `bigint generated by default as identity`, con los del
+  seed fijos y coordinados con los otros tres servicios. Están explicados en
+  [`db/README.md`](db/README.md).
+- **Hibernate solo valida el esquema** (`ddl-auto: validate`). Quien crea y
+  altera es Flyway, y nadie más.
+- **Sin valores por defecto para la conexión ni para la clave interna.** Si
+  falta una, el servicio no arranca o no atiende, en vez de quedar sirviendo
+  contra algo equivocado sin que nadie se entere.
+- **Las claves JWT son obligatorias fuera de desarrollo local.** Con más de una
+  réplica y clave efímera, cada instancia firma con una clave distinta y los
+  logins fallan de forma intermitente.
+
+## Tests
+
+```bash
+cd .. && ./gradlew :auth-service:test --configure-on-demand
+```
+
+93 tests. Los 10 de `AuthPostgresIntegrationTest` levantan un PostgreSQL real
+con Testcontainers y se omiten solos si no hay Docker, así que no rompen el
+build en equipos que no pueden levantar contenedores — pero sí corren en CI.
+
+Cubren los mínimos de MIGRATION_PLAN sección 12.1 —unitarios de registro,
+autenticación y refresco; integración de los endpoints internos; el test de
+contrato que fija los campos exactos de `/api/internal/users/{id}`— más los
+hallazgos de la auditoría QA: canal lateral por tiempo en el login, cobertura
+de JWT, formato de error por superficie y CORS.
+
+## Despliegue
+
+La task definition para ECS sobre Floci está en
+[`infra/floci/task-definitions/`](../../infra/floci/task-definitions/), con los
+secretos por referencia a Secrets Manager. Nunca literales: este repositorio es
+público.
