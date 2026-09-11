@@ -1,0 +1,94 @@
+{
+  "family": "delivery-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "delivery-service",
+      "image": "delivery-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8084,
+          "hostPort": 8084,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "delivery"
+        },
+        {
+          "name": "SERVER_PORT",
+          "value": "8084"
+        },
+        {
+          "name": "DELIVERY_DB_HOST",
+          "value": "172.16.1.2"
+        },
+        {
+          "name": "DELIVERY_DB_PORT",
+          "value": "7005"
+        },
+        {
+          "name": "DELIVERY_DB_NAME",
+          "value": "delivery_db"
+        },
+        {
+          "name": "DELIVERY_DB_USER",
+          "value": "delivery_svc"
+        },
+        {
+          "name": "AUTH_SERVICE_JWKS_URI",
+          "value": "http://auth-service:8081/auth/.well-known/jwks.json"
+        },
+        {
+          "name": "AUTH_SERVICE_ISSUER",
+          "value": "flashdrop-auth"
+        },
+        {
+          "name": "ORDERS_SERVICE_URL",
+          "value": "http://orders-service:8083"
+        },
+        {
+          "name": "DELIVERY_CLAIM_DELEGATE_TO_ORDERS",
+          "value": "false"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DELIVERY_DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:delivery/db-password"
+        },
+        {
+          "name": "INTERNAL_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8084/actuator/health || exit 1"
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 10,
+        "startPeriod": 40
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/delivery-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
