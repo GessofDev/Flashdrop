@@ -15,7 +15,9 @@ info:
 
     ## Notas para el desarrollador
     - Los IDs en la base de datos son **UUID**, pero este servicio usa Long internamente
-    - **Requiere JWT válido** para todas las operaciones (excepto health)
+    - **Requiere JWT válido** para las operaciones públicas (excepto health)
+    - Los endpoints bajo `/api/internal/**` usan **X-Internal-Api-Key** (no JWT);
+      sólo deben ser llamados por otros servicios en la red interna
     - El delivery fee hardcodeado es **2500 CLP** (configurable)
     - Los estados de pedido son strings en español
     - RabbitMQ se usa para eventos asíncronos (opcional)
@@ -36,6 +38,8 @@ tags:
     description: Gestión de pedidos
   - name: Delivery
     description: Rutas y reclamo de delivery
+  - name: Internal
+    description: Endpoints internos (/api/internal/**) — uso entre servicios
   - name: Health
     description: Health checks
 
@@ -186,13 +190,17 @@ paths:
   /api/delivery/claim:
     post:
       tags: [Delivery]
-      summary: Reclamar pedido para delivery
+      summary: Reclamar pedido para delivery (legacy)
       description: |
-        Un reparto reclama un pedido para entregar.
+        Endpoint público legacy para que un repartidor reclame uno o más pedidos.
         **Restricciones:**
         - Máximo 3 pedidos reclamados
         - Debe ser del mismo restaurante
         - No puede tener ruta activa previa
+
+        En la arquitectura migrada, el flujo de claim es interno y proviene de
+        delivery-service → `/api/internal/orders/claim`; este endpoint queda
+        como legacy hasta que los clientes existentes migren.
       operationId: claimDeliveryOrder
       requestBody:
         required: true
@@ -214,6 +222,78 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/internal/orders/claim:
+    post:
+      tags: [Internal]
+      summary: Reclamar pedidos (delegado por delivery-service)
+      description: |
+        Endpoint interno al que llama `delivery-service` cuando un repartidor toma
+        pedidos para reparto (decisión D6 del plan de coordinación cross-service,
+        ver `infra/floci/INFRASTRUCTURE.md` y el contrato definido por
+        delivery-service `HttpInternalOrdersClientAdapter`).
+
+        **Autenticación:** header `X-Internal-Api-Key` (compartido entre los 5
+        despliegues; validado por `InternalApiKeyFilter` antes de llegar al
+        controller). **NO** usa JWT.
+
+        **Wire shape:** `userId` y `orderIds` son **Long** (no UUID), de extremo
+        a extremo en el límite entre servicios (decisión D5 confirmada por
+        delivery-service vía `HttpInternalOrdersClientAdapter` y por Orders
+        vía `DeliveryClaimController` + `InternalClaimRequest`). Orders
+        resuelve `userId → delivery.id` internamente vía
+        `DeliveryPort.findDeliveryIdByUserId` antes de aplicar las reglas
+        de negocio.
+
+        **Restricciones (mismas que el flujo legacy):**
+        - Entre 1 y 3 pedidos (configurable por `orders.max-claim-per-route`)
+        - Todos del mismo restaurante
+        - El repartidor no debe tener ruta activa previa
+        - Optimistic lock: sólo aplica si los pedidos siguen disponibles
+
+        Activación: el caller (delivery-service) mantiene el feature flag
+        `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=false` por defecto hasta que los
+        tests de integración E2E pasen en Floci.
+      operationId: internalClaimOrders
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalClaimRequest'
+      responses:
+        '200':
+          description: Pedidos reclamados y asignados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse Void'
+        '400':
+          description: |
+            Request inválido: `userId` faltante, `orderIds` vacío, o regla de
+            negocio violada (excede máximo, restaurante mixto, etc.).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: |
+            `X-Internal-Api-Key` ausente o incorrecta, **o** el `userId` no
+            tiene perfil de repartidor registrado en delivery-service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            Alguno de los pedidos ya no está disponible (otro repartidor lo
+            tomó antes, o el repartidor ya tiene ruta activa).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -221,6 +301,16 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: "Formato: Bearer <token>"
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+      description: |
+        Clave compartida entre los 5 despliegues, generada con
+        `openssl rand -hex 32`. La validan los `InternalApiKeyFilter` por
+        prefijo de ruta (`/api/internal/**`) antes de llegar al controller.
+        Sin esta cabecera (o con valor incorrecto), el endpoint responde 403.
+        El valor debe ser idéntico al usado por auth/catalog/delivery.
 
   schemas:
     CreateOrderRequest:
@@ -299,6 +389,38 @@ components:
           format: uuid
           description: ID del pedido a reclamar
           example: "b5c1cbf8-cb42-4f11-92a8-a3f295b9d3b4"
+
+    # NOTA: el endpoint legacy `POST /api/delivery/claim` documentado arriba usa
+    # `ClaimDeliveryRequest` con UUID. El endpoint interno `POST /api/internal/orders/claim`
+    # usa **Long** (no UUID) en el wire, decisión D5/D6 ya implementada por
+    # ambas partes (delivery-service: `HttpInternalOrdersClientAdapter`,
+    # orders-service: `DeliveryClaimController` + este `InternalClaimRequest`,
+    # commit 96c69ec). El "desajuste" que mencionaba el plan viejo de
+    # Sebastián ya no existe: ambos lados coinciden en Long.
+    InternalClaimRequest:
+      type: object
+      required: [userId, orderIds]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: |
+            `userId` crudo del repartidor (subject del JWT validado por
+            delivery-service). Orders resuelve a `delivery.id` internamente vía
+            `DeliveryPort.findDeliveryIdByUserId`.
+          example: 42
+        orderIds:
+          type: array
+          minItems: 1
+          maxItems: 3
+          description: |
+            IDs de los pedidos a reclamar. El máximo efectivo depende de
+            `orders.max-claim-per-route` (default 3, configurable vía env).
+          items:
+            type: integer
+            format: int64
+            example: 501
+          example: [501, 502, 503]
 
     OrderListResponse:
       type: object

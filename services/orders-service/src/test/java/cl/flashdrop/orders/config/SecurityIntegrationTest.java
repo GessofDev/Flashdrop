@@ -143,11 +143,15 @@ class SecurityIntegrationTest {
     @Test
     void getOrders_withUserIdMatchingAuthenticatedUser_isAllowed() throws Exception {
         stubAuthValidateOk();
-        UUID ownUserId = IdConverter.toUuid(7L);
-        when(listOrdersUseCase.execute(ownUserId)).thenReturn(List.of());
+        long ownUserIdLong = 7L;
+        // GAP-04 + wire shape: query param user_id llega como Long (lo emite auth en el
+        // sub del JWT). OrderController.listOrders hace IdConverter.toUuid(user_idLong)
+        // antes de comparar contra el del token y de pasar al use case. El mock espera
+        // entonces el UUID del dominio, mismo patron que OrderController produce.
+        when(listOrdersUseCase.execute(IdConverter.toUuid(ownUserIdLong))).thenReturn(List.of());
 
         mockMvc.perform(get("/api/orders")
-                        .param("user_id", ownUserId.toString())
+                        .param("user_id", String.valueOf(ownUserIdLong))
                         .header("Authorization", "Bearer " + jwtFor(7L)))
                 .andExpect(status().isOk());
     }
@@ -155,10 +159,10 @@ class SecurityIntegrationTest {
     @Test
     void getOrders_withUserIdOfAnotherUser_isRejectedWith403_gap04Regression() throws Exception {
         stubAuthValidateOk();
-        UUID someoneElsesUserId = IdConverter.toUuid(999L);
+        long someoneElsesUserIdLong = 999L;
 
         mockMvc.perform(get("/api/orders")
-                        .param("user_id", someoneElsesUserId.toString())
+                        .param("user_id", String.valueOf(someoneElsesUserIdLong))
                         .header("Authorization", "Bearer " + jwtFor(7L)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
@@ -170,16 +174,21 @@ class SecurityIntegrationTest {
     @Test
     void createOrder_alwaysUsesAuthenticatedUserId_ignoringBodyUserId_gap04Regression() throws Exception {
         stubAuthValidateOk();
-        UUID productId = UUID.randomUUID();
-        UUID spoofedUserId = UUID.randomUUID();
+        long productIdLong = 8L;
+        long spoofedUserIdLong = 999L;
         when(createOrderUseCase.execute(any()))
                 .thenReturn(new cl.flashdrop.orders.application.dto.CreatedOrderResult(
                         UUID.randomUUID(), java.math.BigDecimal.TEN));
 
+        // GAP-04 + wire shape: userId y productId llegan como Long (no UUID), mismo
+        // numero que emiten auth y catalog respectivamente. Aqui el userId del body
+        // es un numero Long arbitrario para verificar que OrderController lo IGNORA
+        // y resuelve desde el JWT autenticado (5L). productId es solo un Long valido
+        // para no romper la deserializacion.
         String body = """
-                {"userId":"%s","address":"Av. Providencia 1200","paymentMethod":"Efectivo",
-                 "productId":"%s","quantity":1}
-                """.formatted(spoofedUserId, productId);
+                {"userId":%d,"address":"Av. Providencia 1200","paymentMethod":"Efectivo",
+                 "productId":%d,"quantity":1}
+                """.formatted(spoofedUserIdLong, productIdLong);
 
         mockMvc.perform(post("/api/orders")
                         .header("Authorization", "Bearer " + jwtFor(5L))

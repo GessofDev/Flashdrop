@@ -141,7 +141,7 @@ src/main/java/cl/flashdrop/orders/
 | `AUTH_SERVICE_URL` | URL de Auth Service (validación JWT + usuarios) | No (default localhost:8081) |
 | `CATALOG_SERVICE_URL` | URL de Catalog Service (productos/restaurantes) | No (default localhost:8082) |
 | `DELIVERY_SERVICE_URL` | URL de Delivery Service (repartidores/rutas) | No (default localhost:8084) |
-| `INTERNAL_API_KEY` | Clave para endpoints `/api/internal/*` | No (default dev-key) |
+| `INTERNAL_API_KEY` | Clave para endpoints `/api/internal/*` | No (sin valor por defecto real: si falta, esos endpoints quedan cerrados con 403, no accesibles con una clave publicada) |
 | `DELIVERY_FEE` | Tarifa de delivery en CLP (default: 2500) | No |
 | `RABBITMQ_HOST` | Host RabbitMQ (default: localhost) | No |
 | `RABBITMQ_PORT` | Puerto RabbitMQ (default: 5672) | No |

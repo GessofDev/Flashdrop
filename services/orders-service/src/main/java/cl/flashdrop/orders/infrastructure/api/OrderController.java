@@ -7,6 +7,7 @@ import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ApiResponse;
@@ -57,8 +58,11 @@ public class OrderController {
     private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
-    public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) UUID userId) {
-        log.debug("GET /api/orders, user_id={}", userId);
+    public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) Long userIdLong) {
+        // Wire: Long (lo emite auth en el sub del JWT). Dominio interno: UUID.
+        // Conversión al límite, mismo criterio que /api/internal/orders/claim y CreateOrder.
+        UUID userId = userIdLong != null ? IdConverter.toUuid(userIdLong) : null;
+        log.debug("GET /api/orders, user_id={}", userIdLong);
         if (userId != null) {
             UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
             if (!authenticatedUserId.equals(userId)) {
@@ -84,19 +88,21 @@ public class OrderController {
     public ApiResponse<CreatedOrderResult> createOrder(@Valid @RequestBody CreateOrderRequest request) {
         log.debug("POST /api/orders");
 
-        // Normalizar entrada soportando tanto el formato nuevo de items[]
-        // como el formato heredado legacy (product_id + quantity)
+        // Wire: Long (lo emite catalog-service para productId). Dominio interno: UUID.
+        // Conversión al límite, mismo criterio que /api/internal/orders/claim y listOrders.
+        // Si el client no envió productId en ninguno de los dos formatos, queda null y el
+        // use case dispara OrderDomainException ("productId obligatorio") antes de tocar catalog.
         List<CreateOrderCommand.ItemRequest> cmdItems;
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             cmdItems = request.getItems().stream()
                     .map(item -> CreateOrderCommand.ItemRequest.builder()
-                            .productId(item.getProductId())
+                            .productId(item.getProductId() != null ? IdConverter.toUuid(item.getProductId()) : null)
                             .quantity(item.getQuantity())
                             .build())
                     .collect(Collectors.toList());
         } else {
             cmdItems = List.of(CreateOrderCommand.ItemRequest.builder()
-                    .productId(request.getProductId())
+                    .productId(request.getProductId() != null ? IdConverter.toUuid(request.getProductId()) : null)
                     .quantity(request.getQuantity() != null ? request.getQuantity() : 1)
                     .build());
         }
