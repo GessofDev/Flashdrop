@@ -22,14 +22,34 @@ health:
   backendPath: /actuator/health
   timeoutMs: 2000
 
-# CORS permisivo en dev — ajustar orígenes en prod
+# Los orígenes se entregan como lista YAML/JSON en CORS_ORIGINS.
 cors:
   enabled: true
-  origins: ["*"]
+  origins: ${CORS_ORIGINS}
   methods: [GET, POST, PUT, DELETE, OPTIONS]
   allowedHeaders: [Content-Type, Authorization]
   maxAge: 86400
 
+jwt:
+  enabled: true
+  mode: jwks
+  issuers:
+    - name: flashdrop-auth
+      jwksUri: ${AUTH_SERVICE_JWKS_URI}
+      issuer: flashdrop-auth
+
+# Los flujos que emiten o renuevan credenciales siguen siendo públicos.
+jwtOverrides:
+  - path: /auth/register
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/login
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/refresh
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/logout
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/.well-known/jwks.json
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
 routes:
   # === AUTH ===
   - prefix: /auth
@@ -42,6 +62,9 @@ routes:
     target: http://catalog-service:8082
     stripPrefix: false
     backendName: catalog-service
+    # El catalogo es navegable sin sesion; sus operaciones internas/mutables
+    # mantienen la defensa X-Internal-Api-Key en el propio servicio.
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
 
   # === ORDERS (2 prefijos distintos, mismo target) ===
   - prefix: /api/orders

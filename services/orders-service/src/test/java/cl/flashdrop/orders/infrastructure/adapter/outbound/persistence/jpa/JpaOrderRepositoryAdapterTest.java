@@ -70,6 +70,9 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     private OrderItem sampleItem(long productId, int quantity, BigDecimal unitPrice) {
         return OrderItem.builder()
                 .productId(IdConverter.toUuid(productId))
+                .productName("Producto " + productId)
+                .productDescription("Descripcion " + productId)
+                .productImage("https://example.com/products/" + productId + ".png")
                 .quantity(quantity)
                 .unitPrice(unitPrice)
                 .lineTotal(unitPrice.multiply(BigDecimal.valueOf(quantity)))
@@ -102,6 +105,9 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         Optional<Order> reloaded = adapter.findById(saved.getId());
         assertTrue(reloaded.isPresent());
         assertEquals(1, reloaded.get().getItems().size());
+        assertEquals("Producto 101", reloaded.get().getItems().get(0).getProductName());
+        assertEquals("Descripcion 101", reloaded.get().getItems().get(0).getProductDescription());
+        assertEquals("https://example.com/products/101.png", reloaded.get().getItems().get(0).getProductImage());
     }
 
     @Test

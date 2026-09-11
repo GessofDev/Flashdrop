@@ -34,7 +34,7 @@ public class Order {
     private final PaymentMethod paymentMethod;
     private final OffsetDateTime createdAt;
 
-    private final List<OrderItem> items;
+    private List<OrderItem> items;
     private DeliveryRoute route;
 
     private ClientInfo clientInfo;
