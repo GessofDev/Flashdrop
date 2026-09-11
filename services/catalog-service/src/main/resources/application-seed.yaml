@@ -2,9 +2,5 @@ spring:
   config:
     activate:
       on-profile: seed
-  jpa:
-    defer-datasource-initialization: true
-  sql:
-    init:
-      mode: always
-      data-locations: classpath:db/seed/development.sql
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed

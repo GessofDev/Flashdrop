@@ -50,7 +50,6 @@ jwtOverrides:
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
   - path: /auth/.well-known/jwks.json
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
-
 routes:
   # === AUTH ===
   - prefix: /auth
@@ -63,6 +62,9 @@ routes:
     target: http://catalog-service:8082
     stripPrefix: false
     backendName: catalog-service
+    # El catalogo es navegable sin sesion; sus operaciones internas/mutables
+    # mantienen la defensa X-Internal-Api-Key en el propio servicio.
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
 
   # === ORDERS (2 prefijos distintos, mismo target) ===
   - prefix: /api/orders

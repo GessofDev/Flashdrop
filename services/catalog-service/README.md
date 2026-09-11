@@ -145,10 +145,11 @@ Las migraciones que preparan la base propia de Catalog estan en:
 
 ```text
 src/main/resources/db/migration/V1__create_schema.sql
-src/main/resources/db/seed/development.sql
+src/main/resources/db/seed/V2__seed_development.sql
 ```
 
-Con el perfil `postgres`, Flyway las ejecuta automaticamente al levantar el servicio.
+El perfil `postgres` ejecuta el esquema. Para incluir los datos de desarrollo,
+usar `postgres,seed`; Flyway ejecuta entonces tambien `V2__seed_development.sql`.
 
 Para probar sin base real:
 
