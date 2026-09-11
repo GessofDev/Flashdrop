@@ -17,7 +17,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
     private final String expectedApiKey;
 
-    public InternalApiKeyFilter(@Value("${internal.api.key:${services.internal-api-key:dev-key}}") String expectedApiKey) {
+    public InternalApiKeyFilter(@Value("${internal.api.key}") String expectedApiKey) {
         this.expectedApiKey = expectedApiKey;
     }
 

@@ -11,10 +11,11 @@ import type { ResolvedJwtAuth } from './types.js';
  * de 3 niveles (mayor a menor):
  *   1. `jwtOverrides[path=X]` (path-exact) si existe
  *   2. `routes[].jwt` (per-route)
- *   3. `jwt` (global) si `mode === 'jwks'` y la ruta referencia por nombre
+ *   3. `jwt` (global) en modo JWKS, que protege por defecto cuando la ruta
+ *      no declara una política propia
  *
  * Casos especiales:
- *   - Ruta sin `jwt` block → `public`
+ *   - Ruta sin `jwt` block → JWKS global si está habilitado; si no, `public`
  *   - Ruta con `jwt.enabled === false` → `public`
  *   - Ruta con `jwt.mode === 'shared-secret'` o con campo `secret` (legacy) → `shared-secret`
  *   - Ruta con `jwt.mode === 'jwks'`:
@@ -32,7 +33,16 @@ export function mergeJwtAuth(
   // La precedencia efectiva es: override > route > global
   const effective = jwtOverride ?? routeJwt;
 
+  // Una configuración JWKS global protege por defecto todas las rutas. Las
+  // excepciones públicas deben declararse explícitamente en jwtOverrides.
   if (!effective) {
+    if (globalJwt?.enabled && globalJwt.mode === 'jwks' && globalJwt.issuers.length > 0) {
+      return {
+        kind: 'jwks-any',
+        issuerNames: globalJwt.issuers.map((issuer) => issuer.name),
+        config: globalJwt,
+      };
+    }
     return { kind: 'public' };
   }
 

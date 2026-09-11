@@ -20,7 +20,7 @@ values
     (3, 2, 3, 'Pizza Maipu familiar', 'Pepperoni, mozzarella y salsa de tomate', 12990, 'assets/img/pizza.png', true),
     (4, 3, 3, 'Bebida 500 cc', 'Bebida individual fria', 1990, 'assets/img/bag.png', true),
     (5, 4, 2, 'Combo Flash', 'Burger, papas y bebida para delivery express', 10990, 'assets/img/hamburguesa.png', true),
-    (6, 1, 3, 'Burger Maipu', 'Hamburguesa clasica con queso y salsa flash', 7990, 'assets/img/burger1.png', true)
+    (6, 1, 3, 'Burger Maipu', 'Hamburguesa clasica con queso y salsa flash', 7990, 'assets/img/hamburguesa.png', true)
 on conflict (id) do nothing;
 
 select setval(pg_get_serial_sequence('public.categories', 'id'), coalesce((select max(id) from public.categories), 1));

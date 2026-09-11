@@ -43,6 +43,9 @@ RUN pnpm install --prod --frozen-lockfile
 # Copiar el código transpilado del stage anterior
 COPY --from=builder /app/dist ./dist
 
+# Copiar la configuración del gateway para entornos sin volumen montado
+COPY docker/gateway.yaml ./config/gateway.yaml
+
 # Configuración de variables de entorno por defecto
 ENV NODE_ENV=production
 ENV PORT=3000
