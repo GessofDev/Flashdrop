@@ -131,9 +131,12 @@ describe('mergeJwtAuth', () => {
       expect(result.kind).toBe('jwks-specific');
     });
 
-    it('si no hay override ni route, retorna public', () => {
+    it('protege la ruta con el issuer global si no hay override ni route', () => {
       const result = mergeJwtAuth(undefined, undefined, globalJwt);
-      expect(result.kind).toBe('public');
+      expect(result.kind).toBe('jwks-any');
+      if (result.kind === 'jwks-any') {
+        expect(result.issuerNames).toEqual(['auth-prod']);
+      }
     });
   });
 });

@@ -273,6 +273,20 @@ describe('aggregate', () => {
     );
   });
 
+  it('consulta una vez cada backend aunque esté publicado bajo dos prefijos', async () => {
+    const routes: RouteConfig[] = [
+      { prefix: '/api/delivery', target: 'http://delivery:8080', backendName: 'delivery-service' },
+      { prefix: '/delivery', target: 'http://delivery:8080', backendName: 'delivery-service' },
+    ];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse(200));
+
+    const result = await aggregate(routes, defaultConfig, logger);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.body.services).toHaveLength(1);
+    expect(result.body.services[0]?.name).toBe('delivery-service');
+  });
+
   it('BDD-10: marca un servicio como "down" con error "connection failed" ante errores de red', async () => {
     const routes: RouteConfig[] = [
       { prefix: '/orders', target: 'http://orders:8080', backendName: 'orders' },
