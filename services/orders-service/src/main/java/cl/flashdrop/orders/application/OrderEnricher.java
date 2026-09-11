@@ -1,10 +1,18 @@
 package cl.flashdrop.orders.application;
 
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.OrderItem;
+import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Enriquecedor de pedidos para la capa de lectura.
@@ -38,9 +46,47 @@ public class OrderEnricher {
                 catalogPort.findRestaurantById(order.getRestaurantId()).orElse(null));
         order.setClientInfo(
                 clientPort.findClientById(order.getClientId()).orElse(null));
+        enrichMissingProductSnapshots(order);
 
         // Sin contrato C-5 (delivery por deliveryId) ni endpoint de lectura de rutas (C-7 solo escribe).
         order.setDeliveryInfo(null);
         order.setRoute(null);
+    }
+
+    private void enrichMissingProductSnapshots(Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+
+        List<UUID> missingProductIds = order.getItems().stream()
+                .filter(item -> item.getProductName() == null || item.getProductName().isBlank())
+                .map(OrderItem::getProductId)
+                .distinct()
+                .toList();
+        if (missingProductIds.isEmpty()) {
+            return;
+        }
+
+        Map<UUID, ProductInfo> productsById = catalogPort.findProductsByIds(missingProductIds).stream()
+                .collect(Collectors.toMap(ProductInfo::getId, Function.identity()));
+        order.setItems(order.getItems().stream()
+                .map(item -> withMissingSnapshotFromCatalog(item, productsById.get(item.getProductId())))
+                .toList());
+    }
+
+    private OrderItem withMissingSnapshotFromCatalog(OrderItem item, ProductInfo product) {
+        if (product == null || (item.getProductName() != null && !item.getProductName().isBlank())) {
+            return item;
+        }
+        return OrderItem.builder()
+                .id(item.getId())
+                .productId(item.getProductId())
+                .productName(product.getName())
+                .productDescription(product.getDescription())
+                .productImage(product.getImage())
+                .quantity(item.getQuantity())
+                .unitPrice(item.getUnitPrice())
+                .lineTotal(item.getLineTotal())
+                .build();
     }
 }

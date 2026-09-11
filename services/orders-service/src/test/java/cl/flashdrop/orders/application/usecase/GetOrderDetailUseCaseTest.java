@@ -2,7 +2,9 @@ package cl.flashdrop.orders.application.usecase;
 
 import cl.flashdrop.orders.domain.model.ClientInfo;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.OrderItem;
 import cl.flashdrop.orders.domain.model.OrderStatus;
+import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
@@ -73,5 +75,42 @@ class GetOrderDetailUseCaseTest {
         // Sin contrato HTTP para repartidor/ruta -> null (pendiente documentado).
         assertNull(result.getDeliveryInfo());
         assertNull(result.getRoute());
+    }
+
+    @Test
+    void shouldCompleteMissingProductSnapshotForLegacyOrderItems() {
+        UUID orderId = IdConverter.toUuid(502L);
+        UUID clientId = IdConverter.toUuid(10L);
+        UUID restaurantId = IdConverter.toUuid(7L);
+        UUID productId = IdConverter.toUuid(101L);
+        Order order = Order.builder()
+                .id(orderId)
+                .clientId(clientId)
+                .restaurantId(restaurantId)
+                .status(OrderStatus.NUEVO_PEDIDO)
+                .items(List.of(OrderItem.builder()
+                        .productId(productId)
+                        .quantity(1)
+                        .unitPrice(BigDecimal.valueOf(8990))
+                        .lineTotal(BigDecimal.valueOf(8990))
+                        .build()))
+                .build();
+        ProductInfo product = ProductInfo.builder()
+                .id(productId)
+                .name("Burger doble")
+                .description("Doble carne")
+                .image("burger.png")
+                .build();
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.empty());
+        when(clientPort.findClientById(clientId)).thenReturn(Optional.empty());
+        when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(product));
+
+        Order result = build().execute(orderId);
+
+        assertEquals("Burger doble", result.getItems().get(0).getProductName());
+        assertEquals("Doble carne", result.getItems().get(0).getProductDescription());
+        assertEquals("burger.png", result.getItems().get(0).getProductImage());
     }
 }
