@@ -45,13 +45,11 @@ public class Order {
     // Computed / Display
     // -------------------------------------------------------
 
-    /**
-     * Código de pedido en formato FD-[short-uuid] para mostrar al usuario.
-     */
+    /** Código de pedido basado en el ID persistido para mostrar al usuario. */
     public String code() {
         if (id == null) return "FD-NEW";
-        String uuidStr = id.toString();
-        return "FD-" + uuidStr.substring(0, Math.min(uuidStr.length(), 8)).toUpperCase();
+        long persistedId = id.getLeastSignificantBits() & Long.MAX_VALUE;
+        return String.format("FD-%02d", persistedId);
     }
 
     // -------------------------------------------------------
