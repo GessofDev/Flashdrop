@@ -59,3 +59,10 @@ Thumbs.db
 scratch/
 .mcp.json
 
+
+# Material criptografico. Nunca versionado: este repositorio es publico.
+# El par que estaba en docker/secrets/ quedo expuesto y hay que darlo por
+# comprometido; el reemplazo vive en Secrets Manager.
+*.pem
+*.key
+*.p12
