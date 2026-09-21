@@ -238,16 +238,9 @@ services:
       - CONFIG_PATH=/app/config/gateway.yaml
       - REDIS_URL=redis://redis-cache:6379
       - LOG_LEVEL=info
-    volumes:
-      # En ECS esto no se traduce: Fargate no tiene volumenes del host.
-      # Decidido con Javier: la configuracion se hornea en la imagen y las
-      # URLs, origenes CORS y secretos entran por variables de entorno desde la
-      # task definition. El loader del gateway ya interpola ${VAR} y aborta con
-      # MissingEnvVarError si falta alguna, asi que falla cerrado.
-      #
-      # Requiere un COPY en gateway/docker/Dockerfile: hoy no hornea ningun
-      # YAML, aunque declara CONFIG_PATH=/app/config/gateway.yaml. Esa ruta
-      # existe solo por este volumen.
-      - ./gateway.yaml:/app/config/gateway.yaml:ro
+      # El YAML se hornea en la imagen. Las variables de entorno se inyectan
+      # desde Compose o la task definition de ECS.
+      - AUTH_SERVICE_JWKS_URI=${AUTH_SERVICE_JWKS_URI:-http://auth-service:8081/auth/.well-known/jwks.json}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
     ports:
       - "127.0.0.1:3000:3000"
