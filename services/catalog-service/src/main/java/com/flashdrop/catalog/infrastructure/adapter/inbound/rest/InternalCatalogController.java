@@ -53,11 +53,11 @@ public class InternalCatalogController {
     }
 
     @GetMapping("/products")
-    public List<InternalProductResponse> getProductsByIds(@RequestParam String ids) {
+    public List<InternalProductResponse> getProductsByIds(@RequestParam(required = false) String ids) {
         List<Long> productIds = parseIds(ids);
 
         if (productIds.isEmpty()) {
-            return List.of();
+            throw new IllegalArgumentException("El parámetro ids es obligatorio");
         }
 
         return getProductsByIdsUseCase.execute(productIds)

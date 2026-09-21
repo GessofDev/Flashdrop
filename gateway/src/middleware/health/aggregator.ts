@@ -175,8 +175,17 @@ export async function aggregate(
   logger: Logger,
 ): Promise<HttpStatusPair> {
   const start = Date.now();
+  // Un servicio puede exponerse bajo varios prefijos. Health debe consultarlo
+  // una sola vez para que la respuesta represente backends, no rutas.
+  const uniqueRoutes = new Map<string, RouteConfig>();
+  for (const route of routes) {
+    const key = route.backendName || route.target;
+    if (!uniqueRoutes.has(key)) {
+      uniqueRoutes.set(key, route);
+    }
+  }
   const services = await Promise.all(
-    routes.map((route) => checkService(route, config, logger)),
+    [...uniqueRoutes.values()].map((route) => checkService(route, config, logger)),
   );
 
   const status = computeGlobalStatus(services);

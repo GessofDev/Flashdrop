@@ -7,12 +7,9 @@ spring:
 server:
   port: 8082
 
-services:
-  internal-api-key: ${INTERNAL_API_KEY:dev-key}
-
 internal:
   api:
-    key: ${INTERNAL_API_KEY:dev-key}
+    key: ${INTERNAL_API_KEY}
 
 catalog:
   cors:

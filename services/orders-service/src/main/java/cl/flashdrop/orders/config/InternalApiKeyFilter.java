@@ -44,7 +44,12 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         }
 
         String provided = request.getHeader(API_KEY_HEADER);
-        if (provided == null || !provided.equals(apiKey)) {
+        // apiKey.isEmpty() primero y en corto-circuito: sin esta guarda, una clave
+        // configurada vacia (INTERNAL_API_KEY sin definir, ver application.properties)
+        // aceptaria una cabecera X-Internal-Api-Key vacia via "".equals("") -- el
+        // fail-closed que se busca se volveria un bypass. Mismo criterio que auth
+        // (InternalApiKeyFilter.expectedKey.length == 0).
+        if (apiKey.isEmpty() || provided == null || !provided.equals(apiKey)) {
             log.warn("Acceso denegado a {} - X-Internal-Api-Key invalida o ausente", path);
             ErrorResponseWriter.write(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Invalid internal API key");
             return;
