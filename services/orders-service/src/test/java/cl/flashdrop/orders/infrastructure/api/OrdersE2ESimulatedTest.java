@@ -63,8 +63,13 @@ class OrdersE2ESimulatedTest {
 
     private static final String API_KEY = "test-internal-key";
     private static final UUID USER_UUID = IdConverter.toUuid(1L);
-    private static final UUID PRODUCT_UUID = IdConverter.toUuid(101L);
     private static final UUID ORDER_UUID = IdConverter.toUuid(501L);
+    // GAP-04 + alineación con catalog/auth: CreateOrderRequest.userId / productId son Long
+    // en el wire (mismo numero que emite catalog para productId y auth para userId), no
+    // UUID. Los internos (USER_UUID) son UUID del dominio Orders. Ver detalle en el fix de
+    // wire shape y CreateOrderRequest.java Javadoc.
+    private static final long USER_ID = 1L;
+    private static final long PRODUCT_ID = 101L;
 
     @BeforeEach
     void setUp() {
@@ -259,10 +264,10 @@ class OrdersE2ESimulatedTest {
         // PASO 1: CREAR UN PEDIDO (POST /api/orders)
         // ====================================================================
         CreateOrderRequest createReq = new CreateOrderRequest();
-        createReq.setUserId(USER_UUID);
+        createReq.setUserId(USER_ID);
         createReq.setAddress("Av. Providencia 1200");
         createReq.setPaymentMethod("Tarjeta");
-        createReq.setProductId(PRODUCT_UUID);
+        createReq.setProductId(PRODUCT_ID);
         createReq.setQuantity(2);
 
         ApiResponse<CreatedOrderResult> createResponse = orderController.createOrder(createReq);

@@ -16,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = "INTERNAL_API_KEY=dev-key")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -48,6 +48,13 @@ class InternalCatalogControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void productsByIdsReturnsBadRequestWhenIdsIsMissing() throws Exception {
+        mockMvc.perform(get("/api/internal/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
