@@ -33,6 +33,15 @@ networks:
 volumes:
   redis-data:
 
+# Los seis llevan `restart: unless-stopped`. Sin eso, un reinicio del servidor
+# deja el stack entero abajo y hay que levantarlo a mano --- es el mismo problema
+# que el resumen tecnico de Floci ya senalaba con el contenedor de delivery que
+# corria con `docker run` sin politica de reinicio.
+#
+# `unless-stopped` y no `always` a proposito: si alguien lo baja deliberadamente,
+# se queda abajo. Docker solo lo revive tras un reinicio o si el contenedor muere
+# por su cuenta.
+
 services:
 
   # ===========================================================================
@@ -41,6 +50,7 @@ services:
   redis-cache:
     image: redis:7-alpine
     container_name: stack-redis
+    restart: unless-stopped
     networks: [stack]
     volumes:
       - redis-data:/data
@@ -59,6 +69,7 @@ services:
       context: ../../services
       dockerfile: auth-service/Dockerfile
     container_name: stack-auth
+    restart: unless-stopped
     networks: [stack, floci_default]
     environment:
       - PORT=8081
@@ -95,6 +106,7 @@ services:
       context: ../../services/catalog-service
       dockerfile: Dockerfile
     container_name: stack-catalog
+    restart: unless-stopped
     networks: [stack, floci_default]
     environment:
       # Sin este perfil catalog arranca sin datasource: application.yaml no
@@ -124,6 +136,7 @@ services:
       context: ../../services/orders-service
       dockerfile: Dockerfile
     container_name: stack-orders
+    restart: unless-stopped
     networks: [stack, floci_default]
     depends_on:
       auth-service:
@@ -172,6 +185,7 @@ services:
       context: ../../services
       dockerfile: delivery-service/Dockerfile
     container_name: stack-delivery
+    restart: unless-stopped
     networks: [stack, floci_default]
     environment:
       # `delivery` a secas. OJO que esto CAMBIA lo que corre hoy: el contenedor
@@ -221,6 +235,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: stack-gateway
+    restart: unless-stopped
     networks: [stack]
     depends_on:
       redis-cache:
