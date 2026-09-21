@@ -1,5 +1,5 @@
 {
-  "family": "auth-service",
+  "family": "catalog-service",
   "networkMode": "awsvpc",
   "requiresCompatibilities": [
     "FARGATE"
@@ -8,56 +8,48 @@
   "memory": "1024",
   "containerDefinitions": [
     {
-      "name": "auth-service",
-      "image": "auth-service:latest",
+      "name": "catalog-service",
+      "image": "catalog-service:latest",
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 8081,
-          "hostPort": 8081,
+          "containerPort": 8082,
+          "hostPort": 8082,
           "protocol": "tcp"
         }
       ],
       "environment": [
         {
-          "name": "PORT",
-          "value": "8081"
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "postgres"
+        },
+        {
+          "name": "SERVER_PORT",
+          "value": "8082"
         },
         {
           "name": "DB_URL",
-          "value": "jdbc:postgresql://172.16.1.2:7004/flashdrop_auth"
+          "value": "jdbc:postgresql://172.16.1.2:7001/flashdrop_catalog"
         },
         {
           "name": "DB_USERNAME",
-          "value": "auth_app"
-        },
-        {
-          "name": "FLYWAY_LOCATIONS",
-          "value": "classpath:db/migration,classpath:db/seed"
+          "value": "catalog_app"
         }
       ],
       "secrets": [
         {
           "name": "DB_PASSWORD",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:auth/db-password"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:catalog/db-password"
         },
         {
           "name": "INTERNAL_API_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key"
-        },
-        {
-          "name": "JWT_PRIVATE_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:auth/jwt-private-key"
-        },
-        {
-          "name": "JWT_PUBLIC_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:auth/jwt-public-key"
         }
       ],
       "healthCheck": {
         "command": [
           "CMD-SHELL",
-          "wget -qO- http://localhost:8081/actuator/health || exit 1"
+          "wget -qO- http://localhost:8082/actuator/health || exit 1"
         ],
         "interval": 15,
         "timeout": 5,
@@ -67,7 +59,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/auth-service",
+          "awslogs-group": "/ecs/catalog-service",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs",
           "awslogs-create-group": "true"

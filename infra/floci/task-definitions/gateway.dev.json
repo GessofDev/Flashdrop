@@ -1,0 +1,78 @@
+{
+  "family": "gateway",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "gateway",
+      "image": "gateway:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "CONFIG_PATH",
+          "value": "/app/config/gateway.yaml"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://redis-cache:6379"
+        },
+        {
+          "name": "AUTH_SERVICE_URL",
+          "value": "http://auth-service:8081"
+        },
+        {
+          "name": "CATALOG_SERVICE_URL",
+          "value": "http://catalog-service:8082"
+        },
+        {
+          "name": "ORDERS_SERVICE_URL",
+          "value": "http://orders-service:8083"
+        },
+        {
+          "name": "DELIVERY_SERVICE_URL",
+          "value": "http://delivery-service:8084"
+        },
+        {
+          "name": "AUTH_JWKS_URI",
+          "value": "http://auth-service:8081/auth/.well-known/jwks.json"
+        },
+        {
+          "name": "AUTH_ISSUER",
+          "value": "flashdrop-auth"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/gateway",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
