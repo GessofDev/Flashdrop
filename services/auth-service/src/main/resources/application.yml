@@ -40,7 +40,17 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # Por defecto SOLO db/migration: el esquema, nada de datos. El seed de
+    # desarrollo vive aparte en db/seed y hay que pedirlo explicitamente:
+    #
+    #   FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed
+    #
+    # Si el seed viajara en db/migration, Flyway lo aplicaria en cualquier
+    # entorno --- incluido produccion --- y quedaria registrado como aplicado,
+    # asi que ni se repite ni deja rastro de que fue un error. Las bases de
+    # desarrollo que YA tienen la V2 aplicada necesitan la variable, o la
+    # validacion de Flyway falla al no encontrar localmente esa migracion.
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
     # V1 crea SOLO las cinco tablas propietarias de auth. Ninguna tabla de
     # otro microservicio vive en esta base (regla de propiedad de datos).
 

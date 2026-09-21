@@ -54,6 +54,11 @@ class AuthPostgresIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        // El seed vive fuera de db/migration para que ningun entorno lo aplique
+        // sin pedirlo. Aca se pide a proposito: varios de estos tests verifican
+        // justamente los datos demo y la sincronizacion de las secuencias.
+        registry.add("spring.flyway.locations",
+                () -> "classpath:db/migration,classpath:db/seed");
         registry.add("jwt.allow-ephemeral-key", () -> true);
         registry.add("services.internal-api-key", () -> "clave-interna-de-prueba");
     }

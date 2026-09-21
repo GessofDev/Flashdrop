@@ -55,7 +55,7 @@ SPRING_PROFILES_ACTIVE=postgres
 DB_URL=jdbc:postgresql://127.0.0.1:7001/flashdrop_catalog
 DB_USERNAME=catalog_app
 DB_PASSWORD=tu_password
-INTERNAL_API_KEY=dev-key
+INTERNAL_API_KEY=una-clave-interna-segura
 CATALOG_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4200
 ```
 
@@ -65,7 +65,7 @@ Luego levanta el servicio:
 .\gradlew.bat bootRun
 ```
 
-Flyway crea automaticamente las tablas propias de Catalog desde `src/main/resources/db/migration`.
+Flyway crea automaticamente las tablas propias de Catalog desde `src/main/resources/db/migration`. Los datos de desarrollo viven fuera de las migraciones, en `src/main/resources/db/seed`, y se cargan con el perfil `seed`.
 
 ## Levantar con Supabase legacy
 
@@ -145,10 +145,11 @@ Las migraciones que preparan la base propia de Catalog estan en:
 
 ```text
 src/main/resources/db/migration/V1__create_schema.sql
-src/main/resources/db/migration/V2__seed_development.sql
+src/main/resources/db/seed/V2__seed_development.sql
 ```
 
-Con el perfil `postgres`, Flyway las ejecuta automaticamente al levantar el servicio.
+El perfil `postgres` ejecuta el esquema. Para incluir los datos de desarrollo,
+usar `postgres,seed`; Flyway ejecuta entonces tambien `V2__seed_development.sql`.
 
 Para probar sin base real:
 

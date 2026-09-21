@@ -1,15 +1,28 @@
 # Base de datos de auth-service
 
-El esquema y los datos de desarrollo **los aplica Flyway al arrancar el
-servicio**, desde `src/main/resources/db/migration/`:
+El esquema **lo aplica Flyway al arrancar el servicio**. No hay que ejecutar
+SQL a mano ni hace falta un editor de base de datos.
 
-| Migración | Qué hace |
-|---|---|
-| `V1__create_schema.sql` | Crea `users`, `login`, `roles`, `user_has_roles`, `refresh_tokens` |
-| `V2__seed_development.sql` | Carga los usuarios y roles demo con IDs fijos |
+| Archivo | Dónde vive | Cuándo se aplica |
+|---|---|---|
+| `V1__create_schema.sql` | `src/main/resources/db/migration/` | siempre |
+| `V2__seed_development.sql` | `src/main/resources/db/seed/` | solo si se pide |
 
-No hay que ejecutar SQL a mano ni hace falta un editor: basta con levantar el
-servicio apuntando a una base vacía.
+El seed **no** viaja con las migraciones a propósito. Donde estaba antes,
+Flyway lo aplicaba en cualquier entorno al que apuntara el servicio, incluido
+uno productivo: quedaban usuarios demo con credenciales conocidas, registrados
+como migración aplicada, así que ni se repetían ni dejaban rastro de que fue un
+error.
+
+Para cargarlo en desarrollo:
+
+```
+FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed
+```
+
+`run-auth.sh` ya la define. Las bases de desarrollo que **ya** tienen la `V2`
+aplicada necesitan esa variable aunque no quieran recargar nada: sin ella
+Flyway falla al no encontrar localmente una migración que la base dice tener.
 
 > Los scripts sueltos que vivían en esta carpeta se eliminaron al migrar a
 > Flyway. Mantener dos copias del mismo DDL garantizaba que tarde o temprano

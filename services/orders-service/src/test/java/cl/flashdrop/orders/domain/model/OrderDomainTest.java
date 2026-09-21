@@ -64,6 +64,15 @@ class OrderDomainTest {
     }
 
     @Test
+    void shouldGenerateUniqueDisplayCodeFromPersistedId() {
+        Order order = Order.builder()
+                .id(new UUID(0L, 10L))
+                .build();
+
+        assertEquals("FD-10", order.code());
+    }
+
+    @Test
     void shouldThrowExceptionOnStatusTransitionFromDelivered() {
         Order order = Order.builder()
                 .status(OrderStatus.ENTREGADO)

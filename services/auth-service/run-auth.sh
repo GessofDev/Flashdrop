@@ -19,8 +19,17 @@ if [ -f "$AQUI/.env" ]; then
 fi
 
 # Para la primera prueba, clave RSA efimera si no se definieron las claves.
+# Solo para desarrollo local: con mas de una replica cada una firmaria con una
+# clave distinta y el JWKS de una no validaria los tokens de la otra.
 : "${JWT_ALLOW_EPHEMERAL:=true}"
 export JWT_ALLOW_EPHEMERAL
+
+# El seed vive fuera de db/migration para que ningun entorno lo aplique sin
+# pedirlo. Las bases de desarrollo YA tienen la V2 aplicada, asi que sin esta
+# variable Flyway falla al no encontrar localmente una migracion que la base
+# dice tener. Contra una base productiva hay que dejar solo db/migration.
+: "${FLYWAY_LOCATIONS:=classpath:db/migration,classpath:db/seed}"
+export FLYWAY_LOCATIONS
 
 # Conexion a la base propia en Floci RDS, mas la clave compartida entre
 # servicios. Sin alguna de las cuatro el servicio no deberia arrancar.
