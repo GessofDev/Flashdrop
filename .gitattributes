@@ -1,0 +1,40 @@
+# Normalizacion de finales de linea.
+#
+# El repositorio no tenia .gitattributes, asi que cada clon quedaba con los
+# finales de linea de su sistema: CRLF en Windows, LF en Linux.
+#
+# El caso que duele de verdad son los scripts que se ejecutan dentro de
+# contenedores Linux. Un gradlew con CRLF hace que /bin/sh falle con
+# "no such file or directory" apuntando al interprete y no al archivo --- el
+# Dockerfile de delivery ya traia un `sed -i 's/$//'` para limpiarlo, y con
+# esto deja de ser necesario.
+#
+# Los .sql se fijan a LF por higiene, no porque afecten al checksum de Flyway:
+# ese se calcula por linea e ignora los terminadores. Lo que si rompe el
+# checksum es editar una migracion despues de aplicada, aunque solo se toque un
+# comentario.
+
+# Por defecto, normalizar texto en el repositorio y respetar el sistema al
+# escribir en el disco de trabajo.
+* text=auto
+
+# Las migraciones SIEMPRE con LF, en todos los sistemas. No es cosmetico: de
+# esto depende que el checksum sea estable entre entornos.
+*.sql text eol=lf
+
+# Scripts que se ejecutan dentro de contenedores Linux. Con CRLF, /bin/sh
+# falla con "no such file or directory" senalando al interprete.
+*.sh text eol=lf
+gradlew text eol=lf
+mvnw text eol=lf
+
+# Archivos que son de Windows por naturaleza.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarios: sin conversion.
+*.jar binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.pem binary
