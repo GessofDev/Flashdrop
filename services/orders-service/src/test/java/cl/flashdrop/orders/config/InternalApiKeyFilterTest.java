@@ -119,6 +119,23 @@ class InternalApiKeyFilterTest {
         verify(chain, never()).doFilter(request, response);
     }
 
+    // Cubre el cierre del default "dev-key" en application.properties: con
+    // INTERNAL_API_KEY sin definir, internal.api.key resuelve a "" (no a un
+    // placeholder sin resolver), y el filtro tiene que rechazar en ese caso —
+    // incluida una cabecera vacía, que sin la guarda apiKey.isEmpty() pasaría
+    // por "".equals("").
+    @Test
+    void shouldRejectWhenConfiguredKeyIsEmpty() throws Exception {
+        InternalApiKeyFilter emptyKeyFilter = new InternalApiKeyFilter("");
+        when(request.getServletPath()).thenReturn("/api/internal/orders");
+        when(request.getHeader(InternalApiKeyFilter.API_KEY_HEADER)).thenReturn("");
+
+        emptyKeyFilter.doFilterInternal(request, response, chain);
+
+        assertRejectedWithForbiddenErrorBody();
+        verify(chain, never()).doFilter(request, response);
+    }
+
     /**
      * Verifica el body real emitido por {@link ErrorResponseWriter} — no solo que se llamó
      * a alguna API de error, sino que el contrato MIGRATION_PLAN.md §10 se respeta:
