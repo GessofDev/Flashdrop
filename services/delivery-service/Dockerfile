@@ -27,7 +27,11 @@ WORKDIR /app
 
 # Root Gradle scaffolding
 COPY gradle gradle
-COPY gradlew settings.gradle.kts gradle.properties ./
+# build.gradle.kts de la raiz es imprescindible: delivery-service/build.gradle.kts
+# solo declara el plugin `java`, y quien aplica org.springframework.boot es el
+# bloque subprojects{} de la raiz. Sin ese archivo la tarea bootJar no existe y
+# el build corta con "task 'bootJar' not found in project ':delivery-service'".
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 
 # Both modules: delivery-service needs shared-observability on runtime classpath
 COPY shared-observability shared-observability
