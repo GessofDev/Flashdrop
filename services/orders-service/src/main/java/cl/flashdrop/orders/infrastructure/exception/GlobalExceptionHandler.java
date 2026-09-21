@@ -5,11 +5,13 @@ import cl.flashdrop.orders.infrastructure.api.dto.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -73,6 +75,44 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         log.warn("Acceso denegado: {}", ex.getMessage());
         return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    /**
+     * Payload malformado (JSON inválido, tipo de campo que no matchea — p.ej. UUID donde
+     * se esperaba Long, número malformado, etc.). Antes este caso caía al {@code
+     * handleGenericException(Exception)} de abajo y se devolvía 500/INTERNAL_ERROR con el
+     * mensaje crudo de Jackson — incorrecto: es 400/BAD_REQUEST. Reportado en QA Floci
+     * 2026-09-10 cuando el bug del wire shape (UUID vs Long) causaba "Cannot deserialize
+     * value of type java.util.UUID from String '1'" como 500 al frontend.
+     *
+     * <p>Se devuelve un mensaje genérico para no filtrar detalles internos de Jackson
+     * (mantiene el principio S-11 de no exponer rutas internas) pero útil para que el
+     * cliente sepa que el body está mal.</p>
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Payload de request malformado: {}", ex.getMostSpecificCause().getMessage());
+        return build(HttpStatus.BAD_REQUEST, "Cuerpo del request invalido o malformado");
+    }
+
+    /**
+     * Parametro de query/path no convertible al tipo esperado (p.ej. {@code ?user_id=abc}
+     * cuando se esperaba Long). Misma familia que {@link #handleNotReadable}: error del
+     * cliente, no del servidor. Sin este handler caería al 500/INTERNAL_ERROR con el
+     * stacktrace de Spring al cliente. Detectado en CI 2026-09-10 junto al fix de wire
+     * shape: los 3 tests de {@code SecurityIntegrationTest} que mandaban UUID strings
+     * para {@code user_id} reventaban con {@code MethodArgumentTypeMismatchException}.
+     *
+     * <p>El mensaje expone sólo el nombre del parámetro (no el valor crudo) para no
+     * filtrar input del usuario que pudiera contener credenciales u otra info sensible.</p>
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Parametro '{}' no convertible a {}: {}", ex.getName(),
+                ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "?",
+                ex.getValue());
+        return build(HttpStatus.BAD_REQUEST,
+                "Parametro invalido: " + ex.getName());
     }
 
     @ExceptionHandler(Exception.class)
