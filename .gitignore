@@ -45,3 +45,7 @@ dependency-reduced-pom.xml
 # Secretos: nunca versionar un .env, solo el ejemplo
 *.env
 !.env.example
+
+# Config de MCP con secretos embebidos (Jira, etc.). Versionar solo la plantilla.
+.mcp.json
+!.mcp.example.json
