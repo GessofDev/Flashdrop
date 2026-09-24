@@ -125,36 +125,60 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 ### 4.4 `catalog-service`
 
-**Nuevos archivos:**
+> **Feedback aplicado** (Javier, 2026-09-24, contra `main @ afc8f0a`):
+> 1. `RestaurantOwnershipResolver` + HTTP self-call + cache Caffeine → **eliminar**. Usar directamente `GetRestaurantByUserIdUseCase` existente (puerto local). El resolver HTTP se mantiene solo para que **otros** microservicios (orders) consulten catalog.
+> 2. Catalog **NO tiene** Spring Security actualmente. El plan asume `store_owner` pero los roles reales son `Cliente`/`Restaurante`/`Repartidor`. Se debe agregar `spring-boot-starter-security`, validar JWT RS256 contra JWKS de Auth y autorizar `Restaurante`.
+> 3. `products.image` es `varchar(255)`, NO `TEXT`. Plan de object key estable en lugar de URL firmada.
+> 4. `ListProductsUseCase` no filtra `is_available`. El catálogo público debe filtrar; `/my/*` puede devolver todos.
+> 5. `RestExceptionHandler` actual no cubre 401/403/413/502. Agregar mapeos.
+> 6. Build integrado del monorepo está roto (Spring Boot 3.3.5 raíz vs 3.5.16 catalog).
+
+**Nuevos archivos (corregidos):**
 - `infrastructure/adapter/inbound/rest/MyStoreProductController.java`
 - `infrastructure/adapter/inbound/rest/MyStoreImageController.java`
-- `application/usecase/OwnerCreateProductUseCase.java`
+- `application/usecase/OwnerCreateProductUseCase.java` (wrapper sobre `CreateProductUseCase` con ownership derivada)
 - `application/usecase/OwnerListProductsUseCase.java`
-- `application/usecase/OwnerUpdateProductUseCase.java`
+- `application/usecase/OwnerUpdateProductUseCase.java` (wrapper sobre `UpdateProductUseCase`, impide cambiar `restaurantId`)
 - `application/usecase/OwnerDeleteProductUseCase.java`
 - `application/usecase/UploadProductImageUseCase.java`
-- `application/port/outbound/RestaurantOwnershipResolver.java` (interfaz) + implementación HTTP que llama a `/api/internal/restaurants?userId={userId}` con cache en memoria (TTL 60s).
 - `infrastructure/adapter/outbound/storage/S3ProductImageStorage.java`
 - `infrastructure/config/StorageConfig.java`
 - `application/dto/UploadImageResponse.java`
-- `infrastructure/adapter/inbound/rest/dto/OwnerCreateProductRequest.java`
-- `infrastructure/adapter/inbound/rest/dto/OwnerUpdateProductRequest.java`
+- `infrastructure/adapter/inbound/rest/dto/OwnerCreateProductRequest.java` (sin `restaurantId`)
+- `infrastructure/adapter/inbound/rest/dto/OwnerUpdateProductRequest.java` (sin `restaurantId`)
 
 **Archivos modificados:**
-- `infrastructure/config/SecurityConfig.java` (o equivalente) — garantizar que `/api/catalog/my/**` requiere JWT y rol `store_owner`.
-- `application/usecase/CreateProductUseCase.java` (o el que esté hoy) — el controller `MyStoreProductController` NO reutiliza este; crea su propio use case para mantener separación clara.
+- `build.gradle.kts` — agregar `spring-boot-starter-security`, `spring-boot-starter-oauth2-resource-server`, `aws-sdk-java-v2 s3/netty/auth`.
+- `infrastructure/config/SecurityConfig.java` (NUEVO) — validar JWT RS256 contra JWKS de Auth (`AUTH_JWKS_URI`). `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**")` permitAll (InternalApiKeyFilter cubre `/api/internal/**`). `requestMatchers("/actuator/health/**", "/actuator/info")` permitAll.
+- `application/usecase/GetRestaurantByUserIdUseCase.java` — **reutilizar** directamente para resolver `restaurantId` desde `userId` (no crear nuevo resolver).
+- `application/usecase/CreateProductUseCase.java` — **NO se reutiliza para owner**. `MyStoreProductController` invoca wrappers owner que validan ownership.
+- `application/usecase/UpdateProductUseCase.java` — **NO se reutiliza para owner** (debe ignorar `restaurantId` del body y mantener el derivado del JWT).
+- `application/usecase/ListProductsUseCase.java` — agregar métodos `findAllAvailable()` y `findByRestaurantIdAndAvailableTrue(...)` que filtren por `isAvailable=true`. El catálogo público (`GET /catalog/products`, `GET /catalog/products/{id}`) debe usar estos; el endpoint owner (`GET /api/catalog/my/products`) puede usar `findAll` / `findByRestaurantId` sin filtro para permitir ver también los desactivados.
+- `infrastructure/adapter/outbound/persistence/jpa/repository/SpringDataProductRepository.java` — agregar queries derivadas `findAllByIsAvailableTrue`, `findByCategoryIdAndIsAvailableTrue`, `findByRestaurantIdAndIsAvailableTrue`.
+- `infrastructure/adapter/inbound/rest/RestExceptionHandler.java` — agregar handlers para: `AuthenticationException` → 401, `AccessDeniedException` → 403, `MaxUploadSizeExceededException` → 413, `ImageStorageException` → 502. Decidir si conservar `ErrorResponse` propio de catalog o adoptar `ApiError` de `shared-observability` (recomendado para consistencia entre microservicios).
 
-**Sin migración de DB.** `product.image` ya es `String`.
+**Sobre `products.image`:**
+- La columna actual es `varchar(255)`. NO es TEXT.
+- **Estrategia recomendada**: persistir **object key estable** (p.ej. `products/{yyyy}/{mm}/{uuid}.webp`), NO URL firmada. Construir la URL pública o firmada al responder. Esto evita (a) URLs que expiran y quedan persistidas como referencia, (b) migración de columna.
+- **Si se decide persistir URL completa** (no recomendado): agregar migración Flyway a `varchar(1024)` o `TEXT`. Esto invalida la afirmación "cero migraciones" de este change.
+
+**Sin servicios nuevos.** `spring-boot-starter-security` se agrega a la dependencia existente.
 
 ### 4.5 `gateway`
 
-**Sin código nuevo.** Modificar `gateway/config/*.yaml` (o equivalente) para registrar:
+> **Feedback aplicado** (Javier, 2026-09-24): el gateway **NO puede** transportar multipart de 5MB en el estado actual — Fastify no tiene parser multipart, `engine.ts` serializa body con `JSON.stringify`, y el límite por defecto es inferior a 5MB. PR-gateway-2 **debe incluir código**, no solo YAML.
 
-| Path público | Upstream |
-|---|---|
-| `/api/orders/available-for-delivery` | `orders-service:8083` |
-| `/api/orders/restaurants/{id}/sales-summary` | `orders-service:8083` |
-| `/api/catalog/my/*` | `catalog-service:8082` |
+**`PR-gateway-1`** (profile-and-delivery) — sigue siendo **solo config YAML** (1 ruta nueva a orders, sin multipart).
+
+**`PR-gateway-2`** (store-flow) — **incluye código nuevo** además de YAML:
+
+- Registrar parser multipart (`@fastify/multipart` o equivalente) y aumentar `bodyLimit` a ≥ 6MB para soportar imagen 5MB + overhead.
+- Modificar `engine.ts` (o nuevo módulo) para **passthrough de bodies multipart** sin `JSON.stringify` — preservar `Content-Type` con boundary, `Content-Length`/`Transfer-Encoding` correctos.
+- Registrar rutas:
+  - `/api/orders/restaurants/{id}/sales-summary` → `orders-service:8083`
+  - `/api/catalog/my/products` (POST/GET/PUT/DELETE) → `catalog-service:8082`
+  - `/api/catalog/my/products/image` (POST multipart) → `catalog-service:8082`
+- Agregar test de integración que envíe una imagen real a través del gateway y valide que llega intacta al backend.
 
 (Las rutas existentes `/api/auth/*`, `/api/orders/*`, `/api/catalog/*`, `/api/delivery/*` siguen iguales.)
 
@@ -165,7 +189,7 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 **No se agregan migraciones Flyway.** Todas las tablas y columnas necesarias ya existen:
 
 - `users` (auth) — `name`, `last_name`, `phone`, `photo` ya están en el esquema V1.
-- `products` (catalog) — `image` ya es `TEXT`.
+- `products` (catalog) — **`image` es `varchar(255)`, NO `TEXT`**. Si se persiste URL firmada, agregar migración a `varchar(1024)` o `TEXT`. Recomendación: persistir object key estable y construir URL al responder.
 - `orders` (orders) — `status`, `restaurant_id`, `created_at` ya indexados o indexables.
 - `delivery_routes` (delivery) — `order_id`, `delivery_person_id` ya disponibles.
 - **`auth-service.users.updated_at`** (V1 línea 24) — la columna existe desde el alta con `default now()`, pero no está mapeada en `UserEntity` ni tiene trigger. **El fix es en código Java (`@PreUpdate` en la entidad), no en SQL.** Cumple la promesa de "sin migración".
@@ -368,13 +392,18 @@ Todos en formato `ApiError` de `shared-observability`.
 | # | Riesgo | Mitigación |
 |---|---|---|
 | 1 | El PR de `delivery-service` (quitar cambio de status en claim) cambia comportamiento — clientes viejos de Flutter que asumen `EN_CAMINO` post-claim pueden romperse | Coordinar con dev de Flutter antes del merge; documentar en `tasks.md` del OpenSpec que la app debe transicionar manualmente al primer `RETIRADO` |
-| 2 | Cache `userId → restaurantId` en catalog-service puede quedar stale | TTL 60s en memoria; suficiente para MVP |
-| 3 | S3/MinIO en Floci requiere CORS y bucket público (o URLs firmadas) para que Flutter muestre imágenes | Lo decide el PR de catalog-image; documentar en `env.shared.template` y `infra/coolify/` |
-| 4 | Autorización por rol depende de que el JWT traiga `roles[]`. Si no está, la authz falla cerrado | Verificar que `RegisterUserUseCase` asigne roles correctamente; tests cubren "JWT sin roles" |
-| 5 | Métricas con `LISTO_PARA_RETIRO` muy alto en alguna tienda → query lenta | Evaluar índice `orders(restaurant_id, status, created_at)` en PR-orders-metrics |
-| 6 | Tests de integración contra S3 real son flaky | Usar LocalStack o stub in-memory; documentar |
-| 7 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 va al final, después de que los otros estén mergeados a `main` (o se acepta el orden de merge como dependencia natural) |
-| 8 | Si catalog-image y catalog-products se mergean en paralelo y ambos tocan `application.yml` o `SecurityConfig`, hay conflicto | catalog-products depende técnicamente de catalog-image (comparte configuración de seguridad); el dev de catalog los mergea secuencialmente en su orden interno |
+| 2 | ~~Cache `userId → restaurantId` en catalog-service puede quedar stale~~ **Eliminado**: el plan corregido usa `GetRestaurantByUserIdUseCase` local, sin cache HTTP self-call | N/A |
+| 3 | S3/MinIO en Floci **NO está aprovisionado** para catalog (`infra/floci/INFRASTRUCTURE.md` marca como `not used`). No hay bucket, vars S3, secretos ni task definition | Antes de PR-catalog-image: crear bucket S3 en Floci, endpoint accesible desde el contenedor, credenciales/rol, política de lectura, CORS, vars en `env.shared.template`, task definition ECS y config local |
+| 4 | **Build integrado del monorepo está roto** para catalog: `services/build.gradle.kts` fija Spring Boot 3.3.5, `services/catalog-service/build.gradle.kts` declara 3.5.16. `services/gradlew.bat :catalog-service:test` FAIL por conflicto | Tarea previa: alinear versión de Spring Boot O retirar catalog del build raíz. Agregar `catalog-service-ci.yml` que ejecute tests autónomos |
+| 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `store_owner`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) rol real es `Restaurante` (no `store_owner`), (d) gateway no reenvía `roles[]` en claims por defecto | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities. Definir convención de roles única |
+| 6 | **Gateway no soporta multipart** para `/api/catalog/my/products/image`. `engine.ts` serializa con `JSON.stringify`, no hay `@fastify/multipart` en deps, bodyLimit insuficiente | PR-gateway-2 debe incluir código real: parser multipart, bodyLimit ≥ 6MB, passthrough raw stream, preservar `Content-Type` con boundary |
+| 7 | **Soft delete no oculta del catálogo público**. `ListProductsUseCase` usa `findAll`/`findByCategoryId`/`findByRestaurantId` sin filtrar `is_available`. Si se implementa el DELETE sin esto, productos desactivados siguen visibles | Agregar queries `...AndIsAvailableTrue` y métodos separados `findAllAvailable()`, `findByRestaurantIdAndAvailableTrue(...)`. Usarlos en endpoints públicos. `/api/catalog/my/*` puede usar los métodos sin filtro para ver desactivados |
+| 8 | **Contrato de errores inconsistente**. Plan exige `ApiError` de shared-observability, pero catalog usa `ErrorResponse` propio y `RestExceptionHandler` no cubre 401/403/413/502 | Decisión: adoptar `ApiError` para consistencia con auth/orders/delivery (recomendado), o mantener `ErrorResponse` y documentar la divergencia. Agregar handlers específicos |
+| 9 | Autorización por rol depende de que el JWT traiga `roles[]`. Si no está, la authz falla cerrado | Verificar que `RegisterUserUseCase` asigne roles correctamente; tests cubren "JWT sin roles" |
+| 10 | Métricas con `LISTO_PARA_RETIRO` muy alto en alguna tienda → query lenta | Evaluar índice `orders(restaurant_id, status, created_at)` en PR-orders-metrics |
+| 11 | Tests de integración contra S3 real son flaky | Usar LocalStack o stub in-memory; documentar |
+| 12 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 va al final, después de que los otros estén mergeados a `main` |
+| 13 | catalog-image y catalog-products se mergean en paralelo y ambos tocan `build.gradle.kts` (Spring Security + AWS SDK) y `SecurityConfig` → conflicto | catalog-products depende técnicamente de catalog-image (comparten `build.gradle.kts`, `SecurityConfig`, `application.yml`); el dev de catalog los mergea secuencialmente en su orden interno |
 
 ---
 
