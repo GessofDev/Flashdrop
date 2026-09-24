@@ -18,43 +18,68 @@ main
 ## PR-auth — `feat/auth-update-profile`
 
 **Branch**: `feat/auth-update-profile` (base: `main`)
-**Dev**: auth
-**Scope**: `PUT /auth/profile` con use case + DTO + tests
-**Est. LOC**: ~120 | **Files**: ~5
+**Dev**: auth (Nicolás Leiva)
+**Scope**: `PUT /auth/profile` con use case + DTO + controller + SecurityConfig + User domain method + UserEntity @PreUpdate + tests
+**Est. LOC**: ~180 | **Files**: ~8
+
+> **Feedback aplicado** (Nicolás Leiva, 2026-09-24, contra `main @ afc8f0a`):
+> 1. `SecurityConfig.java` debe permitir `PUT /auth/profile` explícitamente (si no, `anyRequest().denyAll()` → 403 silencioso).
+> 2. No existe `JwtAuthFilter` en auth-service; el patrón es `validateToken.validate(bearer(authorization))` en el controller.
+> 3. `User` es inmutable (`private final` en todos los campos); `UserRepository.save(...)` reescribe todas las columnas. Sin método de dominio, construir un `User` solo con 4 campos editables tira `InvalidUserException` porque `email` queda `null`.
+> 4. `users.updated_at` (V1 línea 24) existe pero ni `UserEntity` la mapea ni hay trigger; sin `@PreUpdate` la columna nunca se actualiza. Fix sin migración.
+> 5. Path real = `/auth/profile` (gateway.yaml prefijo `/auth`), no `/api/auth/profile`.
 
 ---
 
 ### T-1 — DTO `UpdateProfileRequest`
 - **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/adapter/inbound/rest/dto/UpdateProfileRequest.java`
 - **TDD RED first**: sí — definir el DTO con validaciones Jakarta Validation (`@NotBlank`, `@Size`, `@Pattern` donde aplique)
-- **Acceptance**: record con `name`, `lastName`, `phone`, `photo`. Validaciones activas. Rechaza campos extra (`@JsonIgnoreProperties(ignoreUnknown = false)`)
+- **Acceptance**: record con `name`, `lastName`, `phone`, `photo`. Validaciones activas. Rechaza campos extra (`@JsonIgnoreProperties(ignoreUnknown = false)`). **No incluye `email` ni `rut`** (no editables vía este endpoint)
 - **Commit**: `feat(auth): add UpdateProfileRequest DTO with strict validation`
 
-### T-2 — Use case `UpdateUserProfileUseCase`
+### T-2 — Método de dominio `User.conPerfil`
+- **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/domain/model/User.java`
+- **TDD RED first**: sí — `UserTest` cubre que el método retorna nueva instancia con los campos solicitados y preserva `id, email, rut, roles, createdAt`
+- **Acceptance**: nuevo método `public User conPerfil(String name, String lastName, String phone, String photo)` que retorna `new User(this.id, this.email, this.rut, name, lastName, phone, photo, this.roles, this.createdAt)`. **No** modifica la instancia actual (la clase es inmutable)
+- **Commit**: `feat(auth): add User.conPerfil domain method preserving email rut roles createdAt`
+
+### T-3 — Use case `UpdateUserProfileUseCase`
 - **Files**:
   - `services/auth-service/src/main/java/com/flashdrop/auth/application/port/inbound/UpdateUserProfileUseCase.java`
   - `services/auth-service/src/main/java/com/flashdrop/auth/application/usecase/UpdateUserProfileService.java`
   - `services/auth-service/src/main/java/com/flashdrop/auth/application/dto/UpdateUserProfileCommand.java`
 - **TDD RED first**: sí — `UpdateUserProfileServiceTest` antes de implementar
-- **Acceptance**: el use case recibe `(userId, command)`, busca el usuario, aplica cambios, valida colisión de `phone` (409 si hay otro user con ese phone), guarda. Devuelve `UserProfile` actualizado
-- **Commit**: `feat(auth): add UpdateUserProfileUseCase with phone collision check`
+- **Acceptance**: el use case recibe `(userId, command)`, hace `users.findById(userId)` (lanza `UserNotFoundException` → 404 si no existe), aplica `userExistente.conPerfil(command.name(), command.lastName(), command.phone(), command.photo())` (ver T-2), llama `users.save(userModificado)` que dispara `DataIntegrityViolationException` → 409 `RESOURCE_ALREADY_EXISTS` si el phone choca con el de otro user (manejado por `GlobalExceptionHandler.handleConflictoDeDatos`). Devuelve `UserProfile` actualizado
+- **Commit**: `feat(auth): add UpdateUserProfileUseCase with phone collision via DataIntegrityViolation`
 
-### T-3 — `PUT /auth/profile` en `AuthController`
+### T-4 — `PUT /auth/profile` en `AuthController`
 - **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/adapter/inbound/rest/AuthController.java`
-- **TDD RED first**: sí — `AuthControllerTest` con MockMvc verifica 200, 400, 401, 409
-- **Acceptance**: handler que toma el `userId` del JWT (vía `validateToken.validate(bearer)`), llama al use case, devuelve `UserProfile` envuelto en `ApiResponse`. Sin parámetros de `userId` en el body
-- **Commit**: `feat(auth): add PUT /auth/profile endpoint`
+- **TDD RED first**: sí — `AuthControllerTest` con MockMvc verifica 200, 400, 401, 404, 409
+- **Acceptance**: handler `profilePut(...)` con `@PutMapping("/profile")` que extrae `userId` del JWT usando el patrón existente `validateToken.validate(bearer(authorization))` (mismo helper privado `bearer()` que el GET /auth/profile; **NO** crear `JwtAuthFilter` — no existe en este servicio). Llama al use case con `claims.userId()`, devuelve `UserProfile` envuelto en `ApiResponse`. Sin parámetros de `userId` en el body
+- **Commit**: `feat(auth): add PUT /auth/profile endpoint using existing validateToken pattern`
 
-### T-4 — Registrar use case en configuración
+### T-5 — `SecurityConfig`: permitir `PUT /auth/profile`
+- **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/config/SecurityConfig.java`
+- **TDD RED first**: N/A (config). Cubierto indirectamente por `AuthControllerIT` (T-8): un test que espera 200 con JWT válido devolvería 403 si esta línea falta.
+- **Acceptance**: agregar `.requestMatchers(HttpMethod.PUT, "/auth/profile").permitAll()` a la cadena, junto al `requestMatchers(HttpMethod.GET, "/auth/validate", "/auth/profile", ...)`. Sin esto el PUT cae en `anyRequest().denyAll()` y devuelve 403 silencioso sin pasar por `GlobalExceptionHandler`. El `permitAll` es correcto: la auth real la hace el controller con `validateToken.validate(...)`, no Spring Security
+- **Commit**: `fix(auth): permit PUT /auth/profile in SecurityConfig chain`
+
+### T-6 — Registrar use case en configuración
 - **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/config/UseCaseConfiguration.java`
 - **TDD RED first**: N/A (wiring)
 - **Acceptance**: `@Bean` para `UpdateUserProfileUseCase`. La app arranca sin errores
 - **Commit**: `chore(auth): register UpdateUserProfileUseCase in config`
 
-### T-5 — Tests de integration `AuthControllerIT`
+### T-7 — `UserEntity` `@PreUpdate` para `updated_at`
+- **Files**: `services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/adapter/outbound/persistence/jpa/entity/UserEntity.java`
+- **TDD RED first**: sí — `UserEntityTest` con `@DataJpaTest` verifica que después de `save(...)` sobre una entidad existente, la columna `updated_at` cambió respecto al valor inicial
+- **Acceptance**: agregar campo `private Instant updatedAt;` mapeado con `@Column(name = "updated_at")` (sin `insertable = false` ni `updatable = false` — necesitamos que JPA lo escriba en update). El valor inicial del INSERT lo provee el `default now()` de Postgres (V1 línea 24). Agregar método `@PreUpdate protected void onUpdate() { this.updatedAt = Instant.now(); }`. **Sin migración Flyway** — la columna ya existe
+- **Commit**: `fix(auth): map users.updated_at and update it on @PreUpdate`
+
+### T-8 — Tests de integration `AuthControllerIT`
 - **Files**: `services/auth-service/src/test/java/com/flashdrop/auth/infrastructure/adapter/inbound/rest/AuthControllerIT.java`
-- **TDD RED first**: el archivo puede crearse con el test RED junto a T-3
-- **Acceptance**: tests con Testcontainers + JWT firmado. Casos: perfil válido (200), phone colisiona (409), JWT inválido (401), body con email (rechazado por strict schema → 400)
+- **TDD RED first**: el archivo puede crearse con el test RED junto a T-4
+- **Acceptance**: tests con Testcontainers + JWT firmado. Casos: perfil válido (200), phone colisiona (409 `RESOURCE_ALREADY_EXISTS`), JWT inválido (401), body con email (rechazado por strict schema → 400), userId inexistente (404). **El caso 409 es el más frágil** — depende de que `GlobalExceptionHandler.handleConflictoDeDatos` siga mapeando `DataIntegrityViolationException` a 409 `RESOURCE_ALREADY_EXISTS`. Si alguien refactoriza ese handler, este test es lo que sostiene el comportamiento
 - **Commit**: `test(auth): add PUT /auth/profile integration tests with phone-collision case`
 
 ---

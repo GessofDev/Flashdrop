@@ -44,7 +44,7 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 
 | Path | Método | Servicio | Auth | Body | Respuesta |
 |---|---|---|---|---|---|
-| `/api/auth/profile` | `PUT` | auth-service | JWT | `{name, lastName, phone, photo}` | `UserProfile` |
+| `/auth/profile` | `PUT` | auth-service | JWT | `{name, lastName, phone, photo}` (sin `email`, sin `rut`) | `UserProfile` |
 | `/api/orders/available-for-delivery` | `GET` | orders-service | JWT (rol delivery) | — (query: `restaurant_id` req, `limit` opcional default 5) | `[OrderListResponse]` |
 | `/api/orders/restaurants/{restaurantId}/sales-summary` | `GET` | orders-service | JWT (rol store_owner) | — (query: `range` opcional `day`/`week`/`month` default `week`) | `SalesSummaryResponse` |
 | `/api/catalog/my/products` | `POST` | catalog-service | JWT (rol store_owner) | `{categoryId, name, description, price, image, available}` (sin `restaurantId`) | `ProductResponse` |
@@ -85,10 +85,13 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `infrastructure/adapter/inbound/rest/dto/UpdateProfileRequest.java`
 
 **Archivos modificados:**
-- `infrastructure/adapter/inbound/rest/AuthController.java` — agregar `@PutMapping("/profile")`.
+- `infrastructure/adapter/inbound/rest/AuthController.java` — agregar `@PutMapping("/profile")`. **Patrón**: validar el token en el controller con `validateToken.validate(bearer(authorization))` (mismo patrón que el `GET /auth/profile` existente; **no** crear un `JwtAuthFilter` — no existe en este servicio).
+- `domain/model/User.java` — agregar método de dominio `public User conPerfil(String name, String lastName, String phone, String photo)` que devuelve una nueva instancia preservando `id, email, rut, roles, createdAt`. La clase es **inmutable** (`private final` en todos los campos) y `UserRepository.save(...)` hace upsert completo de todas las columnas — construir un `User` solo con los 4 campos editables tira `InvalidUserException("El email es obligatorio")`.
+- `infrastructure/adapter/outbound/persistence/jpa/entity/UserEntity.java` — agregar `@PreUpdate` y mapear la columna `updated_at` (existe en V1 desde el alta pero no se actualiza). Sin migración de DB.
+- `infrastructure/config/SecurityConfig.java` — agregar `.requestMatchers(HttpMethod.PUT, "/auth/profile").permitAll()` a la cadena. Sin esto el PUT cae en `anyRequest().denyAll()` → 403 silencioso sin pasar por `GlobalExceptionHandler`. El `permitAll` es correcto: en este servicio la auth real la hace el controller (`validateToken.validate(...)`), no Spring Security.
 - `infrastructure/config/UseCaseConfiguration.java` — registrar el nuevo use case.
 
-**Sin migración de DB.**
+**Sin migración de DB.** Nota: la columna `users.updated_at` (V1 línea 24) existe en el esquema pero no se actualiza sola — necesita `@PreUpdate` en `UserEntity`. No requiere tocar SQL.
 
 ### 4.2 `delivery-service`
 
@@ -96,7 +99,7 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 **Archivos modificados:**
 - `application/usecase/ClaimDeliveryOrdersUseCaseImpl.java` — eliminar la llamada que mutaba `Order.status`.
-- `domain/model/Order.java` (o donde se defina `assignDelivery`) — ajustar para que `assignDelivery` solo persista `deliveryId`, sin tocar `status`.
+- `domain/model/Order.java` (o donde se defina `assignDelivery`) — ajustar para que `assignDelivery` solo persista `deliveryId`, sin tocar `status`. **Caveat**: la clase `Order` formalmente vive en `orders-service`; `Order.assignDelivery` parece estar duplicado o referenciado desde delivery-service. Verificar en implementación antes de mergear y coordinar con el dev de orders si hay cambios en el `Order` compartido.
 - `application/port/outbound/OrderServicePort.java` (o equivalente) — ajustar el método `claim` para reflejar que ya no hay mutación de estado.
 
 **Sin migración de DB.**
@@ -165,6 +168,7 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `products` (catalog) — `image` ya es `TEXT`.
 - `orders` (orders) — `status`, `restaurant_id`, `created_at` ya indexados o indexables.
 - `delivery_routes` (delivery) — `order_id`, `delivery_person_id` ya disponibles.
+- **`auth-service.users.updated_at`** (V1 línea 24) — la columna existe desde el alta con `default now()`, pero no está mapeada en `UserEntity` ni tiene trigger. **El fix es en código Java (`@PreUpdate` en la entidad), no en SQL.** Cumple la promesa de "sin migración".
 
 **Índice sugerido (no migración, decisión de PR-orders-metrics):** confirmar `CREATE INDEX IF NOT EXISTS idx_orders_restaurant_status_created ON orders(restaurant_id, status, created_at DESC)` en la primera corrida de PR-orders-metrics si el EXPLAIN muestra lag. Es trivial agregar como Flyway al PR que lo necesite.
 
@@ -222,12 +226,21 @@ Change #2:
 ### 7.1 `PUT /auth/profile`
 ```
 Flutter → Gateway → auth-service
-                 → JwtAuthFilter extrae userId
-                 → UpdateUserProfileUseCase(userId, dto)
-                    ├─ Validar email único si cambió
-                    └─ UserRepository.save(user)
-                 → 200 UserProfile
+                 → SecurityConfig permite PUT /auth/profile (permitAll)
+                 → AuthController.profilePut():
+                    ├─ validateToken.validate(bearer(authorization)) → TokenClaims
+                    │   (mismo patrón que GET /auth/profile — NO hay JwtAuthFilter en auth-service)
+                    └─ UpdateUserProfileUseCase(claims.userId, dto)
+                       ├─ users.findById(userId) → User existente (404 si no)
+                       ├─ user.conPerfil(dto.name, dto.lastName, dto.phone, dto.photo)
+                       │   (método de dominio: preserva email, rut, roles, createdAt)
+                       ├─ Validar phone no colisiona con otro user (409 si choca;
+                       │   ya manejado por GlobalExceptionHandler.handleConflictoDeDatos)
+                       └─ users.save(userModificado) → User actualizado
+                 → 200 UserProfile (envuelto en ApiResponse)
 ```
+
+**Nota sobre edición de email**: a pesar de menciones contradictorias en versiones previas de este documento, **email NO es editable** vía `PUT /auth/profile` (queda fuera de alcance; ver §10). Si se decidiera agregar edición de email en el futuro, sería un PR aparte con flujo de verificación y actualización de `login.login` (que actualmente es UNIQUE y se inicializa con `email.value()` en `RegisterUserService`).
 
 ### 7.2 `GET /api/orders/available-for-delivery?restaurant_id=X&limit=5`
 ```

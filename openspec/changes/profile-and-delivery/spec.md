@@ -8,7 +8,9 @@ Este spec formaliza los requisitos para cerrar el flujo del repartidor (selecci�
 
 ### FR-1 — Edición de perfil
 
-`PUT /api/auth/profile` actualiza los campos `name`, `lastName`, `phone`, `photo` del usuario autenticado. La identidad se toma SIEMPRE del JWT (sub), nunca del body. Devuelve 200 con el `UserProfile` actualizado.
+`PUT /auth/profile` actualiza los campos `name`, `lastName`, `phone`, `photo` del usuario autenticado. **El path NO lleva prefijo `/api/`** — el gateway expone `auth-service` bajo el prefijo `/auth` (ver `gateway/docker/gateway.yaml` línea 65-67: `prefix: /auth`, `stripPrefix: false`). La identidad se toma SIEMPRE del JWT (sub), nunca del body. Devuelve 200 con el `UserProfile` actualizado.
+
+> **Email NO es editable** vía este endpoint. La tabla `users.email` es UNIQUE y la columna `login.login` se inicializa con `email.value()` en el alta — cambiar email sin actualizar `login.login` deja al usuario sin poder entrar. La edición de email es un flujo separado con verificación, fuera del alcance de este change.
 
 Validaciones:
 - `name` y `lastName`: no vacíos, ≤ 100 caracteres.
@@ -61,7 +63,7 @@ Las reglas de transición válidas por estado se mantienen en `Order.validateSta
 
 | Path | Upstream | Auth |
 |---|---|---|
-| `PUT /api/auth/profile` | `auth-service:8081` | JWT |
+| `PUT /auth/profile` | `auth-service:8081` | JWT |
 | `GET /api/orders/available-for-delivery` | `orders-service:8083` | JWT (rol delivery) |
 | `PUT /api/orders/{id}/status` | `orders-service:8083` | JWT |
 
