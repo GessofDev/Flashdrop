@@ -53,11 +53,24 @@ Si el cambio de `phone` produce colisión con otro usuario → 409 con `ApiError
 
 Códigos de error:
 - **403** si rol no puede ejecutar esa transición (mensaje claro).
+- **403** si rol es `Restaurante` pero `order.restaurantId != ownershipPort.resolveRestaurantId(currentUserId)` (IDOR — el dueño de tienda A no puede cambiar el estado de pedidos de tienda B).
 - **409** si la transición no es válida por el estado actual del pedido (mensaje claro).
 - **400** si el body tiene un estado no reconocido.
 - **404** si el pedido no existe.
 
-Las reglas de transición válidas por estado se mantienen en `Order.validateStatusTransition(newStatus)` (existente) — esto es independiente del rol.
+Las reglas de transición válidas por estado se mantienen en `Order.validateStatusTransition(newStatus)`. El plan original decía que esa lógica ya existía, pero en `main @ afc8f0a` solo rechaza `ENTREGADO → *`. **PR-orders-status-authz agrega la matrix completa `from × to`** en `Order.validateStatusTransition()`:
+
+- `NUEVO_PEDIDO → PREPARANDO` (válido)
+- `NUEVO_PEDIDO → LISTO_PARA_RETIRO` (corto-circuito, válido si la tienda decide saltarse PREPARANDO)
+- `PREPARANDO → LISTO_PARA_RETIRO` (válido)
+- `LISTO_PARA_RETIRO → RETIRADO` (válido)
+- `LISTO_PARA_RETIRO → EN_CAMINO` (legacy — permitido pero deprecated)
+- `RETIRADO → ENTREGADO` (válido)
+- `RETIRADO → EN_CAMINO` (legacy — permitido pero deprecated)
+- `ENTREGADO → *` rechazado (estado terminal)
+- Cualquier otra transición rechazada con 409 (`OrderDomainException`).
+
+Las dos validaciones son independientes: la del policy de rol se hace en `UpdateOrderStatusUseCase` (con `RoleTransitionPolicy`), la de transición de estado en `Order.validateStatusTransition()`. El orden de validación en el use case es: ownership (403) → rol/policy (403) → transición (409).
 
 ### FR-5 — Rutas del gateway
 

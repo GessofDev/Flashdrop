@@ -230,8 +230,14 @@ main
 ### T-27 — `SalesSummaryController` (o método en OrderController)
 - **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/infrastructure/api/SalesSummaryController.java` (nuevo) o método en `OrderController`
 - **TDD RED first**: sí — `SalesSummaryControllerIT`
-- **Acceptance**: `GET /api/orders/restaurants/{id}/sales-summary?range=day|week|month`. JWT `Restaurante` (validado por el `SecurityConfig` de orders). Delega al use case. Devuelve `SalesSummaryResponse`
+- **Acceptance**: `GET /api/orders/restaurants/{id}/sales-summary?range=day|week|month`. JWT `Restaurante` (validado por el `SecurityConfig` de orders). Delega al use case. Devuelve `SalesSummaryResponse`. **`restaurantId` en query param entra como `Long`, pero el dominio usa `UUID`** — aplicar `IdConverter.toUuid(restaurantIdLong)` consistentemente como ya se hace en `OrderController.listOrders` línea 64
 - **Commit**: `feat(orders): add GET /api/orders/restaurants/{id}/sales-summary endpoint`
+
+### T-27b — `IdConverter.toUuid()` en endpoints nuevos de orders (NUEVO)
+- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/infrastructure/api/OrderController.java` (handlers nuevos) + `AvailableDeliveryOrdersController.java` (si se crea) + `SalesSummaryController.java`
+- **TDD RED first**: sí — test que verifica que un `restaurantId` Long en query param se convierte correctamente a UUID antes de pasar al dominio
+- **Acceptance**: todos los handlers nuevos con `restaurant_id` como `Long` en query param aplican `IdConverter.toUuid(restaurantIdLong)` antes de invocar los use cases. Patrón ya establecido en `OrderController.listOrders` línea 64. Aplica a `GET /api/orders/available-for-delivery?restaurant_id=X` y `GET /api/orders/restaurants/{id}/sales-summary`
+- **Commit**: `feat(orders): apply IdConverter.toUuid in new orders endpoints`
 
 ### T-28 — Tests de agregaciones con dataset controlado
 - **Files**: `services/orders-service/src/test/java/cl/flashdrop/orders/application/usecase/GetRestaurantSalesSummaryUseCaseIT.java`
