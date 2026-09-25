@@ -15,8 +15,8 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 | Servicio | Rol en este plan |
 |---|---|
 | `auth-service` | Edición de perfil (`PUT /auth/profile`) |
-| `delivery-service` | Ajustar `claim` para no mutar el estado del pedido |
-| `orders-service` | Listado de pedidos disponibles, autorización por rol en cambio de estado, métricas de ventas |
+| `delivery-service` | Sin cambios en código (auditoría confirmó que no muta status; su claim solo asigna la ruta como `ASSIGNED` y delega a orders) |
+| `orders-service` | Listado de pedidos disponibles, autorización por rol en cambio de estado, claim sin mutación de estado a `EN_CAMINO`, métricas de ventas |
 | `catalog-service` | CRUD de productos con ownership derivada del JWT, upload de imagen a S3/MinIO |
 | `gateway` | 3 rutas nuevas (2 a orders, 1 a catalog); sin código, solo config |
 
@@ -95,13 +95,14 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 ### 4.2 `delivery-service`
 
-> **Feedback aplicado** (Felipe, 2026-09-24, contra `main @ afc8f0a`): `Order.assignDelivery()` es **código muerto** — existe pero no se llama desde ningún flujo. La mutación real del status a `EN_CAMINO` está en `orders-service/ClaimDeliveryOrdersUseCase.execute()` líneas 91 y 98 (`orderRepository.claimOrders(..., EN_CAMINO)` y `deliveryPort.updateRouteStatus(..., EN_CAMINO)`). **PR-delivery modifica `orders-service`, no `delivery-service`.** Caveat aceptado: el equipo decidió mantener la ambigüedad histórica como punto de coordinación entre los devs de delivery y orders, no como bug.
+> **Feedback aplicado** (Delivery dev, 2026-09-25, contra `main`):
+> 1. **Cero cambios en `delivery-service`**: la auditoría de código confirmó que `ClaimDeliveryOrdersUseCaseImpl` **nunca mutó el estado de la orden**. Solo asigna el repartidor a la ruta (`RouteStatus.ASSIGNED`) y delega el claim por HTTP a `orders-service` (`internalOrdersClient.claimOrders`).
+> 2. `OrderServicePort` no tiene método `claim` (solo consulta pedidos por ID); la delegación de claim sale por `InternalOrdersClientPort` con `{userId, orderIds}` sin noción de estados.
+> 3. En `delivery-service` no existe la entidad `Order` ni el método `Order.assignDelivery()`.
+> 4. Toda la mutación de estado (`orderRepository.claimOrders(..., EN_CAMINO)` y `deliveryPort.updateRouteStatus(..., EN_CAMINO)`) reside en `orders-service/ClaimDeliveryOrdersUseCase.java`. Por ende, el trabajo de claim debe ser implementado y testeado 100% en `orders-service`.
+> 5. Para respetar los boundaries de servicio (AGENTS.md), el PR de claim (`PR-orders-claim`, antes `PR-delivery`) pertenece al dev de `orders-service`. El dev de `delivery-service` no tiene cambios de código que commitear.
 
-**Sin archivos nuevos en delivery-service.**
-
-**Archivos modificados:**
-- `application/port/outbound/OrderServicePort.java` (o equivalente) — ajustar el método `claim` para reflejar que ya no hay mutación de estado. El flag `delivery.claim.delegate-to-orders.enabled` sigue funcionando: cuando está activo, llama a `internalOrdersClient.claimOrders` para que `orders-service` actualice `delivery_id`.
-- `application/usecase/ClaimDeliveryOrdersUseCaseImpl.java` (en `delivery-service`) — eliminar cualquier mutación local del estado que el use case hiciera. Coordinar con el dev de orders: el use case en orders-service (`ClaimDeliveryOrdersUseCase.execute()`) es el que ahora deja de mutar status. **No modificar `Order.java` en delivery-service porque ese archivo no existe en este servicio** (la entidad vive en orders-service).
+**Sin archivos nuevos ni modificados en delivery-service.**
 
 **Sin migración de DB.**
 
@@ -380,7 +381,7 @@ Todos en formato `ApiError` de `shared-observability`.
 - `GetRestaurantSalesSummaryUseCaseTest` (orders)
 - `OwnerProductUseCasesTest` x 4 CRUD (catalog)
 - `UploadProductImageUseCaseTest` con stub de S3 (catalog)
-- `ClaimDeliveryOrdersUseCaseImplTest` ajustado: verificar que **no** se modifica `Order.status` post-claim (delivery)
+- `ClaimDeliveryOrdersUseCaseTest` ajustado: verificar que **no** se modifica `Order.status` ni ruta a `EN_CAMINO` post-claim (orders)
 - `RestaurantOwnershipResolverTest` con stub HTTP (catalog)
 
 ### Integration tests `*IT.java` (test containers, CI los corre)

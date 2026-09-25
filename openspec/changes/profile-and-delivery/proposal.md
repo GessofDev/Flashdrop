@@ -47,8 +47,8 @@ Este change cierra esos cuatro huecos. El diseño completo está en `docs/plans/
 
 | Gap | Evidencia |
 |---|---|
-| `POST /delivery/claim` muta `Order.status` a `EN_CAMINO` | `ClaimDeliveryOrdersUseCaseImpl.java` línea 80–90 (búsqueda de `assignDelivery`) |
-| `Order.assignDelivery()` cambia status sin condicional | `Order.java` método `assignDelivery` |
+| `POST /delivery/claim` muta `Order.status` a `EN_CAMINO` | `ClaimDeliveryOrdersUseCase.java` (orders-service) líneas 91 y 98 |
+| `Order.assignDelivery()` en orders-service es código muerto que fijaba `EN_CAMINO` | `Order.java` método `assignDelivery` |
 | No existe `PUT /auth/profile` | `AuthController.java` solo tiene `@GetMapping("/profile")` |
 | No existe endpoint de pedidos disponibles por restaurante | `OrderController.java` solo expone `listOrders`, `getOrderDetail` |
 | `PUT /api/orders/{id}/status` no verifica rol | `UpdateOrderStatusUseCase.java` sin parámetro de rol |
@@ -59,7 +59,7 @@ Este change cierra esos cuatro huecos. El diseño completo está en `docs/plans/
 1. `auth-service`: nuevo use case `UpdateUserProfileUseCase`, DTO `UpdateProfileRequest`, endpoint `PUT /auth/profile` en `AuthController`.
 2. `orders-service`: nuevo use case `ListAvailableOrdersUseCase`, endpoint `GET /api/orders/available-for-delivery` con query params.
 4. `orders-service`: matriz rol → transición-permitida inyectada en `UpdateOrderStatusUseCase`. Lanzar `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida.
-5. `delivery-service`: eliminar la mutación de status en `ClaimDeliveryOrdersUseCaseImpl`. Ajustar `Order.assignDelivery()` para persistir solo `deliveryId`.
+5. `orders-service`: eliminar la mutación de status a `EN_CAMINO` y la sincronización forzada de ruta en `ClaimDeliveryOrdersUseCase.execute()`. `delivery-service` queda sin cambios (su use case ya solo asignaba la ruta a `ASSIGNED` y delegaba a orders).
 6. `gateway`: agregar 1 ruta nueva (`/api/orders/available-for-delivery`). Validar que `/api/orders/{id}/status` y `/api/auth/profile` (PUT) ya están ruteados o agregarlos si hace falta.
 7. Tests unitarios + integration tests listados en `tasks.md` por PR.
 

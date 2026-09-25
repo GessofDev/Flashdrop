@@ -27,29 +27,29 @@ Si el cambio de `phone` produce colisión con otro usuario → 409 con `ApiError
 
 - `restaurant_id` es requerido. 400 si falta.
 - `limit` opcional. Default 5. Rango válido: 1–50. 400 si excede.
-- Auth: JWT con rol `delivery`. 403 si rol incorrecto.
+- Auth: JWT con rol `Repartidor` (claim `roles[]` emitido por auth-service). 403 si rol incorrecto.
 - No se requiere que el repartidor esté "asignado" a la tienda — cualquier repartidor puede ver pedidos disponibles.
 - La respuesta es la misma `OrderListResponse` que ya usa `GET /api/orders` (reutilizar DTO).
 
 ### FR-3 — Claim sin mutación de estado
 
-`POST /api/delivery/claim` ya no modifica `Order.status`. El estado del pedido queda en `LISTO_PARA_RETIRO` (o el estado que tenía antes del claim). Solo se persiste `delivery_id` en `delivery_routes`.
+`POST /api/delivery/claim` ya no modifica `Order.status`. El estado del pedido queda en `LISTO_PARA_RETIRO` (o el estado que tenía antes del claim). Solo se persiste `delivery_id` en `delivery_routes` (quedando en estado `ASSIGNED`).
 
-- El use case `ClaimDeliveryOrdersUseCaseImpl` se modifica para NO llamar al método que mutaba `Order.status`.
-- El método `Order.assignDelivery(deliveryId)` se ajusta para persistir `deliveryId` **sin tocar `status`**.
+- El use case `ClaimDeliveryOrdersUseCase` en `orders-service` se modifica para NO llamar a `orderRepository.claimOrders` con `EN_CAMINO` (solo asocia `deliveryId` preservando `LISTO_PARA_RETIRO`) ni llamar a `deliveryPort.updateRouteStatus` con `EN_CAMINO`.
+- En `delivery-service`, `ClaimDeliveryOrdersUseCaseImpl` ya asigna la ruta en estado `ASSIGNED` y delega a `orders-service` sin mutar estados de orden (no requiere cambios de código).
 - La transición `LISTO_PARA_RETIRO → EN_CAMINO` ya **no ocurre automáticamente** — el repartidor debe disparar `PUT /api/orders/{id}/status` con `RETIRADO` (ver FR-4).
-- El flag `delivery.claim.delegate-to-orders.enabled` sigue funcionando igual: cuando está activo, llama a `internalOrdersClient.claimOrders` para que `orders-service` actualice `delivery_id`.
+- El flag `delivery.claim.delegate-to-orders.enabled` en `delivery-service` sigue funcionando igual: cuando está activo, llama a `internalOrdersClient.claimOrders` para que `orders-service` actualice `delivery_id`.
 
 ### FR-4 — Autorización por rol en cambio de estado
 
-`PUT /api/orders/{id}/status` valida el rol del JWT contra una matriz de transiciones permitidas:
+`PUT /api/orders/{id}/status` valida el rol del JWT contra una matriz de transiciones permitidas (usando los roles canónicos del sistema emitidos por auth-service):
 
-| Rol | Transiciones permitidas (estado actual → estado nuevo) |
+| Rol canónico (`roles[]`) | Transiciones permitidas (estado actual → estado nuevo) |
 |---|---|
-| `delivery` | `LISTO_PARA_RETIRO → RETIRADO`, `RETIRADO → ENTREGADO` |
-| `store_owner` | `NUEVO_PEDIDO → PREPARANDO`, `PREPARANDO → LISTO_PARA_RETIRO` |
-| `client` | (ninguna por ahora) |
-| `admin` | todas las válidas (escape hatch, no usado en MVP) |
+| `Repartidor` | `LISTO_PARA_RETIRO → RETIRADO`, `RETIRADO → ENTREGADO` |
+| `Restaurante` | `NUEVO_PEDIDO → PREPARANDO`, `PREPARANDO → LISTO_PARA_RETIRO` |
+| `Cliente` (o `client`) | (ninguna por ahora) |
+| `admin` / `Admin` | todas las válidas (escape hatch, no usado en MVP) |
 
 Códigos de error:
 - **403** si rol no puede ejecutar esa transición (mensaje claro).
@@ -77,7 +77,7 @@ Las dos validaciones son independientes: la del policy de rol se hace en `Update
 | Path | Upstream | Auth |
 |---|---|---|
 | `PUT /auth/profile` | `auth-service:8081` | JWT |
-| `GET /api/orders/available-for-delivery` | `orders-service:8083` | JWT (rol delivery) |
+| `GET /api/orders/available-for-delivery` | `orders-service:8083` | JWT (rol `Repartidor`) |
 | `PUT /api/orders/{id}/status` | `orders-service:8083` | JWT |
 
 `POST /api/delivery/claim` sigue existiendo sin cambios de ruta.

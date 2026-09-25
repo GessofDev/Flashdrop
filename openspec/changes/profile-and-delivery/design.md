@@ -8,8 +8,8 @@
 Cuatro cambios cohesivos en cuatro servicios:
 
 1. **`auth-service`**: agregar `PUT /auth/profile` siguiendo el patrón de `GET /auth/profile` (mismo controller, mismo handler de bearer token, mismo `ApiResponse` envelope).
-2. **`delivery-service`**: quitar la mutación de estado en `ClaimDeliveryOrdersUseCaseImpl` para reflejar el flujo físico real.
-3. **`orders-service`**: agregar `GET /api/orders/available-for-delivery` y endurecer `PUT /api/orders/{id}/status` con una matriz rol→transición.
+2. **`delivery-service`**: sin cambios de código (la auditoría de código confirmó que el servicio nunca mutó estados de pedido; solo asigna el repartidor a la ruta como `ASSIGNED` y delega a orders).
+3. **`orders-service`**: agregar `GET /api/orders/available-for-delivery`, eliminar mutación de estado a `EN_CAMINO` en `ClaimDeliveryOrdersUseCase` y endurecer `PUT /api/orders/{id}/status` con una matriz rol→transición.
 4. **`gateway`**: registrar la nueva ruta pública.
 
 **Cero migraciones Flyway.** **Cero servicios nuevos.**
@@ -29,9 +29,10 @@ Flutter (cliente / repartidor / tienda)
 
  Tocado en este change:
    auth-service    : PUT /auth/profile
-   delivery-service: elimina mutación de status en claim
+   delivery-service: sin cambios de código (flujo intacto)
    orders-service  : GET /api/orders/available-for-delivery
                      PUT /api/orders/{id}/status con authz por rol
+                     ClaimDeliveryOrdersUseCase sin mutación a EN_CAMINO
    gateway         : 1 ruta nueva
 ```
 
