@@ -6,6 +6,7 @@ import com.flashdrop.auth.domain.exception.InvalidTokenException;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.LoginRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RefreshRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RegisterRequest;
+import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.UpdateProfileRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,16 +23,19 @@ public class AuthController {
     private final RefreshTokenUseCase refreshToken;
     private final LogoutUseCase logout;
     private final GetUserProfileUseCase getUserProfile;
+    private final UpdateUserProfileUseCase updateUserProfile;
 
     public AuthController(RegisterUserUseCase registerUser, AuthenticateUserUseCase authenticateUser,
                           ValidateTokenUseCase validateToken, RefreshTokenUseCase refreshToken,
-                          LogoutUseCase logout, GetUserProfileUseCase getUserProfile) {
+                          LogoutUseCase logout, GetUserProfileUseCase getUserProfile,
+                          UpdateUserProfileUseCase updateUserProfile) {
         this.registerUser = registerUser;
         this.authenticateUser = authenticateUser;
         this.validateToken = validateToken;
         this.refreshToken = refreshToken;
         this.logout = logout;
         this.getUserProfile = getUserProfile;
+        this.updateUserProfile = updateUserProfile;
     }
 
     @PostMapping("/register")
@@ -68,6 +72,21 @@ public class AuthController {
     public UserProfile profile(@RequestHeader(value = "Authorization", required = false) String authorization) {
         TokenClaims claims = validateToken.validate(bearer(authorization));
         return getUserProfile.getProfile(claims.userId());
+    }
+
+    /**
+     * Reemplaza los datos editables del perfil propio. El usuario sale del
+     * token, nunca del cuerpo, así que no hay forma de editar el de otro.
+     *
+     * <p>Responde el mismo {@code UserProfile} que el GET, sin envoltorio: es
+     * el mismo recurso y el cliente lo lee igual en los dos casos.
+     */
+    @PutMapping("/profile")
+    public UserProfile updateProfile(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                     @Valid @RequestBody UpdateProfileRequest req) {
+        TokenClaims claims = validateToken.validate(bearer(authorization));
+        return updateUserProfile.updateProfile(claims.userId(), new UpdateUserProfileCommand(
+                req.name(), req.lastName(), req.phone(), req.photo()));
     }
 
     private static String bearer(String authorization) {

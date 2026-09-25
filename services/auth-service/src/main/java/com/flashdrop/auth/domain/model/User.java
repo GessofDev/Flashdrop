@@ -50,4 +50,17 @@ public class User {
     public List<String> roleNames() {
         return roles.stream().map(Role::name).toList();
     }
+
+    /**
+     * Copia con los datos de perfil reemplazados. Es lo único que se puede
+     * cambiar por {@code PUT /auth/profile}: el email y el rut no son
+     * editables, y los roles y la fecha de alta se conservan.
+     *
+     * <p>Conservar el resto no es opcional: {@code UserRepository.save}
+     * reescribe todas las columnas, así que un {@code User} armado solo con
+     * los cuatro campos editables dejaría el email en null.
+     */
+    public User conPerfil(String name, String lastName, String phone, String photo) {
+        return new User(id, email, rut, name, lastName, phone, photo, roles, createdAt);
+    }
 }

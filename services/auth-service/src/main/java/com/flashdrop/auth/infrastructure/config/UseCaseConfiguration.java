@@ -55,6 +55,11 @@ public class UseCaseConfiguration {
     }
 
     @Bean
+    UpdateUserProfileUseCase updateUserProfileUseCase(UserRepository users) {
+        return new UpdateUserProfileService(users);
+    }
+
+    @Bean
     GetInternalUserUseCase getInternalUserUseCase(UserRepository users) {
         return new GetInternalUserService(users);
     }
