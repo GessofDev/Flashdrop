@@ -9,7 +9,7 @@ main
   ├── feat/auth-update-profile                       (PR-auth)
   ├── feat/orders-status-authz                        (PR-orders-status-authz)
   ├── feat/orders-available-for-delivery              (PR-orders-available)
-  ├── feat/delivery-claim-no-status-mutation          (PR-delivery)
+  ├── feat/orders-claim-no-status-mutation            (PR-orders-claim)
   └── feat/gateway-add-available-for-delivery         (PR-gateway-1, último)
 ```
 
@@ -97,7 +97,7 @@ main
 - **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/RoleTransitionPolicy.java`
 - **TDD RED first**: sí — test del policy primero
 - **Acceptance**: clase con un mapa inmutable `Map<String, Map<OrderStatus, Set<OrderStatus>>>` que codifica la matriz del FR-4. Método `boolean isAllowed(String role, OrderStatus from, OrderStatus to)`
-- **Commit**: `feat(orders): add RoleTransitionPolicy with delivery store-owner admin matrix`
+- **Commit**: `feat(orders): add RoleTransitionPolicy with Repartidor Restaurante admin matrix`
 
 ### T-7 — Excepción `AccessDeniedException` reusada o envuelta
 - **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/domain/exception/StatusTransitionForbiddenException.java`
@@ -120,7 +120,7 @@ main
 ### T-10 — `OrderControllerStatusAuthzIT`
 - **Files**: `services/orders-service/src/test/java/cl/flashdrop/orders/infrastructure/api/OrderControllerStatusAuthzIT.java`
 - **TDD RED first**: sí — antes de cualquier cambio en el controller
-- **Acceptance**: matriz 2D (delivery, store_owner, admin) × (transición válida, transición inválida por estado, transición prohibida por rol). Mínimo 8 casos. Cubre los códigos 200, 403, 409
+- **Acceptance**: matriz 2D (`Repartidor`, `Restaurante`, `admin`) × (transición válida, transición inválida por estado, transición prohibida por rol). Mínimo 8 casos. Cubre los códigos 200, 403, 409
 - **Commit**: `test(orders): add role-based status transition integration tests`
 
 ### T-11 — Matrix completa `from × to` en `Order.validateStatusTransition()` (NUEVO)
@@ -175,30 +175,36 @@ main
 
 ### T-14 — Tests `AvailableDeliveryOrdersIT`
 - **Files**: `services/orders-service/src/test/java/cl/flashdrop/orders/infrastructure/api/AvailableDeliveryOrdersIT.java`
-- **Acceptance**: casos: happy path con 5 pedidos (devuelve 5), happy path con 3 pedidos (devuelve 3), filtro por estado (no devuelve NUEVO_PEDIDO ni PREPARANDO), límite (no devuelve más de N), 403 si rol no delivery, 400 si falta restaurant_id, 400 si limit > 50
+- **Acceptance**: casos: happy path con 5 pedidos (devuelve 5), happy path con 3 pedidos (devuelve 3), filtro por estado (no devuelve NUEVO_PEDIDO ni PREPARANDO), límite (no devuelve más de N), 403 si rol no es `Repartidor`, 400 si falta restaurant_id, 400 si limit > 50
 - **Commit**: `test(orders): add available-for-delivery integration tests`
 
 ---
 
-## PR-delivery — `feat/delivery-claim-no-status-mutation`
+## PR-orders-claim (ex PR-delivery) — `feat/orders-claim-no-status-mutation`
 
-**Branch**: `feat/delivery-claim-no-status-mutation` (base: `main`)
-**Dev**: delivery
-**Scope**: `claim` deja de mutar `Order.status`
+**Branch**: `feat/orders-claim-no-status-mutation` (base: `main`)
+**Dev**: orders (`delivery-service` tiene 0 cambios de código; la mutación de claim reside en `orders-service`)
+**Scope**: `claim` en `orders-service` deja de mutar `Order.status` y ruta a `EN_CAMINO`
 **Est. LOC**: ~60 | **Files**: ~3
 
 ---
 
-### T-15 — Confirmar que `Order.assignDelivery()` es código muerto (no modificar)
-- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/Order.java` (verificar)
-- **TDD RED first**: no (verificación, no cambio)
-- **Acceptance**: ejecutar búsqueda de `assignDelivery` en el repo (`grep -rn "\.assignDelivery(" services/`). Si no se llama desde ningún flujo (caso actual), **no modificarlo** — es código muerto. Si se llama, refactorizar el caller para no mutar status. La mutación real está en `ClaimDeliveryOrdersUseCase.execute()` líneas 91-98 (orders-service), no en `assignDelivery`
-- **Commit**: `chore(orders): confirm Order.assignDelivery is dead code, do not modify`
+### T-15 — Eliminar `Order.assignDelivery()` y su test obsoleto (reemplaza "confirmar código muerto")
+- **Files**: 
+  - `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/Order.java` (eliminar método `assignDelivery`)
+  - `services/orders-service/src/test/java/cl/flashdrop/orders/domain/model/OrderDomainTest.java` (eliminar test `shouldAssignDeliveryAndChangeStatusToEnCamino` línea 86)
+- **TDD RED first**: sí — primero verificar que el test obsoleto está activo, luego eliminar método y test atómicamente
+- **Acceptance**: 
+  1. `Order.assignDelivery(UUID deliveryId)` es código muerto (grep confirma que no se llama desde ningún flujo de producción). Pero existe un test activo (`OrderDomainTest.shouldAssignDeliveryAndChangeStatusToEnCamino` línea 86) que valida el comportamiento obsoleto de mutar status a `EN_CAMINO`. **Dejar ambos es deuda técnica peligrosa** — el método valida un contrato que el spec viola, y el test pasa pero por razones obsoletas.
+  2. **Eliminar el método `Order.assignDelivery()`** completo (incluye el bloque que cambia `this.status = OrderStatus.EN_CAMINO`). No hay callers en producción (verificado por grep `services/.*\.java` → 0 hits fuera del test).
+  3. **Eliminar el test `shouldAssignDeliveryAndChangeStatusToEnCamino`** de `OrderDomainTest.java`. El comportamiento que validaba (mutar status a `EN_CAMINO`) ya no es parte del contrato.
+  4. Después de la eliminación, `OrderDomainTest` debe pasar con todos los tests restantes.
+- **Commit**: `refactor(orders): remove dead Order.assignDelivery method and its obsolete test`
 
 ### T-16 — Quitar mutación de status en `ClaimDeliveryOrdersUseCase.execute()` (orders-service)
 - **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/application/usecase/ClaimDeliveryOrdersUseCase.java`
 - **TDD RED first**: sí — actualizar `ClaimDeliveryOrdersUseCaseTest` para verificar que `Order.status` no se modifica post-claim
-- **Acceptance**: eliminar las llamadas en línea 91 (`orderRepository.claimOrders(uniqueOrderIds, deliveryId, OrderStatus.EN_CAMINO)`) y línea 98 (`deliveryPort.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue())`). El use case solo persiste `deliveryId` y deja el estado como está (`LISTO_PARA_RETIRO`). **Coordinar con dev de delivery antes de merge**: el consumer `/api/internal/orders/claim` en delivery-service asume este cambio de comportamiento
+- **Acceptance**: eliminar las llamadas en línea 91 (`orderRepository.claimOrders(uniqueOrderIds, deliveryId, OrderStatus.EN_CAMINO)`) y línea 98 (`deliveryPort.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue())`). El use case solo persiste `deliveryId` y deja el estado como está (`LISTO_PARA_RETIRO`). **Coordinar con dev de delivery antes de merge**: en `delivery-service`, el flujo ya deja la ruta en `ASSIGNED` y delega a `orders-service`
 - **Commit**: `feat(orders): remove Order status mutation from ClaimDeliveryOrdersUseCase`
 
 ### T-17 — Test explícito del nuevo comportamiento
@@ -238,8 +244,8 @@ main
 
 ## Orden de merge recomendado
 
-1. `PR-delivery` primero (es el cambio de comportamiento que necesita coordinación con Flutter antes).
+1. `PR-orders-claim` primero (es el cambio de comportamiento que necesita coordinación con Flutter antes).
 2. `PR-auth`, `PR-orders-status-authz`, `PR-orders-available` en paralelo.
 3. `PR-gateway-1` último.
 
-Los PRs pueden mergear en cualquier orden funcional — son archivos disjuntos. El orden sugerido es por riesgo (delivery-service tiene el riesgo #1 documentado).
+Los PRs pueden mergear en cualquier orden funcional — son archivos disjuntos. El orden sugerido es por riesgo (el claim tiene el riesgo #1 documentado).
