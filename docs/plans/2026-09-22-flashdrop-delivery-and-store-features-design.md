@@ -95,16 +95,25 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 ### 4.2 `delivery-service`
 
-**Sin archivos nuevos.**
+> **Feedback aplicado** (Felipe, 2026-09-24, contra `main @ afc8f0a`): `Order.assignDelivery()` es **código muerto** — existe pero no se llama desde ningún flujo. La mutación real del status a `EN_CAMINO` está en `orders-service/ClaimDeliveryOrdersUseCase.execute()` líneas 91 y 98 (`orderRepository.claimOrders(..., EN_CAMINO)` y `deliveryPort.updateRouteStatus(..., EN_CAMINO)`). **PR-delivery modifica `orders-service`, no `delivery-service`.** Caveat aceptado: el equipo decidió mantener la ambigüedad histórica como punto de coordinación entre los devs de delivery y orders, no como bug.
+
+**Sin archivos nuevos en delivery-service.**
 
 **Archivos modificados:**
-- `application/usecase/ClaimDeliveryOrdersUseCaseImpl.java` — eliminar la llamada que mutaba `Order.status`.
-- `domain/model/Order.java` (o donde se defina `assignDelivery`) — ajustar para que `assignDelivery` solo persista `deliveryId`, sin tocar `status`. **Caveat**: la clase `Order` formalmente vive en `orders-service`; `Order.assignDelivery` parece estar duplicado o referenciado desde delivery-service. Verificar en implementación antes de mergear y coordinar con el dev de orders si hay cambios en el `Order` compartido.
-- `application/port/outbound/OrderServicePort.java` (o equivalente) — ajustar el método `claim` para reflejar que ya no hay mutación de estado.
+- `application/port/outbound/OrderServicePort.java` (o equivalente) — ajustar el método `claim` para reflejar que ya no hay mutación de estado. El flag `delivery.claim.delegate-to-orders.enabled` sigue funcionando: cuando está activo, llama a `internalOrdersClient.claimOrders` para que `orders-service` actualice `delivery_id`.
+- `application/usecase/ClaimDeliveryOrdersUseCaseImpl.java` (en `delivery-service`) — eliminar cualquier mutación local del estado que el use case hiciera. Coordinar con el dev de orders: el use case en orders-service (`ClaimDeliveryOrdersUseCase.execute()`) es el que ahora deja de mutar status. **No modificar `Order.java` en delivery-service porque ese archivo no existe en este servicio** (la entidad vive en orders-service).
 
 **Sin migración de DB.**
 
 ### 4.3 `orders-service`
+
+> **Feedback aplicado** (Felipe, 2026-09-24, contra `main @ afc8f0a`):
+> 1. `Order.validateStatusTransition()` actual solo rechaza `ENTREGADO → *`. Permite, por ejemplo, `NUEVO_PEDIDO → ENTREGADO` directo. Falta matrix completa `from × to`.
+> 2. `UpdateOrderStatusUseCase` no valida ownership del restaurante para rol `Restaurante` — IDOR: cualquier `Restaurante` puede cambiar el estado de cualquier pedido.
+> 3. `Order.assignDelivery()` es código muerto. La mutación real está en `ClaimDeliveryOrdersUseCase.execute()` líneas 91-98. Ver §4.2.
+> 4. Naming inconsistente: plan §4.3 decía `findByRestaurantAndStatusInRange`, tasks T-19 dice `findByRestaurantAndStatusAndCreatedAtBetween`. **Se unifica al segundo.**
+> 5. `openapi.yaml` debe actualizarse en cada PR de orders-service que agregue endpoints (no se mencionó en el plan original).
+> 6. `IdConverter.toUuid(restaurantIdLong)` debe aplicarse consistentemente en endpoints con `restaurant_id` como `Long` en query params (patrón ya usado en `OrderController.listOrders` línea 64).
 
 **Nuevos archivos:**
 - `application/usecase/ListAvailableOrdersUseCase.java`
@@ -114,12 +123,26 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `infrastructure/api/SalesSummaryController.java` (o agregar a `OrderController`)
 - `domain/exception/InvalidStatusTransitionException.java` (si no existe)
 - `application/port/outbound/RestaurantMetricsRepository.java` (si se prefiere segregar)
+- `application/usecase/ValidateOrderTransitionUseCase.java` (NUEVO) — encapsula la validación `from × to` antes de persistir.
+- `application/port/outbound/RestaurantOwnershipPort.java` (NUEVO) — para que orders resuelva ownership vía HTTP a catalog (`CatalogHttpClientAdapter` ya existe; este es el puerto del lado de orders).
 
 **Archivos modificados:**
-- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status`. Cargar matriz rol → transiciones permitidas.
-- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` y validar contra la matriz. Devolver `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida.
-- `domain/model/Order.java` — revisar `validateStatusTransition()` y `isClaimable()` para reflejar que `assignDelivery` ya no cambia estado.
-- `application/usecase/ListOrdersUseCase.java` (posible) — si se decide reutilizar con un parámetro `restaurantId` en vez de crear `ListAvailableOrdersUseCase`.
+- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status`. Cargar matriz rol → transiciones permitidas. Agregar `IdConverter.toUuid(restaurantIdLong)` en handlers con `restaurant_id` (patrón existente en `listOrders`).
+- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` + `currentUserId` y validar contra la matriz. Para rol `Restaurante`, validar que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (403 si no). Devolver `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida.
+- `domain/model/Order.java` — **revisar `validateStatusTransition(newStatus)`**: actualmente solo rechaza `ENTREGADO → *`. Agregar matrix completa `from × to`:
+  - `NUEVO_PEDIDO → PREPARANDO` (válido)
+  - `NUEVO_PEDIDO → LISTO_PARA_RETIRO` (corto-circuito, válido si la tienda decide saltarse PREPARANDO)
+  - `PREPARANDO → LISTO_PARA_RETIRO` (válido)
+  - `LISTO_PARA_RETIRO → RETIRADO` (válido, pickup confirmado)
+  - `LISTO_PARA_RETIRO → EN_CAMINO` (legacy — permitido pero deprecated)
+  - `RETIRADO → ENTREGADO` (válido)
+  - `RETIRADO → EN_CAMINO` (legacy — permitido pero deprecated)
+  - `ENTREGADO → *` rechazado (estado terminal)
+  - Cualquier otra transición rechazada con 409 (`OrderDomainException`).
+  - `isClaimable()` también debe actualizarse.
+- `application/port/outbound/OrderRepositoryPort.java` — unificar método a `findByRestaurantAndStatusAndCreatedAtBetween(UUID restaurantId, Collection<OrderStatus> statuses, OffsetDateTime from, OffsetDateTime to)` (alineado con tasks T-19).
+- `openapi.yaml` — actualizar en cada PR que agregue endpoint (PR-orders-status-authz, PR-orders-available, PR-orders-metrics).
+- `ClaimDeliveryOrdersUseCase.java` — **modificar en PR-delivery**: la mutación a `EN_CAMINO` ya no debe ocurrir; el `claim` solo persiste `deliveryId` y deja el estado como está. Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim.
 
 **Sin migración de DB.**
 
@@ -193,8 +216,9 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `orders` (orders) — `status`, `restaurant_id`, `created_at` ya indexados o indexables.
 - `delivery_routes` (delivery) — `order_id`, `delivery_person_id` ya disponibles.
 - **`auth-service.users.updated_at`** (V1 línea 24) — la columna existe desde el alta con `default now()`, pero no está mapeada en `UserEntity` ni tiene trigger. **El fix es en código Java (`@PreUpdate` en la entidad), no en SQL.** Cumple la promesa de "sin migración".
+- **`orders.status` admite `EN_CAMINO`** (legacy) — después de PR-delivery no se asignan nuevos pedidos a `EN_CAMINO` directamente. El flujo nuevo es `LISTO_PARA_RETIRO → RETIRADO` (pickup confirmado) → `ENTREGADO`. **Los pedidos legacy que ya están en `EN_CAMINO` se mantienen en la BD**; ningún código los transiciona automáticamente a `RETIRADO`. Decisión: el ciclo de vida legacy queda congelado; pedidos en `EN_CAMINO` eventualmente pasan a `ENTREGADO` por flujo normal. `RETIRADO` también se acepta como `from` válido en `validateStatusTransition` para legacy.
 
-**Índice sugerido (no migración, decisión de PR-orders-metrics):** confirmar `CREATE INDEX IF NOT EXISTS idx_orders_restaurant_status_created ON orders(restaurant_id, status, created_at DESC)` en la primera corrida de PR-orders-metrics si el EXPLAIN muestra lag. Es trivial agregar como Flyway al PR que lo necesite.
+**Índice (decisión de PR-orders-metrics, con owner explícito):** el dev de orders mide EXPLAIN con dataset representativo (dataset de prueba con ≥10k órdenes por restaurante) durante PR-orders-metrics. **Owner**: dev de orders ejecutando PR-orders-metrics. Si el índice se justifica (`CREATE INDEX IF NOT EXISTS idx_orders_restaurant_status_created ON orders(restaurant_id, status, created_at DESC)`), se agrega como migración Flyway en el mismo PR. **Si no se mide, el índice no se agrega** (mantener default: cero migraciones). No queda en el limbo.
 
 ---
 
@@ -209,7 +233,7 @@ Cada OpenSpec change es **autónomamente testeable y deployable**. Los dos cambi
 | `PR-auth` | auth-service | `PUT /auth/profile` con use case + DTO + controller + tests | — |
 | `PR-orders-status-authz` | orders-service | Matriz rol→transición-permitida en `PUT /api/orders/{id}/status` + tests de la matriz | `PR-gateway-1` |
 | `PR-orders-available` | orders-service | `GET /api/orders/available-for-delivery` (use case + controller + tests) | `PR-gateway-1` |
-| `PR-delivery` | delivery-service | Quitar mutación de status en `ClaimDeliveryOrdersUseCaseImpl` + ajustar `Order.assignDelivery()` + tests | — |
+| `PR-delivery` | orders-service | Quitar mutación de status a `EN_CAMINO` en `ClaimDeliveryOrdersUseCase.execute()` (líneas 91-98). Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim. `Order.assignDelivery()` es código muerto, no se modifica. Coordinar con dev de delivery antes de merge | — |
 | `PR-gateway-1` | gateway | 2 rutas nuevas (`/api/orders/available-for-delivery` → orders; validar `/api/orders/{id}/status` ya estaba) | último |
 
 **Trabajo en paralelo:** los 4 PRs de servicio pueden arrancar en paralelo (archivos disjuntos).
@@ -404,6 +428,10 @@ Todos en formato `ApiError` de `shared-observability`.
 | 11 | Tests de integración contra S3 real son flaky | Usar LocalStack o stub in-memory; documentar |
 | 12 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 va al final, después de que los otros estén mergeados a `main` |
 | 13 | catalog-image y catalog-products se mergean en paralelo y ambos tocan `build.gradle.kts` (Spring Security + AWS SDK) y `SecurityConfig` → conflicto | catalog-products depende técnicamente de catalog-image (comparten `build.gradle.kts`, `SecurityConfig`, `application.yml`); el dev de catalog los mergea secuencialmente en su orden interno |
+| 14 | **`Order.validateStatusTransition()` actual está incompleto** (solo rechaza `ENTREGADO → *`). Permite, por ejemplo, `NUEVO_PEDIDO → ENTREGADO` directo. El spec dice "409 si la transición no es válida por el estado actual" pero la lógica para emitir ese 409 no existe | PR-orders-status-authz agrega matrix completa `from × to` en `Order.validateStatusTransition()`. Validaciones unitarias exhaustivas para cada par inválido |
+| 15 | **IDOR en `updateOrderStatus` para rol `Restaurante`**: cualquier `Restaurante` con JWT puede cambiar el estado de cualquier pedido, no solo de su restaurante | PR-orders-status-authz valida que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` antes de aplicar el cambio (403 si no). Test IT explícito del caso IDOR |
+| 16 | **`openapi.yaml` queda desactualizado**. Si bien el plan dice "sin código nuevo en gateway, solo config", en orders-service los 3 PRs agregan endpoints. El OpenAPI debe actualizarse en el mismo PR o queda drift con la implementación | Cada PR de orders-service que agregue endpoint incluye commit `docs(openapi): update openapi.yaml with new endpoint`. Code review del PR verifica |
+| 17 | **`EN_CAMINO` queda como estado legacy**. Después de PR-delivery, no se asignan nuevos pedidos a `EN_CAMINO`. Pedidos ya en ese estado siguen en la BD; `validateStatusTransition` debe permitir `EN_CAMINO → ENTREGADO` (legacy) | Documentar en `Order.java` que `EN_CAMINO` es legacy. `validateStatusTransition` permite transiciones `EN_CAMINO → RETIRADO`, `EN_CAMINO → ENTREGADO` y viceversa con `RETIRADO`. Pedidos en `EN_CAMINO` se procesan por flujo normal sin migración de datos |
 
 ---
 

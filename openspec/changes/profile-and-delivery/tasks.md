@@ -123,6 +123,27 @@ main
 - **Acceptance**: matriz 2D (delivery, store_owner, admin) × (transición válida, transición inválida por estado, transición prohibida por rol). Mínimo 8 casos. Cubre los códigos 200, 403, 409
 - **Commit**: `test(orders): add role-based status transition integration tests`
 
+### T-11 — Matrix completa `from × to` en `Order.validateStatusTransition()` (NUEVO)
+- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/Order.java`
+- **TDD RED first**: sí — test unitario exhaustivo
+- **Acceptance**: la implementación actual solo rechaza `ENTREGADO → *`. Agregar matrix completa (ver spec.md FR-4):
+  - Válidas: `NUEVO_PEDIDO → PREPARANDO`, `NUEVO_PEDIDO → LISTO_PARA_RETIRO`, `PREPARANDO → LISTO_PARA_RETIRO`, `LISTO_PARA_RETIRO → RETIRADO`, `RETIRADO → ENTREGADO`
+  - Legacy (permitidas pero deprecated): `LISTO_PARA_RETIRO → EN_CAMINO`, `RETIRADO → EN_CAMINO`, `EN_CAMINO → RETIRADO`, `EN_CAMINO → ENTREGADO`
+  - Rechazadas (409): `ENTREGADO → *` y cualquier otra no listada
+- **Commit**: `feat(orders): add complete from-to matrix in Order.validateStatusTransition`
+
+### T-12 — Validación de ownership para `Restaurante` en `UpdateOrderStatusUseCase` (NUEVO)
+- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/application/usecase/UpdateOrderStatusUseCase.java` + `infrastructure/adapter/outbound/http/HttpRestaurantOwnershipAdapter.java` (adaptador que llama a `catalog-service:8082/api/internal/restaurants?userId=...`)
+- **TDD RED first**: sí — test IT del caso IDOR
+- **Acceptance**: cuando `currentUserRole == "Restaurante"`, validar que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (llamada HTTP a catalog). Si no coincide, lanzar `AccessDeniedException` (403). El orden de validación en el use case es: ownership (403) → rol/policy (403) → transición (409)
+- **Commit**: `feat(orders): validate restaurant ownership for Restaurante role in updateOrderStatus`
+
+### T-13 — Actualizar `openapi.yaml` con los nuevos endpoints (NUEVO)
+- **Files**: `services/orders-service/openapi.yaml`
+- **TDD RED first**: no
+- **Acceptance**: documentar los 3 endpoints agregados: `PUT /api/orders/{id}/status` con matriz rol × transición, `GET /api/orders/available-for-delivery`, `GET /api/orders/restaurants/{id}/sales-summary`. El OpenAPI debe actualizarse en el mismo PR (no queda drift con la implementación)
+- **Commit**: `docs(openapi): update openapi.yaml with new orders endpoints`
+
 ---
 
 ## PR-orders-available — `feat/orders-available-for-delivery`
@@ -168,22 +189,28 @@ main
 
 ---
 
-### T-15 — Ajustar `Order.assignDelivery`
-- **Files**: `services/delivery-service/src/main/java/com/flashdrop/delivery/domain/model/Order.java` (si vive ahí) **o** `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/Order.java` (si vive en orders). **Decisión durante la implementación**: el `Order` actualmente vive en orders-service, pero `Order.assignDelivery` parece estar duplicado o referenciado desde delivery-service. Verificar antes.
-- **TDD RED first**: sí — test del modelo
-- **Acceptance**: el método `assignDelivery(deliveryId)` persiste `deliveryId` **sin modificar `status`**. Si el método se llamaba antes para transicionar a `EN_CAMINO`, ese comportamiento se elimina
-- **Commit**: `feat(delivery): persist deliveryId without mutating Order status in assignDelivery`
+### T-15 — Confirmar que `Order.assignDelivery()` es código muerto (no modificar)
+- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/domain/model/Order.java` (verificar)
+- **TDD RED first**: no (verificación, no cambio)
+- **Acceptance**: ejecutar búsqueda de `assignDelivery` en el repo (`grep -rn "\.assignDelivery(" services/`). Si no se llama desde ningún flujo (caso actual), **no modificarlo** — es código muerto. Si se llama, refactorizar el caller para no mutar status. La mutación real está en `ClaimDeliveryOrdersUseCase.execute()` líneas 91-98 (orders-service), no en `assignDelivery`
+- **Commit**: `chore(orders): confirm Order.assignDelivery is dead code, do not modify`
 
-### T-16 — Ajustar `ClaimDeliveryOrdersUseCaseImpl`
-- **Files**: `services/delivery-service/src/main/java/com/flashdrop/delivery/application/usecase/ClaimDeliveryOrdersUseCaseImpl.java`
-- **TDD RED first**: sí — actualizar `ClaimDeliveryOrdersUseCaseImplTest` para verificar que `Order.status` no se modifica
-- **Acceptance**: eliminar la línea (o bloque) que mutaba el estado. El use case solo persiste `deliveryId` en `delivery_routes` y (si el flag está activo) llama a `internalOrdersClient.claimOrders`
-- **Commit**: `feat(delivery): remove Order status mutation from ClaimDeliveryOrdersUseCase`
+### T-16 — Quitar mutación de status en `ClaimDeliveryOrdersUseCase.execute()` (orders-service)
+- **Files**: `services/orders-service/src/main/java/cl/flashdrop/orders/application/usecase/ClaimDeliveryOrdersUseCase.java`
+- **TDD RED first**: sí — actualizar `ClaimDeliveryOrdersUseCaseTest` para verificar que `Order.status` no se modifica post-claim
+- **Acceptance**: eliminar las llamadas en línea 91 (`orderRepository.claimOrders(uniqueOrderIds, deliveryId, OrderStatus.EN_CAMINO)`) y línea 98 (`deliveryPort.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue())`). El use case solo persiste `deliveryId` y deja el estado como está (`LISTO_PARA_RETIRO`). **Coordinar con dev de delivery antes de merge**: el consumer `/api/internal/orders/claim` en delivery-service asume este cambio de comportamiento
+- **Commit**: `feat(orders): remove Order status mutation from ClaimDeliveryOrdersUseCase`
 
 ### T-17 — Test explícito del nuevo comportamiento
-- **Files**: `services/delivery-service/src/test/java/com/flashdrop/delivery/application/usecase/ClaimDeliveryOrdersUseCaseImplTest.java`
-- **Acceptance**: tests que mockean el repo y verifican que después de `execute(userId, request)`, el `Order` retornado (o el que se podría consultar) tiene `status = LISTO_PARA_RETIRO` sin cambios, pero `deliveryId` poblado
-- **Commit**: `test(delivery): verify ClaimDeliveryOrdersUseCase does not mutate Order status`
+- **Files**: `services/orders-service/src/test/java/cl/flashdrop/orders/application/usecase/ClaimDeliveryOrdersUseCaseTest.java`
+- **Acceptance**: tests que mockean el repo y verifican que después de `execute(userId, orderIds)`, `orderRepository.claimOrders(...)` **no se llama** con `EN_CAMINO`, y `deliveryPort.updateRouteStatus(...)` **no se llama** con `EN_CAMINO`. El `Order` queda con `status = LISTO_PARA_RETIRO` y `deliveryId` poblado
+- **Commit**: `test(orders): verify ClaimDeliveryOrdersUseCase does not mutate Order status`
+
+### T-17b — Documentar endpoint legacy `POST /api/delivery/claim` (NUEVO)
+- **Files**: `services/orders-service/openapi.yaml` línea 190 (`/api/delivery/claim`)
+- **TDD RED first**: no
+- **Acceptance**: agregar NOTA en el OpenAPI documentando que el endpoint legacy `POST /api/delivery/claim` (que llama a `/api/internal/orders/claim` en orders-service) **también deja de mutar status** después de este PR. El comportamiento cambia: antes `claim` transicionaba a `EN_CAMINO`, ahora solo persiste `deliveryId`. El frontend Flutter debe transicionar manualmente al primer `RETIRADO`
+- **Commit**: `docs(openapi): document /api/delivery/claim no longer mutates status`
 
 ---
 
