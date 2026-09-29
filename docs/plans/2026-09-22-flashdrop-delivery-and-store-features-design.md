@@ -45,19 +45,21 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 | Path | Método | Servicio | Auth | Body | Respuesta |
 |---|---|---|---|---|---|
 | `/auth/profile` | `PUT` | auth-service | JWT | `{name, lastName, phone, photo}` (sin `email`, sin `rut`) | `UserProfile` |
-| `/api/orders/available-for-delivery` | `GET` | orders-service | JWT (rol delivery) | — (query: `restaurant_id` req, `limit` opcional default 5) | `[OrderListResponse]` |
-| `/api/orders/restaurants/{restaurantId}/sales-summary` | `GET` | orders-service | JWT (rol store_owner) | — (query: `range` opcional `day`/`week`/`month` default `week`) | `SalesSummaryResponse` |
-| `/api/catalog/my/products` | `POST` | catalog-service | JWT (rol store_owner) | `{categoryId, name, description, price, image, available}` (sin `restaurantId`) | `ProductResponse` |
-| `/api/catalog/my/products` | `GET` | catalog-service | JWT (rol store_owner) | — | `[ProductResponse]` |
-| `/api/catalog/my/products/{productId}` | `PUT` | catalog-service | JWT (rol store_owner) | `{categoryId, name, description, price, image, available}` | `ProductResponse` |
-| `/api/catalog/my/products/{productId}` | `DELETE` | catalog-service | JWT (rol store_owner) | — | 204 No Content |
-| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol store_owner) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{url}` |
+| `/api/orders/available-for-delivery` | `GET` | orders-service | JWT (rol `Repartidor`) | — (query: `restaurant_id` req, `limit` opcional default 5) | `[OrderListResponse]` |
+| `/api/orders/restaurants/{restaurantId}/sales-summary` | `GET` | orders-service | JWT (rol `Restaurante`) | — (query: `range` opcional `day`/`week`/`month` default `week`) | `SalesSummaryResponse` |
+| `/api/catalog/my/products` | `POST` | catalog-service | JWT (rol `Restaurante`) | `{categoryId, name, description, price, image, available}` (sin `restaurantId`) | `ProductResponse` |
+| `/api/catalog/my/products` | `GET` | catalog-service | JWT (rol `Restaurante`) | — | `[ProductResponse]` |
+| `/api/catalog/my/products/{productId}` | `PUT` | catalog-service | JWT (rol `Restaurante`) | `{categoryId, name, description, price, image, available}` | `ProductResponse` |
+| `/api/catalog/my/products/{productId}` | `DELETE` | catalog-service | JWT (rol `Restaurante`) | — | 204 No Content |
+| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol `Restaurante`) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{url}` |
+
+> **Convención de nombres de rol:** los roles reales en `auth-service` son `Cliente`, `Restaurante`, `Repartidor` (ver `auth-service/src/main/resources/db/seed/V2__seed_development.sql`). Los nombres tentativos previos (`store_owner`, `delivery`, `customer`) **se descartan** en todo este documento. Esta convención es bloqueada por el fix de `PR-orders-jwt-roles` (ver §4.3.0); si no se lee correctamente del JWT, ningún chequeo `@PreAuthorize("hasRole('Restaurante')")` va a funcionar.
 
 ### 3.2 Endpoints MODIFICADOS (mismo path)
 
 | Path | Cambio |
 |---|---|
-| `PUT /api/orders/{id}/status` | Autorización por rol + validación de transición. Matriz rol → transiciones permitidas: `delivery` solo puede transicionar a `RETIRADO` o `ENTREGADO`; `store_owner` puede transicionar `NUEVO_PEDIDO → PREPARANDO → LISTO_PARA_RETIRO`. 403 si rol no autorizado, 409 si transición inválida |
+| `PUT /api/orders/{id}/status` | Autorización por rol + validación de transición. Matriz rol → transiciones permitidas: `Repartidor` solo puede transicionar a `RETIRADO` o `ENTREGADO`; `Restaurante` puede transicionar `NUEVO_PEDIDO → PREPARANDO → LISTO_PARA_RETIRO`. 403 si rol no autorizado, 409 si transición inválida |
 | `POST /delivery/claim` | El use case **deja de cambiar** `Order.status`. Solo persiste `deliveryId` en la ruta. El estado del pedido queda en `LISTO_PARA_RETIRO` hasta que el repartidor confirme el pickup con un PUT subsecuente |
 
 ### 3.3 Endpoints INTACTOS (verificados)
@@ -116,6 +118,51 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 > 5. `openapi.yaml` debe actualizarse en cada PR de orders-service que agregue endpoints (no se mencionó en el plan original).
 > 6. `IdConverter.toUuid(restaurantIdLong)` debe aplicarse consistentemente en endpoints con `restaurant_id` como `Long` en query params (patrón ya usado en `OrderController.listOrders` línea 64).
 
+#### 4.3.0 Fix bloqueante previo — `PR-orders-jwt-roles` (lectura de roles del JWT)
+
+> **Bloquea:** `PR-orders-status-authz`, `PR-orders-available`, `PR-orders-metrics`, `PR-catalog-products`. **No se puede implementar authz por rol de forma segura hasta que este PR esté mergeado.** Estimación: 30-60 min (alcance acotado, ya verificado contra `main @ afc8f0a`).
+
+**Estado actual (bug)** — `config/JwtValidationFilter.java` líneas 86-91 arma el `UsernamePasswordAuthenticationToken` con `new ArrayList<>()` como authorities:
+
+```java
+if (validation.getStatusCode().is2xxSuccessful()) {
+    String subject = extractSubject(token);   // solo lee 'sub'
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(subject, null, new ArrayList<>());
+    //                                                              ^^^^^^^^^^^^^^
+    //                                                              authorities VACÍAS
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+}
+```
+
+El emisor `auth-service/.../JwtTokenService.java:41` sí mete los roles (`.claim("roles", claims.roles())`), y `AuthController.validate()` (`/auth/validate`) retorna el `TokenClaims` completo con roles. El descarte ocurre 100% del lado consumidor: orders extrae solo `sub` y nunca toca el claim `roles`. Consecuencia: cualquier `@PreAuthorize("hasRole('Restaurante')")` falla cerrado (403 universal) o, peor, un chequeo manual que lee authorities vacías queda falla abierto (IDOR). Bloquea PR-orders-status-authz y los demás PRs que dependen de leer el rol.
+
+**Decisiones de diseño** (firmadas en esta vuelta; no se reabren en code review salvo error factual):
+
+1. **Cómo extraer los roles**: decodificar el payload del JWT **localmente** (mismo método `Base64.getUrlDecoder()` que ya usa el filtro para extraer `sub`) y leer el claim `"roles"`. **No** consumir el body JSON de `/auth/validate` — el filtro ya confía en la firma validada por Auth (status 2xx), así que la decodificación local es segura y evita un parseo extra. Si el claim está ausente o no es una lista, authorities queda vacía (mismo comportamiento que hoy; los chequeos de rol fallarán cerrado aguas abajo, que es lo correcto).
+2. **Convención de prefijo**: `SimpleGrantedAuthority("ROLE_" + rol)`. Habilita `@PreAuthorize("hasRole('Restaurante')")` estándar de Spring Security sin mapeos custom. Documentar en el JavaDoc del filtro que el prefijo `ROLE_` se aplica acá; los chequeos en código deben usar `hasRole(...)` o `hasAuthority("ROLE_Restaurante")` consistentemente.
+3. **Nombres de rol**: usar los nombres reales de la BD (`auth-service/.../V2__seed_development.sql`): `Cliente`, `Restaurante`, `Repartidor`. Esta convención reemplaza los nombres tentativos previos del plan (`store_owner`, `delivery`, `customer`). Toda referencia a roles en este documento usa los nombres reales.
+4. **Reusabilidad del filtro**: NO se extrae a `shared-observability` en esta vuelta. `catalog-service` adoptará un enfoque distinto (§4.4 — Spring Security + JWKS local, validación con clave pública). Los dos enfoques son equivalentes en seguridad; unificar es un refactor posterior si surge duplicación real.
+5. **Type safety**: agregar enum `Role { Cliente, Restaurante, Repartidor }` en `domain/` (sin imports de framework). `CurrentUserResolver.requireCurrentUserRole()` retorna `Role` (no `String`). Si el claim tiene un valor que no matchea el enum, `AccessDeniedException("Rol desconocido: <valor>")`.
+
+**Archivos modificados** (todos en `services/orders-service/src/main/java/cl/flashdrop/orders/`):
+
+- `config/JwtValidationFilter.java` — después de validar contra `/auth/validate` (2xx), decodificar el payload del JWT y leer el claim `"roles"`. Si está presente y es una lista, poblar `SimpleGrantedAuthority("ROLE_" + rol)` por cada elemento. Si está ausente o malformado, log warn + authorities vacía.
+- `infrastructure/api/CurrentUserResolver.java` — agregar `requireCurrentUserRole()` que devuelve `Role` (enum) parseado del primer authority `ROLE_*` del `Authentication`. Lanza `AccessDeniedException("No autenticado")` o `AccessDeniedException("Rol desconocido: <x>")` según el caso. `requireCurrentUserId()` se mantiene igual (UUID vía `IdConverter.toUuid(long)`).
+- `domain/model/Role.java` (NUEVO) — enum `Role { Cliente, Restaurante, Repartidor }`. Sin lógica, sin imports de framework. Cero impacto en DB.
+- `config/SecurityConfig.java` — sin cambios estructurales. La authz fina por rol se aplica en cada controller / use case, no en la cadena global. Mantener `.authenticated()` como hoy.
+- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` (`Role`) y `currentUserId` (`UUID`). Validar contra la matriz rol → transiciones permitidas (§3.2). Para rol `Restaurante`, validar adicionalmente que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (riesgo #15). Devolver `AccessDeniedException` si rol no autorizado o IDOR, `OrderDomainException` si transición inválida.
+- `infrastructure/api/OrderController.java` — pasar `currentUserRole()` y `currentUserId()` a `UpdateOrderStatusUseCase`. Sin cambios en la firma HTTP.
+
+**Sin migración de DB.** El cambio es 100% en código Java. No toca SQL.
+
+**Tests nuevos** (detalle en §9):
+
+- `JwtValidationFilterTest`: matriz (sin JWT → 401, JWT sin claim `roles` → authorities vacías, JWT con `["Restaurante"]` → `ROLE_Restaurante` en authorities, JWT con `["Cliente", "Repartidor"]` → dos authorities, JWT con claim `roles` mal formado — string en vez de lista — → log warn + authorities vacías).
+- `CurrentUserResolverTest`: `requireCurrentUserRole()` con `ROLE_Restaurante` → `Role.Restaurante`; con `ROLE_Cliente` y `ROLE_Repartidor` → sus enums; sin authorities → `AccessDeniedException`; authority con valor que no matchea el enum → `AccessDeniedException("Rol desconocido: <x>")`.
+- `UpdateOrderStatusUseCaseTest`: extender la matriz 2D con casos de (rol × transición) usando `CurrentUserResolver` mockeado.
+- `SecurityIntegrationTest`: extender con casos end-to-end de un JWT real con `roles: ["Restaurante"]` accediendo a un endpoint protegido y verificando 200 vs 403 según el endpoint.
+
 **Nuevos archivos:**
 - `application/usecase/ListAvailableOrdersUseCase.java`
 - `application/usecase/GetRestaurantSalesSummaryUseCase.java`
@@ -127,9 +174,9 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `application/usecase/ValidateOrderTransitionUseCase.java` (NUEVO) — encapsula la validación `from × to` antes de persistir.
 - `application/port/outbound/RestaurantOwnershipPort.java` (NUEVO) — para que orders resuelva ownership vía HTTP a catalog (`CatalogHttpClientAdapter` ya existe; este es el puerto del lado de orders).
 
-**Archivos modificados:**
-- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status`. Cargar matriz rol → transiciones permitidas. Agregar `IdConverter.toUuid(restaurantIdLong)` en handlers con `restaurant_id` (patrón existente en `listOrders`).
-- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` + `currentUserId` y validar contra la matriz. Para rol `Restaurante`, validar que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (403 si no). Devolver `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida.
+**Archivos modificados (subset del fix `PR-orders-jwt-roles`, ver §4.3.0 para detalle y motivación):**
+- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status`. Cargar matriz rol → transiciones permitidas. Pasar `currentUserRole()` (devuelto por `CurrentUserResolver` extendido en §4.3.0) al use case. Agregar `IdConverter.toUuid(restaurantIdLong)` en handlers con `restaurant_id` (patrón existente en `listOrders`).
+- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` (`Role`) + `currentUserId` (`UUID`) y validar contra la matriz. Para rol `Restaurante`, validar que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (403 si no). Devolver `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida. Depende de que `JwtValidationFilter` ya popule authorities (PR-orders-jwt-roles mergeado).
 - `domain/model/Order.java` — **revisar `validateStatusTransition(newStatus)`**: actualmente solo rechaza `ENTREGADO → *`. Agregar matrix completa `from × to`:
   - `NUEVO_PEDIDO → PREPARANDO` (válido)
   - `NUEVO_PEDIDO → LISTO_PARA_RETIRO` (corto-circuito, válido si la tienda decide saltarse PREPARANDO)
@@ -232,8 +279,9 @@ Cada OpenSpec change es **autónomamente testeable y deployable**. Los dos cambi
 | PR | Servicio | Contenido | Bloquea |
 |---|---|---|---|
 | `PR-auth` | auth-service | `PUT /auth/profile` con use case + DTO + controller + tests | — |
-| `PR-orders-status-authz` | orders-service | Matriz rol→transición-permitida en `PUT /api/orders/{id}/status` + tests de la matriz | `PR-gateway-1` |
-| `PR-orders-available` | orders-service | `GET /api/orders/available-for-delivery` (use case + controller + tests) | `PR-gateway-1` |
+| `PR-orders-jwt-roles` | orders-service | **Fix bloqueante.** Poblar authorities desde claim `roles` del JWT en `JwtValidationFilter` + `requireCurrentUserRole()` en `CurrentUserResolver` + enum `Role` en `domain/` + tests. Detalle completo en §4.3.0. Estimación: 30-60 min | `PR-orders-status-authz`, `PR-orders-available`, `PR-orders-metrics`, `PR-catalog-products` |
+| `PR-orders-status-authz` | orders-service | Matriz rol→transición-permitida en `PUT /api/orders/{id}/status` + tests de la matriz | `PR-orders-jwt-roles`, `PR-gateway-1` |
+| `PR-orders-available` | orders-service | `GET /api/orders/available-for-delivery` (use case + controller + tests) | `PR-orders-jwt-roles`, `PR-gateway-1` |
 | `PR-delivery` | orders-service | Quitar mutación de status a `EN_CAMINO` en `ClaimDeliveryOrdersUseCase.execute()` (líneas 91-98). Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim. `Order.assignDelivery()` es código muerto, no se modifica. Coordinar con dev de delivery antes de merge | — |
 | `PR-gateway-1` | gateway | 2 rutas nuevas (`/api/orders/available-for-delivery` → orders; validar `/api/orders/{id}/status` ya estaba) | último |
 
@@ -254,11 +302,12 @@ Cada OpenSpec change es **autónomamente testeable y deployable**. Los dos cambi
 
 ```
 Change #1:
-  PR-auth      ─────────►
-  PR-orders-1a ─────────►
-  PR-orders-1b ─────────►
-  PR-delivery  ─────────►
-  PR-gateway-1 ────────────────────►
+  PR-orders-jwt-roles ─►                                          (PR previo, bloqueante)
+  PR-auth             ─────────►
+  PR-orders-1a        ─────────►                                  (espera PR-orders-jwt-roles)
+  PR-orders-1b        ─────────►                                  (espera PR-orders-jwt-roles)
+  PR-delivery         ─────────►
+  PR-gateway-1        ────────────────────►
 
 Change #2:
   PR-catalog-image ─► PR-catalog-products ─────────────►
@@ -294,8 +343,11 @@ Flutter → Gateway → auth-service
 ### 7.2 `GET /api/orders/available-for-delivery?restaurant_id=X&limit=5`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter valida JWT (rol delivery)
-                 → ListAvailableOrdersUseCase(restaurantId, limit)
+                 → JwtValidationFilter valida JWT contra Auth (HTTP /auth/validate)
+                    y extrae userId del `sub` + roles del claim `roles` (los popula como
+                    SimpleGrantedAuthority("ROLE_" + rol); ver §4.3.0)
+                 → ListAvailableOrdersUseCase(restaurantId, limit, currentUserRole)
+                    ├─ Verificar currentUserRole == Role.Repartidor (403 si no)
                     ├─ OrderRepositoryPort.findByRestaurantAndStatus(
                     │      restaurantId, LISTO_PARA_RETIRO, limit)
                     └─ OrderEnricher.enrich(...) (datos de cliente)
@@ -305,13 +357,16 @@ Flutter → Gateway → orders-service
 ### 7.3 `PUT /api/orders/{id}/status`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter extrae userId + rol
-                 → UpdateOrderStatusUseCase(orderId, newStatus, rol)
+                 → JwtValidationFilter valida JWT contra Auth (HTTP /auth/validate)
+                    y extrae userId del `sub` + roles del claim `roles` (ver §4.3.0)
+                 → UpdateOrderStatusUseCase(orderId, newStatus, currentUserRole, currentUserId)
                     ├─ OrderRepositoryPort.findById(orderId)
-                    ├─ Matriz authz: rol → transiciones permitidas
-                    │   └─ 403 si no autorizado
+                    ├─ Matriz authz: rol → transiciones permitidas (ver §3.2)
+                    │   ├─ 403 si currentUserRole no está en la matriz para esta transición
+                    │   └─ 403 si currentUserRole == Restaurante y
+                    │         order.restaurantId != ownershipPort.resolveRestaurantId(currentUserId)
                     ├─ order.validateStatusTransition(newStatus)
-                    │   └─ 409 si transición inválida
+                    │   └─ 409 si transición inválida (matriz from×to en §4.3)
                     └─ OrderRepositoryPort.save(order)
                  → 200 OK
 ```
@@ -319,11 +374,14 @@ Flutter → Gateway → orders-service
 ### 7.4 `GET /api/orders/restaurants/{restaurantId}/sales-summary`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter extrae userId + rol
-                 → GetRestaurantSalesSummaryUseCase(restaurantId, range, currentUserId)
-                    ├─ Validar que currentUserId es dueño de restaurantId (403 si no)
+                 → JwtValidationFilter valida JWT contra Auth y extrae userId + roles
+                    (ver §4.3.0)
+                 → GetRestaurantSalesSummaryUseCase(restaurantId, range, currentUserId, currentUserRole)
+                    ├─ Verificar currentUserRole == Role.Restaurante (403 si no)
+                    ├─ Validar que currentUserId es dueño de restaurantId vía
+                    │   ownershipPort.resolveRestaurantId(currentUserId) (403 si no)
                     ├─ Calcular rango temporal (from/to según day/week/month)
-                    ├─ OrderRepositoryPort.findByRestaurantAndStatusInRange(...)
+                    ├─ OrderRepositoryPort.findByRestaurantAndStatusAndCreatedAtBetween(...)
                     ├─ Agregaciones: totalOrders, totalRevenue, avgTicket, topProducts
                     └─ Construir SalesSummaryResponse
                  → 200 SalesSummaryResponse
@@ -332,11 +390,13 @@ Flutter → Gateway → orders-service
 ### 7.5 `/api/catalog/my/products` (CRUD)
 ```
 Flutter → Gateway → catalog-service
-                 → JwtAuthFilter extrae userId + rol store_owner
+                 → Spring Security + JWT RS256 contra JWKS de Auth valida el JWT y mapea
+                    el claim `roles` a authorities (SecurityConfig; §4.4)
                  → MyStoreProductController
-                    ├─ RestaurantOwnershipResolver.resolve(userId)
-                    │   └─ HTTP GET /api/internal/restaurants?userId={userId}
-                    │      → restaurantId (cache TTL 60s)
+                    ├─ Verificar authority `ROLE_Restaurante` (403 si no)
+                    ├─ RestaurantOwnershipResolver.resolve(userId) [uso interno, NO HTTP self-call]
+                    │   └─ GetRestaurantByUserIdUseCase.execute(userId) — local, JPA, sin cache
+                    │      (ver §FR-2 de openspec/changes/store-flow/spec.md y §4.4 del plan)
                     ├─ Validar ownership (403 si producto.restaurantId != resolved)
                     ├─ CRUD JPA normal
                     └─ 200/201/204
@@ -345,7 +405,7 @@ Flutter → Gateway → catalog-service
 ### 7.6 `POST /api/catalog/my/products/image`
 ```
 Flutter → Gateway → catalog-service
-                 → JwtAuthFilter valida JWT (rol store_owner)
+                 → Spring Security + JWT RS256 valida el JWT (rol Restaurante; §4.4)
                  → Validar multipart: tamaño ≤ 5MB, MIME ∈ {jpeg, png, webp}
                  → S3ProductImageStorage.upload(bucket, key, bytes, contentType)
                     └─ 502 si S3 falla
@@ -375,10 +435,12 @@ Todos en formato `ApiError` de `shared-observability`.
 ## 9. Estrategia de testing
 
 ### Unit tests (sin Docker, corren en CI cada PR)
+- `JwtValidationFilterTest` (orders) — matriz: sin JWT, JWT sin claim `roles`, JWT con `["Restaurante"]`, JWT con `["Cliente", "Repartidor"]`, JWT con `roles` mal formado (string en vez de lista). Verifica que `Authentication.getAuthorities()` contiene `ROLE_<rol>` por cada elemento del claim (detalle en §4.3.0).
+- `CurrentUserResolverTest` (orders) — `requireCurrentUserRole()` con cada valor del enum `Role`, con authority ausente (`AccessDeniedException`), y con authority cuyo sufijo no matchea el enum (`AccessDeniedException("Rol desconocido: <x>")`).
 - `UpdateUserProfileUseCaseTest` (auth)
-- `ListAvailableOrdersUseCaseTest` (orders)
-- `UpdateOrderStatusUseCaseTest` con matriz rol × transición (orders)
-- `GetRestaurantSalesSummaryUseCaseTest` (orders)
+- `ListAvailableOrdersUseCaseTest` (orders) — extendido para verificar el chequeo de `currentUserRole == Role.Repartidor` y 403 si no.
+- `UpdateOrderStatusUseCaseTest` con matriz rol × transición (orders) — extendido con `CurrentUserResolver` mockeado para cubrir la matriz completa (ver §3.2).
+- `GetRestaurantSalesSummaryUseCaseTest` (orders) — extendido para verificar el chequeo de `currentUserRole == Role.Restaurante` y el IDOR check (restaurantId del path vs `ownershipPort.resolveRestaurantId(currentUserId)`).
 - `OwnerProductUseCasesTest` x 4 CRUD (catalog)
 - `UploadProductImageUseCaseTest` con stub de S3 (catalog)
 - `ClaimDeliveryOrdersUseCaseTest` ajustado: verificar que **no** se modifica `Order.status` ni ruta a `EN_CAMINO` post-claim (orders)
@@ -420,11 +482,11 @@ Todos en formato `ApiError` de `shared-observability`.
 | 2 | ~~Cache `userId → restaurantId` en catalog-service puede quedar stale~~ **Eliminado**: el plan corregido usa `GetRestaurantByUserIdUseCase` local, sin cache HTTP self-call | N/A |
 | 3 | S3/MinIO en Floci **NO está aprovisionado** para catalog (`infra/floci/INFRASTRUCTURE.md` marca como `not used`). No hay bucket, vars S3, secretos ni task definition | Antes de PR-catalog-image: crear bucket S3 en Floci, endpoint accesible desde el contenedor, credenciales/rol, política de lectura, CORS, vars en `env.shared.template`, task definition ECS y config local |
 | 4 | **Build integrado del monorepo está roto** para catalog: `services/build.gradle.kts` fija Spring Boot 3.3.5, `services/catalog-service/build.gradle.kts` declara 3.5.16. `services/gradlew.bat :catalog-service:test` FAIL por conflicto | Tarea previa: alinear versión de Spring Boot O retirar catalog del build raíz. Agregar `catalog-service-ci.yml` que ejecute tests autónomos |
-| 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `store_owner`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) rol real es `Restaurante` (no `store_owner`), (d) gateway no reenvía `roles[]` en claims por defecto | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities. Definir convención de roles única |
+| 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `Restaurante`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) gateway ya reenvía `Authorization: Bearer <jwt>` con el claim `roles` (validado contra `JwtTokenService` de Auth y `middleware/jwt-auth/plugin.ts` del gateway), pero el backend debe leerlo. Detalle del fix en §4.3.0 | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities con prefijo `ROLE_`. Convención de roles ya unificada: `Cliente`/`Restaurante`/`Repartidor` (§4.3.0) |
 | 6 | **Gateway no soporta multipart** para `/api/catalog/my/products/image`. `engine.ts` serializa con `JSON.stringify`, no hay `@fastify/multipart` en deps, bodyLimit insuficiente | PR-gateway-2 debe incluir código real: parser multipart, bodyLimit ≥ 6MB, passthrough raw stream, preservar `Content-Type` con boundary |
 | 7 | **Soft delete no oculta del catálogo público**. `ListProductsUseCase` usa `findAll`/`findByCategoryId`/`findByRestaurantId` sin filtrar `is_available`. Si se implementa el DELETE sin esto, productos desactivados siguen visibles | Agregar queries `...AndIsAvailableTrue` y métodos separados `findAllAvailable()`, `findByRestaurantIdAndAvailableTrue(...)`. Usarlos en endpoints públicos. `/api/catalog/my/*` puede usar los métodos sin filtro para ver desactivados |
 | 8 | **Contrato de errores inconsistente**. Plan exige `ApiError` de shared-observability, pero catalog usa `ErrorResponse` propio y `RestExceptionHandler` no cubre 401/403/413/502 | Decisión: adoptar `ApiError` para consistencia con auth/orders/delivery (recomendado), o mantener `ErrorResponse` y documentar la divergencia. Agregar handlers específicos |
-| 9 | Autorización por rol depende de que el JWT traiga `roles[]`. Si no está, la authz falla cerrado | Verificar que `RegisterUserUseCase` asigne roles correctamente; tests cubren "JWT sin roles" |
+| 9 | (RESUELTO por `PR-orders-jwt-roles`, ver §4.3.0) Autorización por rol dependía de que orders-service leyera el claim `roles` del JWT. **El filtro actual los descartaba** (`JwtValidationFilter.java:86-91` arma el `Authentication` con `new ArrayList<>()` como authorities). Auth ya emite los roles correctamente (`JwtTokenService.java:41`); el bug era 100% del lado consumidor | `PR-orders-jwt-roles` modifica el filtro para poblar `SimpleGrantedAuthority("ROLE_" + rol)` por cada elemento del claim `roles`. Tests unitarios (`JwtValidationFilterTest`, `SecurityIntegrationTest`) cubren los casos (sin JWT, JWT sin `roles`, JWT con uno/varios roles, JWT con `roles` malformado). El `SecurityConfig` mantiene `.authenticated()` global y la authz fina se aplica por endpoint / use case |
 | 10 | Métricas con `LISTO_PARA_RETIRO` muy alto en alguna tienda → query lenta | Evaluar índice `orders(restaurant_id, status, created_at)` en PR-orders-metrics |
 | 11 | Tests de integración contra S3 real son flaky | Usar LocalStack o stub in-memory; documentar |
 | 12 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 va al final, después de que los otros estén mergeados a `main` |
@@ -433,6 +495,7 @@ Todos en formato `ApiError` de `shared-observability`.
 | 15 | **IDOR en `updateOrderStatus` para rol `Restaurante`**: cualquier `Restaurante` con JWT puede cambiar el estado de cualquier pedido, no solo de su restaurante | PR-orders-status-authz valida que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` antes de aplicar el cambio (403 si no). Test IT explícito del caso IDOR |
 | 16 | **`openapi.yaml` queda desactualizado**. Si bien el plan dice "sin código nuevo en gateway, solo config", en orders-service los 3 PRs agregan endpoints. El OpenAPI debe actualizarse en el mismo PR o queda drift con la implementación | Cada PR de orders-service que agregue endpoint incluye commit `docs(openapi): update openapi.yaml with new endpoint`. Code review del PR verifica |
 | 17 | **`EN_CAMINO` queda como estado legacy**. Después de PR-delivery, no se asignan nuevos pedidos a `EN_CAMINO`. Pedidos ya en ese estado siguen en la BD; `validateStatusTransition` debe permitir `EN_CAMINO → ENTREGADO` (legacy) | Documentar en `Order.java` que `EN_CAMINO` es legacy. `validateStatusTransition` permite transiciones `EN_CAMINO → RETIRADO`, `EN_CAMINO → ENTREGADO` y viceversa con `RETIRADO`. Pedidos en `EN_CAMINO` se procesan por flujo normal sin migración de datos |
+| 18 | **Bug bloqueante conocido al momento de cerrar el plan**: `orders-service/JwtValidationFilter.java:86-91` descarta los roles del JWT (arma el `Authentication` con `new ArrayList<>()`). Sin el fix de `PR-orders-jwt-roles` (§4.3.0), `PR-orders-status-authz`, `PR-orders-available`, `PR-orders-metrics` y `PR-catalog-products` no se pueden implementar de forma segura. Verificación: el test `JwtValidationFilterTest` con JWT que trae `roles: ["Restaurante"]` debe producir `Authentication.getAuthorities()` con `ROLE_Restaurante` (caso que hoy falla) | Mergear `PR-orders-jwt-roles` primero, idealmente como PR separado para mantener los PRs de feature enfocados. Estimación: 30-60 min |
 
 ---
 
@@ -440,11 +503,12 @@ Todos en formato `ApiError` de `shared-observability`.
 
 Esta sesión **solo planeó**. Cuando se apruebe este doc:
 
+0. **(Previo, bloqueante) Implementar `PR-orders-jwt-roles`** — fix del bug de lectura de roles del JWT en `orders-service/JwtValidationFilter.java:86-91`. Detalle completo en §4.3.0. Estimación: 30-60 min. **Sin este PR mergeado, los pasos 1-5 no se pueden ejecutar de forma segura** (riesgo #18, §11). Aplica el prefijo `ROLE_` y la convención de nombres reales (`Cliente`/`Restaurante`/`Repartidor`) que se usan en todo este documento.
 1. **Crear los dos OpenSpec changes** (`openspec/changes/profile-and-delivery/` y `openspec/changes/store-flow/`) con `proposal.md`, `tasks.md`, `spec.md` y `design.md` — trabajo de esta misma sesión (siguiente paso inmediato).
-2. **Asignar los PRs** a los dueños de cada servicio según la tabla §6.
+2. **Asignar los PRs** a los dueños de cada servicio según la tabla §6 (respetando que `PR-orders-jwt-roles` bloquea `PR-orders-status-authz`, `PR-orders-available` y `PR-orders-metrics`).
 3. **Coordinar con el dev de Flutter** el cambio de comportamiento del `claim` antes del merge del PR-delivery (riesgo #1).
 4. **Configurar el bucket S3/MinIO** en Floci antes del PR-catalog-image (riesgo #3).
-6. **Mergear en orden** los PRs internos de cada change (PR-gateway-* al final de cada uno).
+5. **Mergear en orden** los PRs internos de cada change (PR-gateway-* al final de cada uno; `PR-orders-jwt-roles` antes que cualquier PR de orders que dependa de authz por rol).
 
 ---
 
