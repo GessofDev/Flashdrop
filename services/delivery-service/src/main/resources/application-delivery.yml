@@ -32,7 +32,8 @@ delivery:
       enabled: ${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:false}
 
 # PR-B: orders-service base URL for the claim delegation adapter.
-# Defaults to the Coolify resource name so docker-compose network DNS resolves.
+# Resolves via docker-compose DNS in local dev and via FloCI task-definition
+# env vars in deployed environments.
 orders:
   service:
     url: ${ORDERS_SERVICE_URL:http://orders-service:8083}

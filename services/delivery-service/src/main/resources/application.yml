@@ -20,8 +20,10 @@ logging:
     org.springframework.web: INFO
 
 # JWT auth (RS256) — base defaults so unit tests that don't load a profile
-# (e.g. @WebMvcTest) still see the same property keys. The `auth-service`
-# hostname is the Coolify resource name; tests override via @TestPropertySource.
+# (e.g. @WebMvcTest) still see the same property keys.
 auth:
+  # auth-service hostname resolves via docker-compose DNS in local dev and via
+  # FloCI task-definition env vars in deployed environments. Tests override
+  # through @TestPropertySource.
   jwks-uri: ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
   issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}

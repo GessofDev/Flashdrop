@@ -15,11 +15,18 @@
 
 ## 2. Service boundaries (do not cross)
 
-- Each Spring Boot service owns its DB tables and its own DB user.
-  See `infra/coolify/01-postgres-init.sql` for the canonical grants.
+- Each Spring Boot service owns its DB tables and its own DB user. The
+  canonical grants live in `infra/floci/INFRASTRUCTURE.md` §4 (FloCI creates
+  `<servicio>_app` users via `aws --endpoint-url http://127.0.0.1:4566 rds ...`;
+  the archived `references/archived-coolify/01-postgres-init.sql` only
+  applies to local-dev docker-compose, where it creates `<servicio>_svc`
+  users).
 - Inter-service calls go through `/api/internal/*` with `X-Internal-Api-Key`.
-- Services address each other by **Coolify resource name** (e.g.
-  `http://flashdrop-orders:8083`), never by `localhost` or public URL.
+- Services address each other by **service name inside the
+  `floci_default` bridge** (e.g. `http://flashdrop-orders:8083`), wired by
+  `gateway/docker/docker-compose.stack.yml`. Never by `localhost` or public URL.
+  Databases, by contrast, are reached via FloCI's local RDS endpoint
+  (`172.16.1.2:<port>`), not by service hostname.
 - Do not reach into another service's DB or repository directly.
 
 ## 3. Build systems — mixed on purpose
@@ -73,7 +80,11 @@
 ## 7. What NOT to do
 
 - Do not commit secrets, real DB passwords, or generated `.env` files.
-  Use `infra/coolify/env.shared.template` as the source of truth.
+  On FloCI the source of truth for shared secrets is the Secrets Manager
+  (e.g. `flashdrop/internal-api-key` is a single secret shared by all 5
+  deployments; see `infra/floci/INFRASTRUCTURE.md` §5). The template
+  `references/archived-coolify/env.shared.template` is historical reference
+  only — do not copy values from it into active configs.
 - Do not reintroduce Supabase — it has been removed from `delivery-service`.
   Communicate with `orders-service` over HTTP via `HttpOrderServiceClientAdapter`.
 - Do not add `Co-Authored-By: Claude` or similar AI-attribution trailers.
