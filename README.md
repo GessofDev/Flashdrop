@@ -1,10 +1,10 @@
 # FlashDrop Backend
 
-Backend de FlashDrop, aplicación de delivery. Refactorizado de monolito Node.js a una arquitectura de 4 microservicios Spring Boot (hexagonal) con API Gateway Fastify/TypeScript, desplegado en Coolify sobre un VPS.
+Backend de FlashDrop, aplicación de delivery. Refactorizado de monolito Node.js a una arquitectura de 4 microservicios Spring Boot (hexagonal) con API Gateway Fastify/TypeScript, desplegado sobre [FloCI](infra/floci/INFRASTRUCTURE.md) (emulador local de AWS).
 
 ## Arquitectura
 
-```
+```text
                         App Mobile (Flutter)
                                 │
                                 ▼
@@ -21,7 +21,7 @@ Backend de FlashDrop, aplicación de delivery. Refactorizado de monolito Node.js
    └───┬────┘ └───┬────┘  └───┬────┘  └───┬────┘  └────────┘
        ▼          ▼           ▼           ▼
    auth_db    catalog_db   orders_db   delivery_db
-       (PostgreSQL 16 — instancias separadas, red interna Coolify)
+       (PostgreSQL 16 — instancias separadas vía RDS FloCI)
 ```
 
 Cada servicio expone su API pública por el gateway (`/api/<servicio>/*`) y consume datos ajenos únicamente vía endpoints internos del servicio dueño (`/api/internal/*`, protegidos con `X-Internal-Api-Key`).
@@ -37,11 +37,11 @@ Cada servicio expone su API pública por el gateway (`/api/<servicio>/*`) y cons
 | Build (auth, catalog, delivery) | Gradle (Kotlin DSL) |
 | Build (orders) | Maven |
 | Containerización | Docker multi-stage (Eclipse Temurin 21) |
-| Orquestación | Coolify sobre VPS |
+| Orquestación / Infra local | FloCI (emulador AWS: RDS, ECS, Secrets Manager) |
 
 ## Estructura del repo
 
-```
+```text
 .
 ├── services/                       # Microservicios
 │   ├── auth-service/               # Spring Boot + Gradle, puerto 8081
@@ -57,15 +57,15 @@ Cada servicio expone su API pública por el gateway (`/api/<servicio>/*`) y cons
 │   └── docs/                       # Documentación auto-generada
 │
 ├── infra/
-│   └── coolify/                    # Archivos de deploy
-│       ├── 01-postgres-init.sql    # Init: 4 bases + 4 usuarios (least-privilege)
-│       ├── env.shared.template     # Variables compartidas
-│       └── DEPLOY.md               # Guía de deploy paso a paso
+│   └── floci/                      # Definiciones de infra local (RDS, ECS, Secrets Manager)
+│       ├── INFRASTRUCTURE.md       # Fuente de verdad del entorno (puertos, usuarios, secrets)
+│       └── task-definitions/       # ECS task definitions por servicio
 │
 ├── references/                     # Material histórico (no usar para desarrollo activo)
 │   ├── monolith/                   # El monolito original Node.js + Vercel
 │   ├── juniors-history/            # Docs del proceso de los juniors
-│   └── migration-plan/             # Plan de migración monolito → microservicios
+│   ├── migration-plan/             # Plan de migración monolito → microservicios
+│   └── archived-coolify/           # Artefactos de un setup Coolify previo (archivado, histórico)
 │
 ├── .github/                        # (vacío en main; CI workflows viven en cada servicio)
 ├── .gitignore
@@ -115,6 +115,7 @@ Librería compartida por `auth-service` (y disponible para el resto cuando lo ne
 - `CorrelationIdFilter`: propaga `X-Request-Id` entre servicios
 - `ApiError` y `ErrorCatalog`: formato de error consistente (`{ status, error, message }`)
 - `TraceContext`: logging estructurado con contexto de tracing
+- `InternalApiKeyFilter`: valida el header `X-Internal-Api-Key` en `/api/internal/*`
 - Configuración auto-instalable vía Spring Boot `AutoConfiguration.imports`
 
 ## API pública (vía Gateway)
@@ -146,9 +147,15 @@ docker run -d --name flashdrop-postgres -p 5432:5432 \
 
 docker run -d --name flashdrop-redis -p 6379:6379 redis:7-alpine
 
-# Crear las 4 bases y los 4 usuarios
-psql -h localhost -U postgres -f infra/coolify/01-postgres-init.sql
+# Crear las 4 bases y los 4 usuarios (script archivado del setup Coolify
+# previo — sigue siendo útil para dev local porque crea los usuarios
+# <servicio>_svc que matchean los defaults de los application*.yml).
+psql -h localhost -U postgres -f references/archived-coolify/01-postgres-init.sql
 ```
+
+> **Nota**: para FloCI el script anterior **no aplica** — los usuarios reales
+> son `<servicio>_app` y las bases ya están provisionadas vía `aws --endpoint-url
+> http://127.0.0.1:4566 rds ...`. Ver `infra/floci/INFRASTRUCTURE.md` §4.
 
 ### Correr un servicio
 
@@ -177,7 +184,7 @@ pnpm dev
 
 ### Variables de entorno mínimas (ejemplo para Auth)
 
-```
+```bash
 SPRING_PROFILES_ACTIVE=local
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/auth_db
 SPRING_DATASOURCE_USERNAME=auth_svc
@@ -186,35 +193,43 @@ INTERNAL_API_KEY=dev-key
 AUTH_SERVICE_URL=http://localhost:8081
 ```
 
-Las plantillas completas de variables están en [`infra/coolify/env.shared.template`](infra/coolify/env.shared.template).
+La plantilla completa de variables compartidas está en
+[`references/archived-coolify/env.shared.template`](references/archived-coolify/env.shared.template)
+(referencia histórica del setup Coolify previo).
 
-## Deploy en Coolify
+## Deploy en FloCI
 
-Referencia completa: **[`infra/coolify/DEPLOY.md`](infra/coolify/DEPLOY.md)**
+Referencia operativa completa: **[`infra/floci/INFRASTRUCTURE.md`](infra/floci/INFRASTRUCTURE.md)**.
+
+FloCI es un emulador local de AWS (RDS, ECS, Secrets Manager) que corre
+sobre un VPS y se opera vía AWS CLI con `--endpoint-url http://127.0.0.1:4566`.
+Las bases Postgres y los servicios se levantan dentro del contenedor FloCI,
+y los servicios se comunican entre sí por la red bridge `floci_default`.
 
 Resumen del flujo:
 
-1. **Crear Postgres en Coolify** con el init script `infra/coolify/01-postgres-init.sql` (crea `auth_db`, `catalog_db`, `orders_db`, `delivery_db` con un usuario por servicio).
-2. **Crear Redis** para rate-limit del gateway.
-3. **Configurar variables compartidas** desde `env.shared.template` (especialmente `INTERNAL_API_KEY` con el mismo valor en los 4 servicios).
-4. **Crear una Application por servicio** en Coolify:
-   - Source: `GessofDev/Flashdrop`, branch `main`
-   - Build Pack: Dockerfile
-   - Rutas de Dockerfile:
-     - Auth: `services/auth-service/Dockerfile`
-     - Catalog: `services/catalog-service/Dockerfile`
-     - Orders: `services/orders-service/Dockerfile`
-     - Delivery: `services/delivery-service/Dockerfile`
-     - Gateway: `gateway/docker/Dockerfile`
-5. **Deployar el gateway primero** y configurar las rutas (`gateway/docker/gateway.yaml`) apuntando a los nombres internos de Coolify (`flashdrop-auth:8081`, etc.).
+1. **Verificar estado actual** de bases (`aws rds describe-db-instances`) y
+   secrets (`aws secretsmanager list-secrets`). Las 4 bases (`auth_db`,
+   `catalog_db`, `orders_db`, `delivery_db`) ya están provisionadas — no hay
+   que correr scripts de bootstrap. Ver `INFRASTRUCTURE.md` §4.
+2. **Asegurar que existe `flashdrop/internal-api-key`** en Secrets Manager
+   (un solo secret compartido por los 5 servicios). Si cada servicio genera
+   su propio valor, las llamadas `/api/internal/*` empiezan a devolver 403.
+3. **Build de imágenes** localmente en el VPS (`/home/dev/dbuild/`) o en CI.
+4. **Levantar los servicios** con ECS task definitions en
+   `infra/floci/task-definitions/`. Cada task definition inyecta las env vars
+   necesarias desde Secrets Manager.
+5. **Smoke test**: `curl http://flashdrop-orders:8083/health` desde un
+   container en `floci_default`, o vía el túnel del VPS.
 
 ## CI / CD
 
 GitHub Actions corre por servicio dentro de su propio subdirectorio:
 
 - `services/auth-service/.github/workflows/ci.yml` — build y tests del Auth Service
+- `services/orders-service/.github/workflows/ci.yml` — build y tests del Orders Service
 
-Los demás servicios no tienen CI configurado todavía; la convención es agregar `.github/workflows/ci.yml` dentro de cada `services/<X>/` cuando se quiera CI para ese servicio.
+Los demás servicios no tienen CI configurado todavía; la convención es agregar `.github/workflows/ci.yml` dentro de cada `services/<X>/` cuando se quiera CI para ese servicio. El deploy a FloCI puede dispararse con webhooks de GitHub Actions.
 
 ## Observabilidad
 
@@ -225,10 +240,10 @@ Los demás servicios no tienen CI configurado todavía; la convención es agrega
 
 ## Seguridad
 
-- **API key compartida** entre los 4 servicios para endpoints internos (header `X-Internal-Api-Key`). Valor único generado con `openssl rand -hex 32`, idéntico en los 5 deployments.
+- **API key compartida** entre los 4 servicios para endpoints internos (header `X-Internal-Api-Key`). Valor único guardado en `flashdrop/internal-api-key` de FloCI Secrets Manager, idéntico en los 5 deployments.
 - **JWT** para endpoints públicos, emitido por Auth Service, validado por el gateway vía JWKS.
-- **Least-privilege en BD**: cada servicio tiene su propio usuario Postgres (`auth_svc`, `catalog_svc`, `orders_svc`, `delivery_svc`) con permisos solo sobre su base.
-- **Red interna de Coolify**: el gateway y los servicios se llaman entre sí por nombre de recurso, no exponen puertos públicos innecesariamente.
+- **Least-privilege en BD**: cada servicio tiene su propio usuario Postgres. En dev local es `<servicio>_svc` (creado por `references/archived-coolify/01-postgres-init.sql`); en FloCI es `<servicio>_app` (provisionado por RDS) — cada usuario tiene permisos solo sobre su base.
+- **Red interna de FloCI**: el gateway y los servicios se llaman entre sí por DNS del bridge `floci_default`, no exponen puertos públicos innecesariamente.
 
 ## Migración desde el monolito
 
@@ -238,8 +253,9 @@ El plan completo de la migración (de monolito a microservicios, separación de 
 
 ## Documentación adicional
 
-- [`infra/coolify/DEPLOY.md`](infra/coolify/DEPLOY.md) — guía operativa de deploy
+- [`infra/floci/INFRASTRUCTURE.md`](infra/floci/INFRASTRUCTURE.md) — fuente de verdad del entorno FloCI (puertos, usuarios, secrets, ECS tasks)
 - [`gateway/README.md`](gateway/README.md) — documentación técnica del gateway
 - [`gateway/specs/`](gateway/specs/) — especificaciones del gateway (JWT/JWKS, CORS, circuit breakers, hot-reload, observabilidad)
 - [`references/migration-plan/MIGRATION_PLAN.md`](references/migration-plan/MIGRATION_PLAN.md) — plan original de migración
+- [`references/archived-coolify/`](references/archived-coolify/) — artefactos históricos del setup Coolify previo (no se usan activamente)
 - [`services/auth-service/`](services/auth-service/) — endpoints internos, tests, FEEDBACK/HANDOVER del proceso

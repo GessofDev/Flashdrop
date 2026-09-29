@@ -112,12 +112,13 @@ defecto en el código; para confirmarlos:
 aws --endpoint-url http://127.0.0.1:4566 rds describe-db-instances   --query 'DBInstances[].{id:DBInstanceIdentifier,port:Endpoint.Port,db:DBName,user:MasterUsername}'   --output table
 ```
 
-**`infra/coolify/01-postgres-init.sql` NUNCA se corrió contra FloCI.** Se
-escribió para Coolify y crea usuarios `<servicio>_svc`; las instancias de FloCI
-se crearon aparte, con los usuarios de la tabla de arriba. Esta confusión ya
-hizo perder tiempo dos veces —una creyendo que `delivery_svc` no existía, otra
-creyendo que había que provisionar `orders_db`—, así que: **no hace falta correr
-ese script; las bases y sus usuarios ya están.**
+**El script de bootstrap original (`references/archived-coolify/01-postgres-init.sql`,
+archivado del setup Coolify previo) NUNCA se corrió contra FloCI.** Crea
+usuarios `<servicio>_svc`; las instancias de FloCI se crearon aparte, con los
+usuarios de la tabla de arriba. Esta confusión ya hizo perder tiempo dos veces
+—una creyendo que `delivery_svc` no existía, otra creyendo que había que
+provisionar `orders_db`—, así que: **no hace falta correr ese script; las bases
+y sus usuarios ya están.**
 
 **Ninguna contraseña va en este archivo.** Este repositorio es público. Antes
 había una en texto plano acá y se eliminó; esa clave debe considerarse
@@ -353,7 +354,7 @@ come from config / env var, never be hardcoded.
 - FloCI project: https://github.com/floci/floci
 - FloCI docs: see project README for the full list of emulated services
 - AWS CLI reference: https://docs.aws.amazon.com/cli/
-- `infra/coolify/DEPLOY.md` — Coolify-based deploy (production fallback if
-  FloCI proves insufficient)
-- `infra/coolify/01-postgres-init.sql` — DB users/grants bootstrap
+- `references/archived-coolify/` — historical Coolify deploy artifacts
+  (init script, env template, DEPLOY guide, PR body). Archived for
+  reference only; FloCI does not consume them.
 - `services/delivery-service/CLAUDE.md` — service-level notes (if exists)
