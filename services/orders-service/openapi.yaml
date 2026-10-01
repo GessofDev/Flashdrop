@@ -144,9 +144,25 @@ paths:
       tags: [Orders]
       summary: Actualizar estado del pedido
       description: |
-        Cambia el estado de un pedido.
-        Estados válidos: `Nuevo pedido`, `Preparando`, `Listo para retiro`,
-        `Retirado`, `En camino`, `Entregado`.
+        Cambia el estado de un pedido. Requiere JWT; el rol y el usuario se toman
+        del token (claim `roles`), nunca del body.
+
+        **Autorización por rol** (un usuario puede tener varios roles; basta con
+        que uno lo permita):
+
+        | Rol | Transiciones permitidas |
+        |---|---|
+        | `Restaurante` | `Nuevo pedido → Preparando`, `Preparando → Listo para retiro`, `Nuevo pedido → Listo para retiro` (atajo) |
+        | `Repartidor` | `Listo para retiro → Retirado`, `Retirado → Entregado`, y para pedidos legacy `En camino → Retirado` / `En camino → Entregado` |
+        | `Cliente` | ninguna |
+
+        El rol `Restaurante` solo puede modificar pedidos de **su** restaurante
+        (resuelto vía Catalog `GET /api/internal/restaurants?userId=`).
+        El rol `Repartidor` solo puede modificar pedidos **asignados a él** en el
+        claim (resuelto vía Delivery `GET /api/internal/delivery-persons?userId=`).
+
+        `En camino` es un estado legacy: ningún rol puede llevar un pedido a él.
+        `Entregado` es terminal.
       operationId: updateOrderStatus
       parameters:
         - name: id
@@ -161,6 +177,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateOrderStatusRequest'
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Estado actualizado
@@ -170,6 +188,31 @@ paths:
                 $ref: '#/components/schemas/ApiResponse Void'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: |
+            El rol del usuario no permite fijar ese estado, el pedido pertenece a
+            otro restaurante (rol `Restaurante`), o no está asignado al repartidor
+            (rol `Repartidor`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            El estado actual del pedido no permite la transición solicitada
+            (ej. `Entregado → Retirado`, `Listo para retiro → Entregado`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/delivery/routes:
     get:

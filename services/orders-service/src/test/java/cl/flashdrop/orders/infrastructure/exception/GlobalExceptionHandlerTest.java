@@ -1,6 +1,7 @@
 package cl.flashdrop.orders.infrastructure.exception;
 
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
+import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,27 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(404, response.getBody().status());
         assertEquals("NOT_FOUND", response.getBody().error());
+    }
+
+    /** PR-orders-status-authz (spec FR-4): transición inválida para el estado actual → 409. */
+    @Test
+    void domainException_transicionDeEstadoNoPermitida_mapeaA409() {
+        ResponseEntity<ErrorResponse> response = handler.handleDomainException(
+                new OrderDomainException("Transicion de estado no permitida: Entregado -> Retirado"));
+
+        assertEquals(409, response.getBody().status());
+        assertEquals("CONFLICT", response.getBody().error());
+    }
+
+    /** PR-orders-status-authz (spec FR-4): rol sin permiso / pedido de otro restaurante → 403. */
+    @Test
+    void statusTransitionForbidden_mapeaA403() {
+        ResponseEntity<ErrorResponse> response = handler.handleStatusTransitionForbidden(
+                new StatusTransitionForbiddenException("No puedes modificar pedidos de otro restaurante"));
+
+        assertEquals(403, response.getBody().status());
+        assertEquals("FORBIDDEN", response.getBody().error());
+        assertEquals("No puedes modificar pedidos de otro restaurante", response.getBody().message());
     }
 
     @Test

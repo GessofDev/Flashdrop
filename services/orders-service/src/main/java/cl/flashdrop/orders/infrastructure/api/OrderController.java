@@ -7,6 +7,7 @@ import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
@@ -21,6 +22,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,9 +43,9 @@ import java.util.stream.Collectors;
  *       (403 si no); sin {@code user_id} se preserva el comportamiento existente
  *       (lista completa) — ver informe de auditoría, sección de riesgos residuales.</li>
  * </ul>
- * {@code getOrderDetail} y {@code updateOrderStatus} no reciben ningún {@code userId}
- * suplantable en su request; no se les agregó un modelo de ownership nuevo que
- * MIGRATION_PLAN.md no define (queda documentado como riesgo residual).</p>
+ * {@code getOrderDetail} no recibe ningún {@code userId} suplantable en su request; no se
+ * le agregó un modelo de ownership nuevo que MIGRATION_PLAN.md no define.
+ * {@code updateOrderStatus} sí tiene ownership desde PR-orders-status-authz (ver su Javadoc).</p>
  */
 @Slf4j
 @RestController
@@ -124,12 +126,19 @@ public class OrderController {
         return ApiResponse.success("Pedido creado", result);
     }
 
+    /**
+     * PR-orders-status-authz (spec FR-4): el use case valida rol (403), ownership del
+     * restaurante para el rol Restaurante (403) y la transición desde el estado actual (409),
+     * con los roles e identidad tomados del JWT — nunca del body.
+     */
     @PutMapping("/{id}/status")
     public ApiResponse<Void> updateOrderStatus(
             @PathVariable("id") UUID orderId,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
         log.debug("PUT /api/orders/{}/status, status={}", orderId, request.getStatus());
-        updateOrderStatusUseCase.execute(orderId, request.getStatus());
+        Set<Role> currentRoles = currentUserResolver.requireCurrentRoles();
+        UUID currentUserId = currentUserResolver.requireCurrentUserId();
+        updateOrderStatusUseCase.execute(orderId, request.getStatus(), currentRoles, currentUserId);
         return ApiResponse.success("Estado actualizado");
     }
 

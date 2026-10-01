@@ -1,6 +1,7 @@
 package cl.flashdrop.orders.infrastructure.exception;
 
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
+import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -42,11 +43,23 @@ public class GlobalExceptionHandler {
             status = HttpStatus.NOT_FOUND;
         } else if (lowerMsg.contains("perfil de repartidor")) {
             status = HttpStatus.FORBIDDEN;
-        } else if (lowerMsg.contains("ya tienes") || lowerMsg.contains("ya fueron tomados") || lowerMsg.contains("alguien tomo")) {
+        } else if (lowerMsg.contains("ya tienes") || lowerMsg.contains("ya fueron tomados") || lowerMsg.contains("alguien tomo")
+                || lowerMsg.contains("transicion de estado no permitida")) {
             status = HttpStatus.CONFLICT;
         }
 
         return build(status, msg);
+    }
+
+    /**
+     * PR-orders-status-authz (spec FR-4): el rol del usuario no puede fijar el estado pedido,
+     * o (rol Restaurante) el pedido es de otro restaurante. Handler dedicado en vez del
+     * matching por texto de {@link #handleDomainException}.
+     */
+    @ExceptionHandler(StatusTransitionForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleStatusTransitionForbidden(StatusTransitionForbiddenException ex) {
+        log.warn("Cambio de estado no autorizado: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

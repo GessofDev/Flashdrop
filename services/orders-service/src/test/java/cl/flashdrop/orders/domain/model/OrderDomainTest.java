@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -80,6 +81,40 @@ class OrderDomainTest {
 
         assertThrows(OrderDomainException.class,
                 () -> order.validateStatusTransition(OrderStatus.NUEVO_PEDIDO));
+    }
+
+    /**
+     * PR-orders-status-authz (spec FR-4, tasks T-11): matriz completa from × to. Antes solo se
+     * rechazaba ENTREGADO → *, así que se aceptaban saltos (NUEVO_PEDIDO → ENTREGADO) y
+     * retrocesos (RETIRADO → NUEVO_PEDIDO). Se recorren los 36 pares.
+     */
+    @Test
+    void shouldAllowOnlyTheTransitionsOfTheStatusMatrix() {
+        Set<List<OrderStatus>> allowed = Set.of(
+                List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO),
+                List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO),
+                List.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+                List.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO),
+                List.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
+                // Legacy (deprecated): EN_CAMINO ya no se asigna en el claim.
+                List.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.EN_CAMINO),
+                List.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO),
+                List.of(OrderStatus.EN_CAMINO, OrderStatus.RETIRADO),
+                List.of(OrderStatus.EN_CAMINO, OrderStatus.ENTREGADO)
+        );
+
+        for (OrderStatus from : OrderStatus.values()) {
+            for (OrderStatus to : OrderStatus.values()) {
+                Order order = Order.builder().status(from).build();
+                if (allowed.contains(List.of(from, to))) {
+                    assertDoesNotThrow(() -> order.validateStatusTransition(to), from + " -> " + to);
+                } else {
+                    OrderDomainException ex = assertThrows(OrderDomainException.class,
+                            () -> order.validateStatusTransition(to), from + " -> " + to);
+                    assertTrue(ex.getMessage().startsWith("Transicion de estado no permitida"), ex.getMessage());
+                }
+            }
+        }
     }
 
     // PR-orders-claim: el claim ya no muta el estado, así que "tomado" se define por tener
