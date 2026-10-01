@@ -201,6 +201,12 @@ paths:
         En la arquitectura migrada, el flujo de claim es interno y proviene de
         delivery-service → `/api/internal/orders/claim`; este endpoint queda
         como legacy hasta que los clientes existentes migren.
+
+        **Cambio de comportamiento (PR-orders-claim):** el claim ya NO cambia
+        el estado del pedido a `En camino` ni sincroniza la ruta. Solo asigna
+        el repartidor (`delivery_id`); cada pedido conserva su estado (típicamente
+        `Listo para retiro`). El cliente (Flutter) debe transicionar manualmente
+        a `Retirado` al recoger el pedido vía `PUT /api/orders/{id}/status`.
       operationId: claimDeliveryOrder
       requestBody:
         required: true
@@ -247,8 +253,12 @@ paths:
         **Restricciones (mismas que el flujo legacy):**
         - Entre 1 y 3 pedidos (configurable por `orders.max-claim-per-route`)
         - Todos del mismo restaurante
-        - El repartidor no debe tener ruta activa previa
-        - Optimistic lock: sólo aplica si los pedidos siguen disponibles
+        - El repartidor no debe tener ruta activa previa (pedidos asignados a él
+          aún no entregados)
+        - Ninguno de los pedidos puede tener ya un repartidor asignado
+
+        **No muta estado (PR-orders-claim):** solo asigna `delivery_id`; el estado
+        de cada pedido y de su ruta no cambia.
 
         Activación: el caller (delivery-service) mantiene el feature flag
         `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=false` por defecto hasta que los

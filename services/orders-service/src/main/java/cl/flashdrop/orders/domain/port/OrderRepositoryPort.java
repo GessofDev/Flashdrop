@@ -40,17 +40,19 @@ public interface OrderRepositoryPort {
     void updateStatus(UUID orderId, OrderStatus status);
 
     /**
-     * Actualiza el repartidor asignado y el estado de m\u00FAltiples pedidos a la vez.
+     * Asigna el repartidor a m\u00FAltiples pedidos a la vez. NO modifica el estado de los
+     * pedidos: cada uno conserva el suyo (PR-orders-claim, spec FR-3).
      *
      * @param orderIds   IDs de los pedidos a actualizar
      * @param deliveryId ID del repartidor que toma los pedidos
-     * @param status     nuevo estado que se aplicar\u00E1
      * @return n\u00FAmero de pedidos actualizados exitosamente
      */
-    int claimOrders(List<UUID> orderIds, UUID deliveryId, OrderStatus status);
+    int claimOrders(List<UUID> orderIds, UUID deliveryId);
 
     /**
-     * Cuenta los pedidos activos (EN_CAMINO o RETIRADO) de un repartidor.
+     * Cuenta los pedidos activos de un repartidor: asignados a \u00E9l y a\u00FAn no entregados
+     * (LISTO_PARA_RETIRO, RETIRADO o EN_CAMINO legacy). LISTO_PARA_RETIRO cuenta porque el
+     * claim ya no muta el estado: un pedido tomado y no retirado sigue en ese estado.
      */
     int countActiveOrdersByDelivery(UUID deliveryId);
 

@@ -104,12 +104,11 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
-    public int claimOrders(List<UUID> orderIds, UUID deliveryId, OrderStatus status) {
+    public int claimOrders(List<UUID> orderIds, UUID deliveryId) {
         long rawDeliveryId = IdConverter.toLong(deliveryId);
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("delivery_id", rawDeliveryId);
-        body.put("status", status.getValue());
         String inClause = rawIds.stream().map(Object::toString).collect(Collectors.joining(","));
         supabaseRestClient.patch()
                 .uri(uriBuilder -> uriBuilder
@@ -129,7 +128,7 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
                         .queryParam("delivery_id", "eq." + rawId)
-                        .queryParam("status", "in.(En camino,Retirado)")
+                        .queryParam("status", "in.(Listo para retiro,En camino,Retirado)")
                         .queryParam("select", "id")
                         .queryParam("limit", "1000")
                         .build())

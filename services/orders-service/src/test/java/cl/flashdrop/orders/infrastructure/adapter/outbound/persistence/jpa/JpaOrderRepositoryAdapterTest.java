@@ -186,34 +186,45 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     // claimOrders / countActiveOrdersByDelivery / findByIdsForClaim / findByIds
     // ------------------------------------------------------------------
 
+    /** PR-orders-claim (spec FR-3): el claim solo asigna el repartidor; cada pedido conserva su estado. */
     @Test
-    void claimOrders_shouldAssignDeliveryAndStatusToAllRequestedOrders() {
+    void claimOrders_shouldAssignDeliveryAndPreserveEachOrderStatus() {
         Order order1 = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
-        Order order2 = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        Order order2 = adapter.save(baseOrder().status(OrderStatus.PREPARANDO).items(List.of()).build());
         UUID deliveryId = IdConverter.toUuid(9L);
 
-        int updated = adapter.claimOrders(List.of(order1.getId(), order2.getId()), deliveryId, OrderStatus.EN_CAMINO);
+        int updated = adapter.claimOrders(List.of(order1.getId(), order2.getId()), deliveryId);
 
         assertEquals(2, updated);
-        assertEquals(deliveryId, adapter.findById(order1.getId()).orElseThrow().getDeliveryId());
-        assertEquals(OrderStatus.EN_CAMINO, adapter.findById(order2.getId()).orElseThrow().getStatus());
+        Order reloaded1 = adapter.findById(order1.getId()).orElseThrow();
+        Order reloaded2 = adapter.findById(order2.getId()).orElseThrow();
+        assertEquals(deliveryId, reloaded1.getDeliveryId());
+        assertEquals(deliveryId, reloaded2.getDeliveryId());
+        assertEquals(OrderStatus.LISTO_PARA_RETIRO, reloaded1.getStatus());
+        assertEquals(OrderStatus.PREPARANDO, reloaded2.getStatus());
     }
 
+    /**
+     * Ruta activa = pedidos del repartidor aún no entregados. Como el claim ya no muta a
+     * EN_CAMINO, un pedido tomado y todavía no retirado queda en LISTO_PARA_RETIRO y también
+     * cuenta (si no, el repartidor podría tomar otro lote antes de terminar su ruta).
+     */
     @Test
-    void countActiveOrdersByDelivery_shouldCountOnlyEnCaminoAndRetiradoStatuses() {
+    void countActiveOrdersByDelivery_shouldCountClaimedNotYetDeliveredOrders() {
         UUID deliveryId = IdConverter.toUuid(9L);
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                deliveryId, OrderStatus.EN_CAMINO);
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                deliveryId, OrderStatus.RETIRADO);
-        // Este no cuenta: distinto repartidor.
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                IdConverter.toUuid(99L), OrderStatus.EN_CAMINO);
+        claimWithStatus(deliveryId, OrderStatus.LISTO_PARA_RETIRO);
+        claimWithStatus(deliveryId, OrderStatus.RETIRADO);
+        claimWithStatus(deliveryId, OrderStatus.EN_CAMINO);
+        // Estos no cuentan: ya entregado / distinto repartidor.
+        claimWithStatus(deliveryId, OrderStatus.ENTREGADO);
+        claimWithStatus(IdConverter.toUuid(99L), OrderStatus.EN_CAMINO);
 
-        assertEquals(2, adapter.countActiveOrdersByDelivery(deliveryId));
+        assertEquals(3, adapter.countActiveOrdersByDelivery(deliveryId));
+    }
+
+    private void claimWithStatus(UUID deliveryId, OrderStatus status) {
+        Order saved = adapter.save(baseOrder().status(status).items(List.of()).build());
+        adapter.claimOrders(List.of(saved.getId()), deliveryId);
     }
 
     @Test

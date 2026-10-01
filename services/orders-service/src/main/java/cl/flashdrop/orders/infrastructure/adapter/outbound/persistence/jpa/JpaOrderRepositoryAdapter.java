@@ -118,8 +118,8 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
-    public int claimOrders(List<UUID> orderIds, UUID deliveryId, OrderStatus status) {
-        if (orderIds == null || orderIds.isEmpty() || deliveryId == null || status == null) {
+    public int claimOrders(List<UUID> orderIds, UUID deliveryId) {
+        if (orderIds == null || orderIds.isEmpty() || deliveryId == null) {
             return 0;
         }
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
@@ -128,7 +128,6 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         List<OrderEntity> entities = orderRepository.findByIdIn(rawIds);
         for (OrderEntity entity : entities) {
             entity.setDeliveryId(rawDeliveryId);
-            entity.setStatus(status.getValue());
         }
         orderRepository.saveAll(entities);
         return entities.size();
@@ -140,6 +139,7 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         if (deliveryId == null) return 0;
         long rawDeliveryId = IdConverter.toLong(deliveryId);
         List<String> activeStatuses = List.of(
+                OrderStatus.LISTO_PARA_RETIRO.getValue(),
                 OrderStatus.EN_CAMINO.getValue(),
                 OrderStatus.RETIRADO.getValue()
         );

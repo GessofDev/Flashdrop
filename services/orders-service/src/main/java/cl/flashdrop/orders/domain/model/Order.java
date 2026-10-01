@@ -109,21 +109,14 @@ public class Order {
     }
 
     /**
-     * Asigna el delivery y actualiza el estado del pedido al ser tomado por un repartidor.
-     */
-    public void assignDelivery(UUID deliveryId) {
-        if (this.status.isClosed()) {
-            throw new OrderDomainException(
-                    "No se puede asignar repartidor a un pedido que ya fue tomado o entregado");
-        }
-        this.deliveryId = deliveryId;
-        this.status = OrderStatus.EN_CAMINO;
-    }
-
-    /**
      * Indica si el pedido puede ser tomado por un repartidor.
+     *
+     * <p>PR-orders-claim (spec FR-3): el claim ya no muta el estado a EN_CAMINO, así que un
+     * pedido tomado sigue en LISTO_PARA_RETIRO — lo que lo marca como tomado es tener
+     * repartidor asignado. Se mantiene además el chequeo por estado para los pedidos legacy
+     * que ya están en EN_CAMINO/RETIRADO/ENTREGADO.</p>
      */
     public boolean isClaimable() {
-        return !this.status.isClosed();
+        return this.deliveryId == null && !this.status.isClosed();
     }
 }

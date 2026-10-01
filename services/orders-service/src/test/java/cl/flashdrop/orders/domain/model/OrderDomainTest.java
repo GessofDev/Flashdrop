@@ -82,16 +82,34 @@ class OrderDomainTest {
                 () -> order.validateStatusTransition(OrderStatus.NUEVO_PEDIDO));
     }
 
+    // PR-orders-claim: el claim ya no muta el estado, así que "tomado" se define por tener
+    // repartidor asignado, no por estar en EN_CAMINO/RETIRADO.
+
     @Test
-    void shouldAssignDeliveryAndChangeStatusToEnCamino() {
+    void shouldBeClaimableWhenReadyAndWithoutDelivery() {
         Order order = Order.builder()
-                .status(OrderStatus.NUEVO_PEDIDO)
+                .status(OrderStatus.LISTO_PARA_RETIRO)
                 .build();
 
-        UUID deliveryId = UUID.randomUUID();
-        order.assignDelivery(deliveryId);
+        assertTrue(order.isClaimable());
+    }
 
-        assertEquals(deliveryId, order.getDeliveryId());
-        assertEquals(OrderStatus.EN_CAMINO, order.getStatus());
+    @Test
+    void shouldNotBeClaimableWhenAlreadyAssignedToADelivery() {
+        Order order = Order.builder()
+                .status(OrderStatus.LISTO_PARA_RETIRO)
+                .deliveryId(UUID.randomUUID())
+                .build();
+
+        assertFalse(order.isClaimable());
+    }
+
+    @Test
+    void shouldNotBeClaimableWhenStatusIsClosed() {
+        Order order = Order.builder()
+                .status(OrderStatus.ENTREGADO)
+                .build();
+
+        assertFalse(order.isClaimable());
     }
 }
