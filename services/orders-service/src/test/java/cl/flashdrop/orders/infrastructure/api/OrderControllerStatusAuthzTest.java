@@ -2,6 +2,7 @@ package cl.flashdrop.orders.infrastructure.api;
 
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
+import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
@@ -58,6 +59,7 @@ class OrderControllerStatusAuthzTest {
     @Mock private CreateOrderUseCase createOrderUseCase;
     @Mock private GetOrderDetailUseCase getOrderDetailUseCase;
     @Mock private ListOrdersUseCase listOrdersUseCase;
+    @Mock private ListAvailableOrdersUseCase listAvailableOrdersUseCase;
     @Mock private OrderRepositoryPort orderRepository;
     @Mock private DeliveryPort deliveryPort;
     @Mock private EventPublisherPort eventPublisher;
@@ -77,7 +79,7 @@ class OrderControllerStatusAuthzTest {
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
-                listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver());
+                listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver(), listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

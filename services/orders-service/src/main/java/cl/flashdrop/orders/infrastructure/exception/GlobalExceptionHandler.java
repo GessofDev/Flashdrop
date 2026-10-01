@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -126,6 +127,17 @@ public class GlobalExceptionHandler {
                 ex.getValue());
         return build(HttpStatus.BAD_REQUEST,
                 "Parametro invalido: " + ex.getName());
+    }
+
+    /**
+     * Parámetro de query obligatorio ausente (p.ej. {@code restaurant_id} en
+     * {@code GET /api/orders/available-for-delivery}). Sin este handler caía al
+     * 500/INTERNAL_ERROR genérico — es un error del cliente: 400/BAD_REQUEST.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex) {
+        log.warn("Parametro obligatorio ausente: {}", ex.getParameterName());
+        return build(HttpStatus.BAD_REQUEST, "Parametro obligatorio: " + ex.getParameterName());
     }
 
     @ExceptionHandler(Exception.class)

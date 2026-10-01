@@ -128,8 +128,10 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(claimDeliveryOrdersUseCase, "maxClaimPerRoute", 3);
 
         CurrentUserResolver currentUserResolver = new CurrentUserResolver();
+        ListAvailableOrdersUseCase listAvailableOrdersUseCase = new ListAvailableOrdersUseCase(
+                orderRepositoryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
         orderController = new OrderController(createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase,
-                updateOrderStatusUseCase, currentUserResolver);
+                updateOrderStatusUseCase, currentUserResolver, listAvailableOrdersUseCase);
         deliveryController = new DeliveryController(claimDeliveryOrdersUseCase, currentUserResolver);
 
         // GAP-04/GAP-03: OrderController.createOrder() y DeliveryController.claimOrders()

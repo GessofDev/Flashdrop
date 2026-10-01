@@ -13,6 +13,7 @@ import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repos
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,16 +94,7 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         } else {
             orders = orderRepository.findAll();
         }
-        if (orders.isEmpty()) return List.of();
-
-        List<Long> orderIds = orders.stream().map(OrderEntity::getId).collect(Collectors.toList());
-        List<OrderItemEntity> allItems = orderItemRepository.findByOrderIdIn(orderIds);
-        Map<Long, List<OrderItemEntity>> itemsByOrderId = allItems.stream()
-                .collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
-
-        return orders.stream()
-                .map(o -> mapToOrder(o, itemsByOrderId.getOrDefault(o.getId(), List.of())))
-                .collect(Collectors.toList());
+        return mapWithItems(orders);
     }
 
     @Override
@@ -157,12 +149,24 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
     public List<Order> findByIds(List<UUID> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) return List.of();
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
-        List<OrderEntity> orders = orderRepository.findByIdIn(rawIds);
+        return mapWithItems(orderRepository.findByIdIn(rawIds));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findAvailableForDelivery(UUID restaurantId, int limit) {
+        if (restaurantId == null || limit < 1) return List.of();
+        List<OrderEntity> orders = orderRepository.findByRestaurantIdAndStatusAndDeliveryIdIsNullOrderByCreatedAtAsc(
+                IdConverter.toLong(restaurantId), OrderStatus.LISTO_PARA_RETIRO.getValue(), PageRequest.of(0, limit));
+        return mapWithItems(orders);
+    }
+
+    /** Mapea los pedidos cargando sus items en una sola consulta (evita N+1). */
+    private List<Order> mapWithItems(List<OrderEntity> orders) {
         if (orders.isEmpty()) return List.of();
 
-        List<Long> foundIds = orders.stream().map(OrderEntity::getId).collect(Collectors.toList());
-        List<OrderItemEntity> allItems = orderItemRepository.findByOrderIdIn(foundIds);
-        Map<Long, List<OrderItemEntity>> itemsByOrderId = allItems.stream()
+        List<Long> orderIds = orders.stream().map(OrderEntity::getId).collect(Collectors.toList());
+        Map<Long, List<OrderItemEntity>> itemsByOrderId = orderItemRepository.findByOrderIdIn(orderIds).stream()
                 .collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
 
         return orders.stream()

@@ -5,6 +5,7 @@ import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
+import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.exception.GlobalExceptionHandler;
@@ -64,6 +65,8 @@ class CreateOrderControllerTest {
     @Mock
     private UpdateOrderStatusUseCase updateOrderStatusUseCase;
     @Mock
+    private ListAvailableOrdersUseCase listAvailableOrdersUseCase;
+    @Mock
     private CurrentUserResolver currentUserResolver;
 
     private MockMvc mockMvc;
@@ -72,7 +75,7 @@ class CreateOrderControllerTest {
     void setUp() {
         OrderController controller = new OrderController(
                 createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase,
-                updateOrderStatusUseCase, currentUserResolver);
+                updateOrderStatusUseCase, currentUserResolver, listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

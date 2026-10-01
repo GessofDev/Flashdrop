@@ -227,6 +227,59 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         adapter.claimOrders(List.of(saved.getId()), deliveryId);
     }
 
+    // ------------------------------------------------------------------
+    // findAvailableForDelivery (PR-orders-available, spec FR-2)
+    // ------------------------------------------------------------------
+
+    /** Restaurante propio por test: el contenedor Postgres es compartido entre clases. */
+    private static UUID uniqueRestaurantId() {
+        return IdConverter.toUuid(1_000_000L + (System.nanoTime() % 1_000_000L));
+    }
+
+    private Order saveForRestaurant(UUID restId, OrderStatus status, OffsetDateTime createdAt) {
+        return adapter.save(baseOrder().restaurantId(restId).status(status)
+                .createdAt(createdAt).items(List.of(sampleItem(101L, 1, BigDecimal.valueOf(2000)))).build());
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldReturnOnlyReadyAndUnassignedOrdersOfTheRestaurant() {
+        UUID restId = uniqueRestaurantId();
+        OffsetDateTime t0 = OffsetDateTime.now().minusHours(1);
+        Order ready = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, t0);
+        saveForRestaurant(restId, OrderStatus.NUEVO_PEDIDO, t0);
+        saveForRestaurant(restId, OrderStatus.PREPARANDO, t0);
+        saveForRestaurant(restId, OrderStatus.RETIRADO, t0);
+        saveForRestaurant(uniqueRestaurantId(), OrderStatus.LISTO_PARA_RETIRO, t0);
+        // Tomado por un repartidor: sigue en LISTO_PARA_RETIRO (el claim no muta estado) pero ya no está disponible.
+        Order claimed = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, t0);
+        adapter.claimOrders(List.of(claimed.getId()), IdConverter.toUuid(9L));
+
+        List<Order> result = adapter.findAvailableForDelivery(restId, 50);
+
+        assertEquals(List.of(ready.getId()), result.stream().map(Order::getId).toList());
+        assertEquals(1, result.get(0).getItems().size(), "debe hidratar los items del pedido");
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldOrderFifoByCreatedAtAndApplyLimit() {
+        UUID restId = uniqueRestaurantId();
+        OffsetDateTime base = OffsetDateTime.now().minusHours(5);
+        Order third = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base.plusMinutes(30));
+        Order first = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base);
+        Order second = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base.plusMinutes(10));
+
+        List<UUID> all = adapter.findAvailableForDelivery(restId, 50).stream().map(Order::getId).toList();
+        List<UUID> limited = adapter.findAvailableForDelivery(restId, 2).stream().map(Order::getId).toList();
+
+        assertEquals(List.of(first.getId(), second.getId(), third.getId()), all);
+        assertEquals(List.of(first.getId(), second.getId()), limited);
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldReturnEmptyWhenNothingAvailable() {
+        assertTrue(adapter.findAvailableForDelivery(uniqueRestaurantId(), 5).isEmpty());
+    }
+
     @Test
     void countActiveOrdersByDelivery_shouldReturnZeroWhenNoActiveOrders() {
         assertEquals(0, adapter.countActiveOrdersByDelivery(IdConverter.toUuid(9L)));

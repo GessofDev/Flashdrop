@@ -111,6 +111,60 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/orders/available-for-delivery:
+    get:
+      tags: [Orders]
+      summary: Pedidos disponibles para el repartidor
+      description: |
+        Devuelve hasta `limit` pedidos del restaurante que un repartidor puede
+        tomar: en estado `Listo para retiro` y **sin repartidor asignado**,
+        ordenados por llegada (FIFO, `created_at` ascendente).
+
+        Requiere JWT con rol `Repartidor` (claim `roles`). Mismo formato de
+        respuesta que `GET /api/orders`.
+      operationId: listAvailableForDelivery
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: restaurant_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID del restaurante (Long, emitido por catalog-service)
+          example: 7
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 5
+          description: Máximo de pedidos a devolver
+      responses:
+        '200':
+          description: Pedidos disponibles (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse OrderList'
+        '400':
+          description: Falta `restaurant_id`, no es numérico, o `limit` fuera de 1–50
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: El usuario no tiene el rol `Repartidor`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/orders/{id}:
     get:
       tags: [Orders]

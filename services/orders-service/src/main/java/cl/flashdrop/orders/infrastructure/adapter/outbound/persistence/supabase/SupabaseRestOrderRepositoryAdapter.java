@@ -175,6 +175,25 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<Order> findAvailableForDelivery(UUID restaurantId, int limit) {
+        if (restaurantId == null || limit < 1) return List.of();
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("restaurant_id", "eq." + IdConverter.toLong(restaurantId))
+                        .queryParam("status", "eq." + OrderStatus.LISTO_PARA_RETIRO.getValue())
+                        .queryParam("delivery_id", "is.null")
+                        .queryParam("select", "*")
+                        .queryParam("order", "created_at.asc")
+                        .queryParam("limit", String.valueOf(limit))
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        if (rows == null) return List.of();
+        return Arrays.stream(rows).map(r -> mapToOrder(r, List.of())).collect(Collectors.toList());
+    }
+
     // ------ private helpers ------
 
     private OrderRow saveOrder(Order order) {

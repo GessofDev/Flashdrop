@@ -4,6 +4,7 @@ import cl.flashdrop.orders.application.command.CreateOrderCommand;
 import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
+import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
@@ -58,6 +59,7 @@ public class OrderController {
     private final ListOrdersUseCase listOrdersUseCase;
     private final UpdateOrderStatusUseCase updateOrderStatusUseCase;
     private final CurrentUserResolver currentUserResolver;
+    private final ListAvailableOrdersUseCase listAvailableOrdersUseCase;
 
     @GetMapping
     public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) Long userIdLong) {
@@ -76,6 +78,26 @@ public class OrderController {
                 .map(this::toListResponse)
                 .collect(Collectors.toList());
         return ApiResponse.success(response);
+    }
+
+    /**
+     * PR-orders-available (spec FR-2): pedidos de un restaurante que el repartidor puede
+     * tomar (LISTO_PARA_RETIRO, sin repartidor asignado, FIFO). Solo rol Repartidor (403).
+     * Wire: {@code restaurant_id} Long (lo emite catalog-service); dominio: UUID — misma
+     * conversión al límite que {@link #listOrders}.
+     */
+    @GetMapping("/available-for-delivery")
+    public ApiResponse<List<OrderListResponse>> listAvailableForDelivery(
+            @RequestParam("restaurant_id") Long restaurantIdLong,
+            @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        log.debug("GET /api/orders/available-for-delivery, restaurant_id={}, limit={}", restaurantIdLong, limit);
+        if (!currentUserResolver.hasRole(Role.REPARTIDOR)) {
+            throw new AccessDeniedException("Solo los repartidores pueden ver pedidos disponibles");
+        }
+        List<Order> orders = listAvailableOrdersUseCase.execute(IdConverter.toUuid(restaurantIdLong), limit);
+        return ApiResponse.success(orders.stream()
+                .map(this::toListResponse)
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}")

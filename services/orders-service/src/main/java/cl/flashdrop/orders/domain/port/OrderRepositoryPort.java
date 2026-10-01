@@ -64,6 +64,16 @@ public interface OrderRepositoryPort {
     List<Order> findByIdsForClaim(List<UUID> orderIds);
 
     /**
+     * Pedidos de un restaurante disponibles para que un repartidor los tome
+     * (PR-orders-available, spec FR-2): en LISTO_PARA_RETIRO y sin repartidor asignado
+     * (el claim no muta el estado, así que un pedido tomado sigue en LISTO_PARA_RETIRO).
+     * Orden FIFO por fecha de creación.
+     *
+     * @param limit máximo de pedidos a devolver
+     */
+    List<Order> findAvailableForDelivery(UUID restaurantId, int limit);
+
+    /**
      * Busca varios pedidos por su ID (para uso interno y futuro endpoint interno).
      *
      * @return los pedidos existentes (ordenes inexistentes se omiten)

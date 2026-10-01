@@ -71,6 +71,17 @@ class GlobalExceptionHandlerTest {
         assertEquals("No puedes modificar pedidos de otro restaurante", response.getBody().message());
     }
 
+    /** Antes caía al handler genérico → 500. Es un error del cliente → 400. */
+    @Test
+    void parametroObligatorioAusente_mapeaA400() {
+        ResponseEntity<ErrorResponse> response = handler.handleMissingParameter(
+                new org.springframework.web.bind.MissingServletRequestParameterException("restaurant_id", "Long"));
+
+        assertEquals(400, response.getBody().status());
+        assertEquals("BAD_REQUEST", response.getBody().error());
+        assertEquals("Parametro obligatorio: restaurant_id", response.getBody().message());
+    }
+
     @Test
     void domainException_sinPerfilDeRepartidor_mapeaA403() {
         ResponseEntity<ErrorResponse> response = handler.handleDomainException(
