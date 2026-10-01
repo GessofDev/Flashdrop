@@ -112,6 +112,12 @@ class CatalogHttpClientAdapterTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatus());
     }
 
+    /**
+     * Contrato C-3 real (confirmado contra InternalCatalogController de catalog-service y por
+     * Javier): Catalog devuelve UN objeto, no una lista. Antes el adapter deserializaba un
+     * array y el mock simulaba ese contrato equivocado, así que el test pasaba pero la llamada
+     * real a Catalog fallaba con error de deserialización.
+     */
     @Test
     void shouldReturnRestaurantIdWhenFoundByUserId() {
         MockCatalogServer.stubGetRestaurantsByUserIdOk(wireMock, 42L, 7L, "Burgers House", "Los Leones 300");
@@ -120,15 +126,6 @@ class CatalogHttpClientAdapterTest {
 
         assertTrue(result.isPresent());
         assertEquals(toUuid(7L), result.get());
-    }
-
-    @Test
-    void shouldReturnEmptyWhenNoRestaurantForUser() {
-        MockCatalogServer.stubGetRestaurantsByUserIdEmpty(wireMock, 999L);
-
-        Optional<UUID> result = adapter.findRestaurantIdByUserId(toUuid(999L));
-
-        assertTrue(result.isEmpty());
     }
 
     @Test
