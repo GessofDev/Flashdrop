@@ -10,12 +10,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
@@ -59,11 +62,21 @@ class JwtValidationFilterTest {
     }
 
     private static String jwtFor(long userId) {
+        return jwtWithPayload("{\"sub\":\"" + userId + "\"}");
+    }
+
+    private static String jwtWithPayload(String payloadJson) {
         String header = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
         String payload = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(("{\"sub\":\"" + userId + "\"}").getBytes(StandardCharsets.UTF_8));
+                .encodeToString(payloadJson.getBytes(StandardCharsets.UTF_8));
         return header + "." + payload + ".sig";
+    }
+
+    private static Set<String> currentAuthorities() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
     }
 
     @Test
@@ -99,5 +112,62 @@ class JwtValidationFilterTest {
 
         verify(chain).doFilter(request, response);
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    // -------------------------------------------------------------------------
+    // PR-orders-jwt-roles (plan §4.3.0): antes las authorities eran siempre
+    // `new ArrayList<>()` — el claim `roles` que emite Auth se descartaba y
+    // ninguna autorización por rol podía funcionar.
+    // -------------------------------------------------------------------------
+
+    @Test
+    void shouldLeaveAuthoritiesEmptyWhenTokenHasNoRolesClaim() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/auth/validate")).willReturn(aResponse().withStatus(200)));
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + jwtFor(42L));
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals("42", SecurityContextHolder.getContext().getAuthentication().getName());
+        assertTrue(currentAuthorities().isEmpty());
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void shouldMapSingleRoleToPrefixedAuthority() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/auth/validate")).willReturn(aResponse().withStatus(200)));
+        when(request.getHeader("Authorization"))
+                .thenReturn("Bearer " + jwtWithPayload("{\"sub\":\"42\",\"roles\":[\"Restaurante\"]}"));
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(Set.of("ROLE_Restaurante"), currentAuthorities());
+    }
+
+    /**
+     * Acuerdo con Auth (Nicolás): un usuario puede tener varios roles y Auth no garantiza
+     * el orden — se mapean TODOS, no solo el primero.
+     */
+    @Test
+    void shouldMapEveryRoleWhenTokenHasSeveralRoles() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/auth/validate")).willReturn(aResponse().withStatus(200)));
+        when(request.getHeader("Authorization"))
+                .thenReturn("Bearer " + jwtWithPayload("{\"sub\":\"42\",\"roles\":[\"Cliente\",\"Repartidor\"]}"));
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(Set.of("ROLE_Cliente", "ROLE_Repartidor"), currentAuthorities());
+    }
+
+    @Test
+    void shouldLeaveAuthoritiesEmptyWhenRolesClaimIsMalformed() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/auth/validate")).willReturn(aResponse().withStatus(200)));
+        when(request.getHeader("Authorization"))
+                .thenReturn("Bearer " + jwtWithPayload("{\"sub\":\"42\",\"roles\":\"Restaurante\"}"));
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals("42", SecurityContextHolder.getContext().getAuthentication().getName());
+        assertTrue(currentAuthorities().isEmpty());
+        verify(chain).doFilter(request, response);
     }
 }

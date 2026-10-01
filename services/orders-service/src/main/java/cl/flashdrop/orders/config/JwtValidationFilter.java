@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * Valida el JWT contra Auth y coloca el {@code userId} autenticado en el
@@ -37,6 +39,11 @@ import java.util.Base64;
  * usa ese valor crudo como principal en vez del token completo, permitiendo que los
  * controllers hagan {@code Long.parseLong(authentication.getName())} igual que el resto
  * del ecosistema (Delivery hace lo mismo con su propio JWT subject).</p>
+ *
+ * <p>Del mismo payload se lee el claim {@code roles} y se publica como authorities
+ * {@code ROLE_<rol>} (PR-orders-jwt-roles, plan §4.3.0). Los chequeos de rol en código
+ * deben usar {@link cl.flashdrop.orders.infrastructure.api.CurrentUserResolver}, no
+ * {@code @PreAuthorize} — {@code SecurityConfig} no habilita method security.</p>
  */
 @Component
 public class JwtValidationFilter extends OncePerRequestFilter {
@@ -87,10 +94,11 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                     .toBodilessEntity();
 
                 if (validation.getStatusCode().is2xxSuccessful()) {
-                    String subject = extractSubject(token);
+                    JsonNode payload = decodePayload(token);
+                    String subject = extractSubject(payload);
                     if (subject != null) {
                         UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(subject, null, new ArrayList<>());
+                            new UsernamePasswordAuthenticationToken(subject, null, extractRoleAuthorities(payload));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     } else {
                         logger.warn("Token validado por Auth pero sin claim 'sub' legible; no se autentica");
@@ -108,24 +116,57 @@ public class JwtValidationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Decodifica localmente el payload del JWT (segundo segmento, base64url) para leer
-     * {@code sub}. No verifica la firma — eso ya lo hizo Auth vía {@code /auth/validate}
-     * justo antes de esta llamada; este método sólo extrae un claim de un token que ya
-     * fue confirmado auténtico.
+     * Decodifica localmente el payload del JWT (segundo segmento, base64url). No verifica
+     * la firma — eso ya lo hizo Auth vía {@code /auth/validate} justo antes de esta
+     * llamada; este método sólo lee claims de un token que ya fue confirmado auténtico.
+     *
+     * @return el payload, o {@code null} si el token no tiene un payload legible
      */
-    private static String extractSubject(String token) {
+    private static JsonNode decodePayload(String token) {
         try {
             String[] parts = token.split("\\.");
             if (parts.length < 2) {
                 return null;
             }
             byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
-            JsonNode payload = MAPPER.readTree(new String(payloadBytes, StandardCharsets.UTF_8));
-            JsonNode sub = payload.get("sub");
-            return sub != null ? sub.asText() : null;
+            return MAPPER.readTree(new String(payloadBytes, StandardCharsets.UTF_8));
         } catch (Exception e) {
-            logger.warn("No se pudo leer el claim 'sub' del JWT: {}", e.getMessage());
+            logger.warn("No se pudo decodificar el payload del JWT: {}", e.getMessage());
             return null;
         }
+    }
+
+    private static String extractSubject(JsonNode payload) {
+        if (payload == null) {
+            return null;
+        }
+        JsonNode sub = payload.get("sub");
+        return sub != null ? sub.asText() : null;
+    }
+
+    /**
+     * PR-orders-jwt-roles (plan §4.3.0): mapea el claim {@code roles} que emite Auth
+     * ({@code ["Cliente", "Restaurante", "Repartidor"]}) a authorities con prefijo
+     * {@code ROLE_}. Se mapean TODOS los roles — un usuario puede tener varios y Auth no
+     * garantiza el orden. Si el claim falta o no es una lista, las authorities quedan
+     * vacías: los chequeos de rol aguas abajo fallan cerrado (403), que es lo correcto.
+     */
+    private static List<SimpleGrantedAuthority> extractRoleAuthorities(JsonNode payload) {
+        if (payload == null) {
+            return List.of();
+        }
+        JsonNode roles = payload.get("roles");
+        if (roles == null) {
+            return List.of();
+        }
+        if (!roles.isArray()) {
+            logger.warn("Claim 'roles' del JWT no es una lista; se ignora");
+            return List.of();
+        }
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        for (JsonNode role : roles) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.asText()));
+        }
+        return authorities;
     }
 }
