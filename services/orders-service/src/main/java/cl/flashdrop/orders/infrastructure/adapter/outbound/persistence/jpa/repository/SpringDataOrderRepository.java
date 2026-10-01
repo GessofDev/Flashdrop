@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -19,6 +20,9 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
 
     List<OrderEntity> findByRestaurantIdAndStatusAndDeliveryIdIsNullOrderByCreatedAtAsc(
             Long restaurantId, String status, Pageable pageable);
+
+    List<OrderEntity> findByRestaurantIdAndStatusInAndCreatedAtBetween(
+            Long restaurantId, Collection<String> statuses, OffsetDateTime from, OffsetDateTime to);
 
     @Query("SELECT COUNT(o) FROM OrderEntity o WHERE o.deliveryId = :deliveryId AND o.status IN :statuses")
     long countByDeliveryIdAndStatusIn(@Param("deliveryId") Long deliveryId, @Param("statuses") Collection<String> statuses);

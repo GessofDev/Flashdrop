@@ -161,6 +161,18 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         return mapWithItems(orders);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findByRestaurantAndStatusAndCreatedAtBetween(
+            UUID restaurantId, Collection<OrderStatus> statuses, OffsetDateTime from, OffsetDateTime to) {
+        if (restaurantId == null || statuses == null || statuses.isEmpty() || from == null || to == null) {
+            return List.of();
+        }
+        List<String> rawStatuses = statuses.stream().map(OrderStatus::getValue).collect(Collectors.toList());
+        return mapWithItems(orderRepository.findByRestaurantIdAndStatusInAndCreatedAtBetween(
+                IdConverter.toLong(restaurantId), rawStatuses, from, to));
+    }
+
     /** Mapea los pedidos cargando sus items en una sola consulta (evita N+1). */
     private List<Order> mapWithItems(List<OrderEntity> orders) {
         if (orders.isEmpty()) return List.of();

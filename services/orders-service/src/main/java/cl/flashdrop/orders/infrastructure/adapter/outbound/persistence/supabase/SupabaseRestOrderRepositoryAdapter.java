@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -192,6 +193,43 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
                 .body(OrderRow[].class);
         if (rows == null) return List.of();
         return Arrays.stream(rows).map(r -> mapToOrder(r, List.of())).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Order> findByRestaurantAndStatusAndCreatedAtBetween(
+            UUID restaurantId, Collection<OrderStatus> statuses, OffsetDateTime from, OffsetDateTime to) {
+        if (restaurantId == null || statuses == null || statuses.isEmpty() || from == null || to == null) {
+            return List.of();
+        }
+        String inStatuses = statuses.stream().map(OrderStatus::getValue).collect(Collectors.joining(","));
+        // toInstant(): ISO en UTC con "Z", sin el "+" del offset que en un query string se lee como espacio.
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("restaurant_id", "eq." + IdConverter.toLong(restaurantId))
+                        .queryParam("status", "in.(" + inStatuses + ")")
+                        .queryParam("created_at", "gte." + from.toInstant(), "lte." + to.toInstant())
+                        .queryParam("select", "*")
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        if (rows == null || rows.length == 0) return List.of();
+
+        // Los items hacen falta para el ranking de productos del resumen de ventas.
+        String inIds = Arrays.stream(rows).map(r -> r.id().toString()).collect(Collectors.joining(","));
+        OrderItemRow[] itemRows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/order_items")
+                        .queryParam("order_id", "in.(" + inIds + ")")
+                        .queryParam("select", "*")
+                        .build())
+                .retrieve()
+                .body(OrderItemRow[].class);
+        Map<Long, List<OrderItemRow>> itemsByOrderId = itemRows == null ? Map.of()
+                : Arrays.stream(itemRows).collect(Collectors.groupingBy(OrderItemRow::orderId));
+        return Arrays.stream(rows)
+                .map(r -> mapToOrder(r, itemsByOrderId.getOrDefault(r.id(), List.of())))
+                .collect(Collectors.toList());
     }
 
     // ------ private helpers ------

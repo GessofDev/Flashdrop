@@ -3,6 +3,8 @@ package cl.flashdrop.orders.domain.port;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 
+import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,6 +74,13 @@ public interface OrderRepositoryPort {
      * @param limit máximo de pedidos a devolver
      */
     List<Order> findAvailableForDelivery(UUID restaurantId, int limit);
+
+    /**
+     * Pedidos de un restaurante en alguno de los estados dados, creados entre {@code from}
+     * y {@code to} (ambos inclusive), con sus items (PR-orders-metrics, tasks T-23).
+     */
+    List<Order> findByRestaurantAndStatusAndCreatedAtBetween(
+            UUID restaurantId, Collection<OrderStatus> statuses, OffsetDateTime from, OffsetDateTime to);
 
     /**
      * Busca varios pedidos por su ID (para uso interno y futuro endpoint interno).

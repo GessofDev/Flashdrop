@@ -165,6 +165,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/orders/restaurants/{id}/sales-summary:
+    get:
+      tags: [Orders]
+      summary: Resumen de ventas del restaurante
+      description: |
+        Métricas de ventas de la tienda en un rango hacia atrás desde ahora
+        (`day` = últimas 24h, `week` = últimos 7 días, `month` = últimos 30 días).
+
+        - Solo cuenta pedidos `Entregado` (ventas cerradas).
+        - `totalRevenue` = suma de subtotales de productos (sin costo de despacho).
+        - `averageTicket` = `totalRevenue / totalOrders`, redondeado a pesos.
+        - `topProducts`: hasta 5 productos por cantidad vendida (desempate: mayor ingreso).
+
+        Requiere JWT con rol `Restaurante`. El `id` debe ser el restaurante del
+        usuario (resuelto vía Catalog `GET /api/internal/restaurants?userId=`).
+      operationId: getRestaurantSalesSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: ID del restaurante (Long, emitido por catalog-service)
+          example: 7
+        - name: range
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: week
+      responses:
+        '200':
+          description: Resumen de ventas (totales en cero si no hubo ventas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse SalesSummary'
+        '400':
+          description: "`range` inválido o `id` no numérico"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: |
+            El usuario no tiene el rol `Restaurante`, o el restaurante no es el suyo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Catalog no disponible (no se pudo validar el dueño)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/orders/{id}:
     get:
       tags: [Orders]
@@ -743,6 +806,61 @@ components:
           example: true
         data:
           $ref: '#/components/schemas/DeliveryRouteResponse'
+
+    SalesSummary:
+      type: object
+      properties:
+        restaurantId:
+          type: integer
+          format: int64
+          example: 7
+        range:
+          type: string
+          enum: [day, week, month]
+          example: week
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        totalOrders:
+          type: integer
+          example: 137
+        totalRevenue:
+          type: number
+          example: 845620
+        averageTicket:
+          type: number
+          example: 6172
+        topProducts:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+                format: uuid
+              productName:
+                type: string
+                nullable: true
+                description: Nombre guardado en el pedido (snapshot); puede ser null en pedidos antiguos
+              quantitySold:
+                type: integer
+                example: 88
+              revenue:
+                type: number
+                example: 245000
+
+    ApiResponse SalesSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/SalesSummary'
 
     ErrorResponse:
       type: object

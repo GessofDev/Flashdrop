@@ -63,7 +63,7 @@ class GlobalExceptionHandlerTest {
     /** PR-orders-status-authz (spec FR-4): rol sin permiso / pedido de otro restaurante → 403. */
     @Test
     void statusTransitionForbidden_mapeaA403() {
-        ResponseEntity<ErrorResponse> response = handler.handleStatusTransitionForbidden(
+        ResponseEntity<ErrorResponse> response = handler.handleForbiddenOperation(
                 new StatusTransitionForbiddenException("No puedes modificar pedidos de otro restaurante"));
 
         assertEquals(403, response.getBody().status());
