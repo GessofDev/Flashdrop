@@ -29,13 +29,14 @@ Este spec formaliza los requisitos para que el dueño de tienda gestione su cat�
 
 - `range` default `week`. Valores válidos: `day`, `week`, `month`. 400 si valor inválido.
 - Auth: JWT con rol `Restaurante`. 403 si rol incorrecto.
-- Ownership: el `restaurantId` del path debe corresponder al restaurante del dueño autenticado. **403 si no coincide**. Validación: orders-service llama a `GET /api/internal/restaurants?userId={userId}` en catalog (con `X-Internal-Api-Key` header) y compara el resultado con el `restaurantId` del path. Sin cache (es un read a DB indexada, no necesita cache).
+- Ownership: el `restaurantId` del path debe corresponder al restaurante del dueño autenticado. **403 si no coincide**. Validación: orders-service llama a `GET /api/internal/restaurants?userId={userId}` en catalog (con `X-Internal-Api-Key` header). **El endpoint devuelve un único objeto `InternalRestaurantDto`, NO una lista** (contrato C-3, corregido por `eb9caed` en `feat/orders-jwt-roles`; antes del fix el adapter fallaba por deserialización). El adapter `CatalogHttpClientAdapter` extrae el `restaurantId` (UUID, vía `IdConverter`) del objeto devuelto y lo compara con el `restaurantId` del path. Si no coincide → 403. Sin cache (es un read a DB indexada, no necesita cache).
 - Solo se cuentan órdenes en estado `ENTREGADO` (la tienda ve ventas cerradas, no pedidos pendientes).
-- `topProducts` retorna hasta 5 productos ordenados por cantidad vendida DESC.
-- `from`/`to` se calculan server-side según `range`:
+- `topProducts` retorna hasta 5 productos ordenados por cantidad vendida DESC; empates se rompen por revenue.
+- `from`/`to` se calculan server-side según `range` (con un `Clock` inyectable para tests):
   - `day`: últimas 24h
   - `week`: últimos 7 días
   - `month`: últimos 30 días
+- La respuesta se devuelve envuelta en `ApiResponse<T>` (`{success, data}`) — el cuerpo útil vive bajo `.data`. Consistente con el resto de orders-service (`ApiResponse` en `infrastructure.api.dto.response`). El cálculo del lado del dominio produce un record `SalesSummary` (`restaurantId`, `range`, `from`, `to`, `totalOrders`, `totalRevenue`, `averageTicket`, `topProducts`) y el controller lo convierte a `SalesSummaryResponse` (DTO de salida con `Long restaurantId`).
 
 ### FR-2 — Namespace owner `/api/catalog/my/products`
 

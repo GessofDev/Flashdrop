@@ -1,5 +1,19 @@
 # Tasks: `profile-and-delivery`
 
+## Status (al cierre del review de Felipe)
+
+| PR | SHA | Estado |
+|---|---|---|
+| `PR-orders-jwt-roles` (rol → authorities) | `f739138` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-orders-claim` (claim sin mutar status) | `8605b8e` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-orders-status-authz` (matriz rol×transición + ownership) | `ef2e32a` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-orders-available` (listado para repartidor) | `4efe151` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-auth` (`PUT /auth/profile`) | `1e10fff` | ✅ Mergeado en `main` (#41) |
+| `PR-gateway-1` (ruta `/api/orders/available-for-delivery`) | — | ⏳ Pendiente |
+| Coordinación con Flutter (riesgo #1) | — | ⏳ Pendiente |
+
+Los PRs de orders viven en `origin/feat/orders-jwt-roles` (sin merge a `main`). Cada uno trae su propio IT/unit test. Los SHAs de los commits del 2026-09-22-plan doc (`add9719` y siguientes) ya están mergeados como PR #40, #41, #38, #36, #35, #34, #33.
+
 ## PR Chain
 
 **Strategy**: parallel-by-owner (cada dev dueño de su servicio mergea su PR en cualquier orden; `PR-gateway-1` espera al final).
