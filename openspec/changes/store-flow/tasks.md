@@ -2,12 +2,25 @@
 
 > **Revisión aplicada** (Javier, 2026-09-24): se eliminaron T-10/T-11/T-12 (HTTP self-call con cache Caffeine) — catalog resuelve ownership localmente con `GetRestaurantByUserIdUseCase` existente. Se agregó `SecurityConfig` con Spring Security + JWT RS256. Se cambió `store_owner` → `Restaurante`. Se agregó necesidad de código (no solo YAML) en PR-gateway-2 para multipart. Se cambió `image` para aceptar object key, no URL.
 
+## Status (al cierre del review de Felipe)
+
+| PR | SHA | Estado |
+|---|---|---|
+| `PR-orders-jwt-roles` (incluye C-3 fix del contrato con Catalog) | `eb9caed` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-orders-metrics` (`GET /api/orders/restaurants/{id}/sales-summary`) | `54713f0` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-catalog-image` (Spring Security + S3 + multipart) | — | ⏳ Pendiente (bloqueado por `P-2`) |
+| `PR-catalog-products` (CRUD `/api/catalog/my/products`) | — | ⏳ Pendiente (depende de `PR-catalog-image`) |
+| `PR-gateway-2` (multipart + 2 rutas nuevas) | — | ⏳ Pendiente |
+| Pre-work `P-0` (Spring Boot align) / `P-1` (CI catalog) / `P-2` (S3 Floci) | — | ⏳ Pendiente |
+
+Los PRs de orders viven en `origin/feat/orders-jwt-roles` (sin merge a `main`). Catalog y gateway todavía no tocaron este change.
+
 ## Pre-work (antes de los PRs)
 
 ### P-0 — Alinear Spring Boot del monorepo
-- **Files**: `services/settings.gradle.kts`
-- **Acción**: retirar `include("catalog-service")` del build raíz. Catalog ya es un proyecto Gradle autónomo con wrapper y Dockerfile propios. Esto evita cambiar la versión de Spring Boot de Auth, Delivery y módulos compartidos.
-- **Commit**: `build(catalog): isolate catalog from root Gradle build`
+- **Files**: `services/build.gradle.kts`
+- **Acción**: decidir entre alinear versión raíz a 3.5.16 (consistente con catalog) o retirar catalog del build raíz (proyecto Gradle autónomo). Recomendación: alinear raíz a 3.5.16
+- **Commit**: `build(monorepo): align Spring Boot version to 3.5.16 across root build`
 
 ### P-1 — Agregar `catalog-service-ci.yml`
 - **Files**: `.github/workflows/catalog-service-ci.yml`
@@ -16,7 +29,7 @@
 
 ### P-2 — Aprovisionar S3 en Floci
 - **Files**: `infra/coolify/env.shared.template`, task definition ECS, política de bucket, secrets
-- **Acceptance**: bucket privado `flashdrop-products` creado en Floci; endpoint accesible desde el contenedor catalog; vars `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_URL_BASE=/catalog/images` configuradas; el cliente no accede directo a S3 y no requiere CORS; test de upload devuelve 201
+- **Acceptance**: bucket `flashdrop-products` creado en Floci; endpoint accesible desde el contenedor catalog; vars `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_URL_BASE` configuradas; CORS habilitado para `https://app.flashdrop.cl`; test de upload devuelve 200
 - **Bloquea**: PR-catalog-image
 
 ## PR Chain
@@ -51,7 +64,7 @@ main
 ### T-2 — `SecurityConfig` con JWT RS256
 - **Files**: `services/catalog-service/src/main/java/com/flashdrop/catalog/infrastructure/config/SecurityConfig.java` (NUEVO)
 - **TDD RED first**: sí — `SecurityConfigTest` con `@WebMvcTest` verifica 401 sin JWT, 403 con JWT sin `Restaurante`, 200 con JWT válido y rol `Restaurante`
-- **Acceptance**: configura `SecurityFilterChain` con `oauth2ResourceServer().jwt()` apuntando a `AUTH_SERVICE_JWKS_URI` y valida `AUTH_SERVICE_ISSUER=flashdrop-auth`. Mapea todos los valores del claim `roles` con prefijo `ROLE_`. `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**", "/actuator/health/**", "/actuator/info", "/actuator/prometheus")` permitAll. `anyRequest()` denyAll
+- **Acceptance**: configura `SecurityFilterChain` con `oauth2ResourceServer().jwt()` apuntando a `AUTH_JWKS_URI`. `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**", "/actuator/health/**", "/actuator/info", "/actuator/prometheus")` permitAll. `anyRequest()` authenticated (o denyAll). Filtro después de `CorrelationIdFilter` y antes de `InternalApiKeyFilter`
 - **Commit**: `feat(catalog): add SecurityConfig with JWT RS256 and Restaurante authorization`
 
 ### T-3 — `JwtAuthoritiesMapper` (rol → authority)
@@ -63,11 +76,11 @@ main
 ### T-4 — Manejo de 401/403 en `RestExceptionHandler`
 - **Files**: `services/catalog-service/src/main/java/com/flashdrop/catalog/infrastructure/adapter/inbound/rest/RestExceptionHandler.java`
 - **TDD RED first**: cubierto indirectamente por `SecurityConfigTest`
-- **Acceptance**: configurar `AuthenticationEntryPoint` → 401 y `AccessDeniedHandler` → 403 en `SecurityConfig`, ambos con el envelope de error de Catalog. Los errores de filtros de Spring Security no dependen de `RestExceptionHandler`
+- **Acceptance**: agregar handlers para `AuthenticationException` → 401, `AccessDeniedException` → 403. Si se adopta `ApiError` de shared-observability, agregar la dependencia y migrar `ErrorResponse`. Si no, mantener `ErrorResponse` y documentar
 - **Commit**: `fix(catalog): add 401 and 403 handlers in RestExceptionHandler`
 
 ### T-5 — Configuración S3 en `application.yml`
-- **Files**: `services/catalog-service/src/main/resources/application.yaml` + `application-local.yaml`
+- **Files**: `services/catalog-service/src/main/resources/application.yml` + `application-local.yml`
 - **TDD RED first**: N/A (config)
 - **Acceptance**: variables `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_URL_BASE` leídas desde env. Defaults sensatos para dev local (Floci)
 - **Commit**: `feat(catalog): add S3 client config with environment variables`
@@ -81,7 +94,7 @@ main
 ### T-7 — Adapter `S3ProductImageStorage`
 - **Files**: `services/catalog-service/src/main/java/com/flashdrop/catalog/infrastructure/adapter/outbound/storage/S3ProductImageStorage.java`
 - **TDD RED first**: sí — `S3ProductImageStorageTest` con LocalStack o mock client
-- **Acceptance**: implementa el puerto. Usa `software.amazon.awssdk.services.s3.S3Client` con `forcePathStyle(true)`. Genera key `products/{yyyy}/{mm}/{uuid}.{ext}`. Sube bytes. Devuelve `StoredImage(objectKey, url)` donde `url = S3_PUBLIC_URL_BASE + "/" + objectKey`; `url` es una ruta relativa
+- **Acceptance**: implementa el puerto. Usa `software.amazon.awssdk.services.s3.S3Client`. Genera key `products/{yyyy}/{mm}/{uuid}.{ext}`. Sube bytes. Devuelve `StoredImage(objectKey, url)` donde `url = S3_PUBLIC_URL_BASE + "/" + objectKey`
 - **Commit**: `feat(catalog): implement S3ProductImageStorage returning objectKey and url`
 
 ### T-8 — Config bean `StorageConfig`
@@ -155,7 +168,7 @@ main
   - `services/catalog-service/src/main/java/com/flashdrop/catalog/application/usecase/OwnerDeleteProductUseCase.java`
 - **TDD RED first**: sí — un test por use case
 - **Acceptance**:
-  - `OwnerCreateProductUseCase`: recibe `(userId, command)` → inyecta `GetRestaurantByUserIdUseCase`, llama `getRestaurantByUserId.execute(userId)` y traduce su `ResourceNotFoundException` a una excepción de ownership con 403; si existe, crea con el `restaurantId` derivado.
+  - `OwnerCreateProductUseCase`: recibe `(userId, command)` → inyecta `GetRestaurantByUserIdUseCase`, llama `getRestaurantByUserId.execute(userId)`, si `Optional.empty()` → 403, sino crea con `restaurantId` derivado.
   - `OwnerListProductsUseCase`: recibe `userId` → resuelve `restaurantId` local → lista productos por restaurante (sin filtro `available`, incluye inactivos).
   - `OwnerUpdateProductUseCase`: recibe `(userId, productId, command)` → resuelve `restaurantId` local → verifica que `product.getRestaurantId() == resolved` (403 si no) → edita usando `UpdateProductUseCase` existente.
   - `OwnerDeleteProductUseCase`: recibe `(userId, productId)` → verifica ownership → marca `available=false`.
