@@ -67,7 +67,7 @@ Flutter (dueño de tienda)
 
 ### ADR-3 — Spring Security + JWT RS256 en `catalog-service` (NUEVO)
 
-**Decisión:** catalog agrega `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`, valida JWT RS256 contra el JWKS de Auth (`AUTH_SERVICE_JWKS_URI`) y el issuer `AUTH_SERVICE_ISSUER=flashdrop-auth`, mapea todos los valores de `roles[]`, y autoriza rol `Restaurante` para `/api/catalog/my/**`.
+**Decisión:** catalog agrega `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`, valida JWT RS256 contra el JWKS de Auth (`AUTH_JWKS_URI`), y autoriza rol `Restaurante` para `/api/catalog/my/**`.
 **Alternativas:**
 - (A) Confiar en header `X-User-Id` inyectado por el gateway. **Rechazado** — el gateway ya hace JWT validation pero no garantiza que el header no sea falsificable si alguien llega al backend directamente (defense in depth).
 - (B) Compartir el `InternalApiKeyFilter` para `/api/catalog/my/**`. **Rechazado** — `InternalApiKeyFilter` es para service-to-service, no para usuarios finales.
@@ -83,13 +83,13 @@ Flutter (dueño de tienda)
 
 ### ADR-5 — Persistir object key, no URL firmada, en `products.image`
 
-**Decisión:** el `image` field guarda un **object key estable** (formato `products/{yyyy}/{mm}/{uuid}.{ext}`). Al responder se construye una ruta relativa `/catalog/images/...`; la app antepone la URL base del backend.
+**Decisión:** el `image` field guarda un **object key estable** (formato `products/{yyyy}/{mm}/{uuid}.{ext}`). La URL pública o firmada se construye al responder.
 **Alternativas:**
 - (A) Persistir URL firmada (TTL 7 días). **Rechazado** — expira, queda como referencia muerta.
 - (B) Persistir URL pública completa. **Rechazado** — `products.image` es `varchar(255)`, una URL completa de S3 puede > 255 chars; cambiar a `TEXT` requiere migración.
-- (C) Persistir object key + construir ruta relativa al responder. **Elegido** — object keys son cortos y estables; la ruta se construye con `S3_PUBLIC_URL_BASE + objectKey` y no depende de que el gateway ya tenga dominio público.
+- (C) Persistir object key + construir URL al responder. **Elegido** — object keys son cortos y estables; la URL se construye con `S3_PUBLIC_URL_BASE + objectKey` o con un SDK call.
 **Consecuencias (+):** sin migración; URLs siempre frescas; cliente Flutter puede pedir URL firmada bajo demanda si necesita.
-**Consecuencias (−):** el cliente debe guardar el object key, no la URL, y anteponer su URL base de backend cuando renderiza la imagen.
+**Consecuencias (−):** el cliente debe guardar el object key, no la URL. Si cambia el `S3_PUBLIC_URL_BASE`, las URLs construidas cambian (aceptable).
 
 ### ADR-6 — Filtrar `is_available=true` en catálogo público
 
