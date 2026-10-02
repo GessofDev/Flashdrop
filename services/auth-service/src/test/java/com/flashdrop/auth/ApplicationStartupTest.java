@@ -7,15 +7,22 @@ import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.TokenService;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
+import com.flashdrop.auth.domain.model.User;
+import com.flashdrop.auth.domain.valueobject.Email;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,6 +67,11 @@ class ApplicationStartupTest {
     /** Emisor real de JWT, para no validar contra un caso de uso simulado. */
     @Autowired
     TokenService tokens;
+
+    /** El @MockBean de la clase: sin base, lo que llega a persistencia se
+     *  resuelve contra este doble. */
+    @Autowired
+    UserRepository users;
 
     /** Si algún bean no resuelve, este test falla antes que ningún otro. */
     @Test
@@ -161,5 +173,58 @@ class ApplicationStartupTest {
     void validateSinCabeceraDevuelve401() throws Exception {
         mvc.perform(get("/auth/validate"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * PUT /auth/profile sobre la cadena real y con un JWT real. Es la prueba
+     * de que SecurityConfig lo deja pasar: sin su permitAll, la peticion cae en
+     * el denyAll del final con un 403 que no pasa por GlobalExceptionHandler.
+     * Los tests del controlador no lo verian, porque usan standaloneSetup.
+     */
+    @Test
+    void editarPerfilAtraviesaLaCadenaDeSeguridadConUnJwtReal() throws Exception {
+        when(users.findById(1L)).thenReturn(Optional.of(new User(
+                1L, new Email("cliente@demo.cl"), null, "Cliente", "Demo",
+                "+56911111111", null, List.of(), Instant.now())));
+        when(users.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+        String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
+
+        mvc.perform(put("/auth/profile").header("Authorization", "Bearer " + jwt)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Nico","lastName":"Leiva","phone":"+56999998888"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Nico"))
+                .andExpect(jsonPath("$.email").value("cliente@demo.cl"));
+    }
+
+    /** Sin token responde el controlador (401), no el denyAll (403). */
+    @Test
+    void editarPerfilSinTokenDevuelve401YNo403() throws Exception {
+        mvc.perform(put("/auth/profile").contentType("application/json")
+                        .content("""
+                                {"name":"Nico","lastName":"Leiva"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** Token real con la firma alterada: el PUT lo rechaza con 401 antes de
+     *  tocar el perfil. Mismo control que ya cubre /auth/validate. */
+    @Test
+    void editarPerfilConJwtManipuladoDevuelve401() throws Exception {
+        String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
+        String[] partes = jwt.split("\\.");
+        char primero = partes[2].charAt(0);
+        String manipulado = partes[0] + "." + partes[1] + "."
+                + (primero == 'A' ? 'B' : 'A') + partes[2].substring(1);
+
+        mvc.perform(put("/auth/profile").header("Authorization", "Bearer " + manipulado)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Nico","lastName":"Leiva"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
     }
 }

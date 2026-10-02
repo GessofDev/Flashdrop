@@ -31,6 +31,13 @@ public class UserEntity {
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
+    // En el alta la llena el default now() de la V1, por eso no es insertable:
+    // si lo fuera, Hibernate mandaria NULL explicito en el INSERT, el default
+    // no se aplicaria y el alta chocaria contra el NOT NULL. En cada edicion la
+    // pone onUpdate(), porque la V1 no tiene trigger que lo haga.
+    @Column(name = "updated_at", insertable = false)
+    private Instant updatedAt;
+
     protected UserEntity() { }
 
     public UserEntity(Long id, String email, String rut, String name, String lastName,
@@ -42,6 +49,11 @@ public class UserEntity {
         this.lastName = lastName;
         this.phone = phone;
         this.photo = photo;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 
     public Long getId() { return id; }

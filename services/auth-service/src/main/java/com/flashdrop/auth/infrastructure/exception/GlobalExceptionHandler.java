@@ -6,6 +6,7 @@ import com.flashdrop.observability.error.ApiError;
 import com.flashdrop.observability.tracing.TraceContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,16 +44,17 @@ public class GlobalExceptionHandler {
 
     /**
      * Choque contra una restriccion unica de la base. El caso conocido es el
-     * telefono repetido en el alta: `users.phone` es unico y el registro no lo
-     * comprueba antes de insertar, asi que llegaba como 500. La seccion 10 del
-     * plan reserva el 409 para "recurso ya existe".
+     * telefono repetido, en el alta o al editar el perfil: `users.phone` es
+     * unico y ninguno de los dos lo comprueba antes de escribir, asi que
+     * llegaba como 500. La seccion 10 del plan reserva el 409 para "recurso ya
+     * existe".
      *
      * <p>El mensaje es deliberadamente generico: decir que campo choco
      * permitiria enumerar telefonos o correos registrados.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleConflictoDeDatos(DataIntegrityViolationException ex) {
-        log.warn("Violacion de restriccion unica en el alta: {}", ex.getMostSpecificCause().getMessage());
+        log.warn("Violacion de restriccion unica: {}", ex.getMostSpecificCause().getMessage());
         return build(HttpStatus.CONFLICT, "RESOURCE_ALREADY_EXISTS",
                 "Ya existe un registro con esos datos");
     }
@@ -83,6 +85,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleBeanValidation(MethodArgumentNotValidException ex) {
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Datos de entrada inválidos");
+    }
+
+    /** Cuerpo que no se puede leer: no es JSON, o trae un tipo que no calza
+     *  (texto donde va un objeto). Es un error del llamador, pero sin esto caía
+     *  en handleGeneric y respondía 500. Vale para todos los endpoints con
+     *  cuerpo, no solo para el perfil. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Cuerpo de la petición inválido");
     }
 
     /** Parámetro de query con tipo equivocado, p. ej. ?ids=abc en el endpoint
