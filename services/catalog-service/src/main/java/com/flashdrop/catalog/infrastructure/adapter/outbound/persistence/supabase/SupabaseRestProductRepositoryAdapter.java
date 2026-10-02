@@ -53,6 +53,19 @@ public class SupabaseRestProductRepositoryAdapter implements ProductRepositoryPo
     }
 
     @Override
+    public List<Product> findAllAvailable() {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("is_available", "eq.true")
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
     public List<Product> findByIds(List<Long> ids) {
         // Si otra logica manda ids, construimos el filtro id=in.(1,2,3).
         if (ids == null || ids.isEmpty()) {
@@ -89,11 +102,39 @@ public class SupabaseRestProductRepositoryAdapter implements ProductRepositoryPo
     }
 
     @Override
+    public List<Product> findByCategoryIdAndAvailableTrue(Long categoryId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("category_id", "eq." + categoryId)
+                .queryParam("is_available", "eq.true")
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
     public List<Product> findByRestaurantId(Long restaurantId) {
         String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
                 .path("/rest/v1/products")
                 .queryParam("select", PRODUCT_SELECT)
                 .queryParam("restaurant_id", "eq." + restaurantId)
+                .queryParam("order", "id.desc")
+                .build()
+                .toUriString();
+
+        return fetchProducts(url);
+    }
+
+    @Override
+    public List<Product> findByRestaurantIdAndAvailableTrue(Long restaurantId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/products")
+                .queryParam("select", PRODUCT_SELECT)
+                .queryParam("restaurant_id", "eq." + restaurantId)
+                .queryParam("is_available", "eq.true")
                 .queryParam("order", "id.desc")
                 .build()
                 .toUriString();

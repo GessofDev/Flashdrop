@@ -51,7 +51,7 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 | `/api/catalog/my/products` | `GET` | catalog-service | JWT (rol `Restaurante`) | — | `[ProductResponse]` |
 | `/api/catalog/my/products/{productId}` | `PUT` | catalog-service | JWT (rol `Restaurante`) | `{categoryId, name, description, price, image, available}` | `ProductResponse` |
 | `/api/catalog/my/products/{productId}` | `DELETE` | catalog-service | JWT (rol `Restaurante`) | — | 204 No Content |
-| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol `Restaurante`) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{url}` |
+| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol `Restaurante`) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{objectKey, url}` |
 
 > **Convención de nombres de rol:** los roles reales en `auth-service` son `Cliente`, `Restaurante`, `Repartidor` (ver `auth-service/src/main/resources/db/seed/V2__seed_development.sql`). Estos 3 son los únicos roles existentes (no hay admin). Los nombres tentativos previos (`store_owner`, `delivery`, `customer`) **se descartan** en todo este documento. Esta convención es bloqueada por el fix de `PR-orders-jwt-roles` (ver §4.3.0); si no se lee correctamente del JWT, ningún chequeo `@PreAuthorize("hasRole('Restaurante')")` va a funcionar.
 
@@ -222,17 +222,17 @@ El emisor `auth-service/.../JwtTokenService.java:41` sí mete los roles (`.claim
 
 **Archivos modificados:**
 - `build.gradle.kts` — agregar `spring-boot-starter-security`, `spring-boot-starter-oauth2-resource-server`, `aws-sdk-java-v2 s3/netty/auth`.
-- `infrastructure/config/SecurityConfig.java` (NUEVO) — validar JWT RS256 contra JWKS de Auth (`AUTH_JWKS_URI`). `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**")` permitAll (InternalApiKeyFilter cubre `/api/internal/**`). `requestMatchers("/actuator/health/**", "/actuator/info")` permitAll.
+- `infrastructure/config/SecurityConfig.java` (NUEVO) — validar JWT RS256 contra JWKS de Auth (`AUTH_SERVICE_JWKS_URI`) y el issuer `AUTH_SERVICE_ISSUER=flashdrop-auth`. Mapear todos los valores de `roles[]` con prefijo `ROLE_`. `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**")` permitAll (InternalApiKeyFilter cubre `/api/internal/**`). `requestMatchers("/actuator/health/**", "/actuator/info")` permitAll.
 - `application/usecase/GetRestaurantByUserIdUseCase.java` — **reutilizar** directamente para resolver `restaurantId` desde `userId` (no crear nuevo resolver).
 - `application/usecase/CreateProductUseCase.java` — **NO se reutiliza para owner**. `MyStoreProductController` invoca wrappers owner que validan ownership.
 - `application/usecase/UpdateProductUseCase.java` — **NO se reutiliza para owner** (debe ignorar `restaurantId` del body y mantener el derivado del JWT).
 - `application/usecase/ListProductsUseCase.java` — agregar métodos `findAllAvailable()` y `findByRestaurantIdAndAvailableTrue(...)` que filtren por `isAvailable=true`. El catálogo público (`GET /catalog/products`, `GET /catalog/products/{id}`) debe usar estos; el endpoint owner (`GET /api/catalog/my/products`) puede usar `findAll` / `findByRestaurantId` sin filtro para permitir ver también los desactivados.
 - `infrastructure/adapter/outbound/persistence/jpa/repository/SpringDataProductRepository.java` — agregar queries derivadas `findAllByIsAvailableTrue`, `findByCategoryIdAndIsAvailableTrue`, `findByRestaurantIdAndIsAvailableTrue`.
-- `infrastructure/adapter/inbound/rest/RestExceptionHandler.java` — agregar handlers para: `AuthenticationException` → 401, `AccessDeniedException` → 403, `MaxUploadSizeExceededException` → 413, `ImageStorageException` → 502. Decidir si conservar `ErrorResponse` propio de catalog o adoptar `ApiError` de `shared-observability` (recomendado para consistencia entre microservicios).
+- `infrastructure/config/SecurityConfig.java` — configurar `AuthenticationEntryPoint` → 401 y `AccessDeniedHandler` → 403, porque los errores de la cadena de filtros no llegan de forma confiable a `RestExceptionHandler`. En `RestExceptionHandler`, agregar `MaxUploadSizeExceededException` → 413 e `ImageStorageException` → 502.
 
 **Sobre `products.image`:**
 - La columna actual es `varchar(255)`. NO es TEXT.
-- **Estrategia recomendada**: persistir **object key estable** (p.ej. `products/{yyyy}/{mm}/{uuid}.webp`), NO URL firmada. Construir la URL pública o firmada al responder. Esto evita (a) URLs que expiran y quedan persistidas como referencia, (b) migración de columna.
+- **Estrategia recomendada**: persistir **object key estable** (p.ej. `products/{yyyy}/{mm}/{uuid}.webp`), NO URL firmada. Construir la ruta relativa `/catalog/images/...` al responder y hacer que Flutter anteponga la URL base del backend. Esto evita (a) URLs que expiran o dependen de un dominio todavía inexistente, (b) migración de columna.
 - **Si se decide persistir URL completa** (no recomendado): agregar migración Flyway a `varchar(1024)` o `TEXT`. Esto invalida la afirmación "cero migraciones" de este change.
 
 **Sin servicios nuevos.** `spring-boot-starter-security` se agrega a la dependencia existente.
@@ -411,8 +411,8 @@ Flutter → Gateway → catalog-service
                  → Validar multipart: tamaño ≤ 5MB, MIME ∈ {jpeg, png, webp}
                  → S3ProductImageStorage.upload(bucket, key, bytes, contentType)
                     └─ 502 si S3 falla
-                 → 201 { url }
-(el cliente luego llama POST /api/catalog/my/products con ese url en image)
+                 → 201 { objectKey, url }
+(el cliente muestra `url` y llama POST /api/catalog/my/products con `objectKey` en image)
 ```
 
 ---
@@ -486,8 +486,8 @@ Todos en formato `ApiError` de `shared-observability` (nota: `orders-service` us
 |---|---|---|
 | 1 | El PR de claim cambia comportamiento — clientes viejos de Flutter que asumen `EN_CAMINO` post-claim pueden romperse | **Mitigado** — informado a Javier (Flutter); la app transiciona manualmente a `RETIRADO` y luego `ENTREGADO`. Implementación a cargo de Flutter para cuando todos los servicios cumplan el plan (ver sección 6 del informe) |
 | 2 | ~~Cache `userId → restaurantId` en catalog-service puede quedar stale~~ **Eliminado**: el plan corregido usa `GetRestaurantByUserIdUseCase` local, sin cache HTTP self-call | N/A |
-| 3 | S3/MinIO en Floci **NO está aprovisionado** para catalog (`infra/floci/INFRASTRUCTURE.md` marca como `not used`). No hay bucket, vars S3, secretos ni task definition | Antes de PR-catalog-image: crear bucket S3 en Floci, endpoint accesible desde el contenedor, credenciales/rol, política de lectura, CORS, vars en `env.shared.template`, task definition ECS y config local |
-| 4 | **Build integrado del monorepo está roto** para catalog: `services/build.gradle.kts` fija Spring Boot 3.3.5, `services/catalog-service/build.gradle.kts` declara 3.5.16. `services/gradlew.bat :catalog-service:test` FAIL por conflicto | Tarea previa: alinear versión de Spring Boot O retirar catalog del build raíz. Agregar `catalog-service-ci.yml` que ejecute tests autónomos |
+| 3 | S3/MinIO en Floci requiere aprovisionamiento para catalog. El código y task definition declaran bucket, vars y secretos, pero el responsable de Floci debe crear el bucket y cargar los valores reales | Antes del deploy: crear `flashdrop-products`, cargar secretos y completar `gateway/docker/env.stack.template`; no usar los archivos archivados de Coolify |
+| 4 | Catalog usa Spring Boot 3.5.16 y el build raíz usa 3.3.5 | Decisión aplicada: retirar Catalog de `services/settings.gradle.kts` y mantener su build autónomo, sin cambiar Auth ni Delivery |
 | 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `Restaurante`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) gateway ya reenvía `Authorization: Bearer <jwt>` con el claim `roles` (validado contra `JwtTokenService` de Auth y `middleware/jwt-auth/plugin.ts` del gateway), pero el backend debe leerlo. Detalle del fix en §4.3.0 | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities con prefijo `ROLE_`. Convención de roles ya unificada: `Cliente`/`Restaurante`/`Repartidor` (§4.3.0) |
 | 6 | **Gateway no soporta multipart** para `/api/catalog/my/products/image`. `engine.ts` serializa con `JSON.stringify`, no hay `@fastify/multipart` en deps, bodyLimit insuficiente | PR-gateway-2 debe incluir código real: parser multipart, bodyLimit ≥ 6MB, passthrough raw stream, preservar `Content-Type` con boundary |
 | 7 | **Soft delete no oculta del catálogo público**. `ListProductsUseCase` usa `findAll`/`findByCategoryId`/`findByRestaurantId` sin filtrar `is_available`. Si se implementa el DELETE sin esto, productos desactivados siguen visibles | Agregar queries `...AndIsAvailableTrue` y métodos separados `findAllAvailable()`, `findByRestaurantIdAndAvailableTrue(...)`. Usarlos en endpoints públicos. `/api/catalog/my/*` puede usar los métodos sin filtro para ver desactivados |

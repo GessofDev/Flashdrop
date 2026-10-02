@@ -106,14 +106,14 @@ Si el `userId` no tiene restaurante asociado → 403 con mensaje claro.
 - Auth: JWT con rol `Restaurante`.
 - Genera un **object key estable**: `products/{yyyy}/{mm}/{uuid}.{ext}`.
 - Sube al bucket configurado (`S3_BUCKET`).
-- Devuelve 201 con `{objectKey, url}` — `objectKey` para persistir, `url` construida server-side (pública o firmada según config).
+- Devuelve 201 con `{objectKey, url}` — `objectKey` para persistir y `url` como ruta relativa `/catalog/images/...`; la app antepone la URL base del backend.
 - 502 si el bucket no responde.
 
 Variables de entorno nuevas en `infra/coolify/env.shared.template`:
 - `S3_ENDPOINT` (default: Floci local endpoint)
 - `S3_BUCKET` (default: `flashdrop-products`)
 - `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`
-- `S3_PUBLIC_URL_BASE` (URL pública para construir la respuesta)
+- `S3_PUBLIC_URL_BASE` (default `/catalog/images`; ruta relativa, no secreto)
 
 ### FR-4 — Rutas del gateway
 
@@ -162,7 +162,7 @@ El gateway debe soportar `multipart/form-data` de hasta 6MB (5MB de imagen + ove
 
 ### NFR-6 — Seguridad JWT
 
-- Catalog valida JWT RS256 contra el JWKS de Auth (`AUTH_JWKS_URI`). El `Authorization` header es reenviado por el gateway.
+- Catalog valida JWT RS256 contra el JWKS de Auth (`AUTH_SERVICE_JWKS_URI`) y exige issuer `AUTH_SERVICE_ISSUER=flashdrop-auth`. El `Authorization` header es reenviado por el gateway y todos los valores de `roles[]` se mapean a authorities.
 - Las rutas `/api/catalog/my/**` requieren rol `Restaurante` en los claims. Si el rol no está, 403.
 - Si el JWT es inválido o expirado, 401.
 - Las rutas públicas `/catalog/**` (lectura) siguen siendo `permitAll` (el gateway no las reescribe con claims).

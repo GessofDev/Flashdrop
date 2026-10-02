@@ -18,6 +18,12 @@ GET  /catalog/restaurants
 GET  /api/internal/products?ids=1,2,3
 GET  /api/internal/restaurants/{restaurantId}
 GET  /api/internal/restaurants?userId={userId}
+POST /api/catalog/my/products
+GET  /api/catalog/my/products
+PUT  /api/catalog/my/products/{productId}
+DELETE /api/catalog/my/products/{productId}
+POST /api/catalog/my/products/image
+GET  /catalog/images/products/{year}/{month}/{filename}
 ```
 
 Los `POST` publicos y todos los endpoints `/api/internal/**` requieren:
@@ -25,6 +31,36 @@ Los `POST` publicos y todos los endpoints `/api/internal/**` requieren:
 ```text
 X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
 ```
+
+Todos los endpoints `/api/catalog/my/**` requieren un Bearer JWT emitido por Auth
+con el rol `Restaurante`. El claim `roles` es una lista y se mapean todos sus
+valores como authorities de Spring.
+
+El CRUD owner deriva el restaurante desde el `sub` del JWT: nunca confia en un
+`restaurantId` enviado por la app. `DELETE` es un soft delete que marca el
+producto como no disponible; el listado owner incluye inactivos y el catalogo
+publico solo devuelve productos activos.
+
+El upload acepta JPEG, PNG o WebP de hasta 5 MB y retorna:
+
+```json
+{
+  "objectKey": "products/2026/09/00000000-0000-0000-0000-000000000001.webp",
+  "url": "/catalog/images/products/2026/09/00000000-0000-0000-0000-000000000001.webp"
+}
+```
+
+Persist `objectKey` in `products.image`. Public product responses turn new S3
+keys into relative gateway paths while preserving legacy `assets/img/*`
+references. Flutter prepends the same backend base URL it uses for the API.
+
+Required deployment variables:
+
+- `AUTH_SERVICE_JWKS_URI`
+- `AUTH_SERVICE_ISSUER` (`flashdrop-auth`)
+- `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`
+- `S3_ACCESS_KEY`, `S3_SECRET_KEY`
+- `S3_PUBLIC_URL_BASE` (default: `/catalog/images`, not a secret)
 
 Ejemplo de validacion:
 
