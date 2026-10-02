@@ -70,7 +70,9 @@ Las reglas de transición válidas por estado se mantienen en `Order.validateSta
 - `ENTREGADO → *` rechazado (estado terminal)
 - Cualquier otra transición rechazada con 409 (`OrderDomainException`).
 
-Las dos validaciones son independientes: la del policy de rol se hace en `UpdateOrderStatusUseCase` (con `RoleTransitionPolicy`), la de transición de estado en `Order.validateStatusTransition()`. El orden de validación en el use case es: ownership (403) → rol/policy (403) → transición (409).
+Las validaciones son independientes y el orden implementado en `UpdateOrderStatusUseCase` (PR `ef2e32a` = PR-orders-status-authz, en `feat/orders-jwt-roles`) es: **rol/policy (403) → ownership (403) → transición (409)**. El rol se valida primero porque indica qué ownership evaluar — un usuario multirol actúa como `Restaurante` o como `Repartidor` según el estado que está fijando. El ownership se evalúa solo si el rol correspondiente está presente en `grantingRoles`: `Restaurante` resuelve su restaurante contra `CatalogPort.findRestaurantIdByUserId`; `Repartidor` resuelve su asignación contra `DeliveryPort.findDeliveryIdByUserId`. La transición de estado se valida al final con `Order.validateStatusTransition()` (409 si la matriz from×to la rechaza).
+
+**Estado `EN_CAMINO` (legacy).** La matriz from×to permite llegar a `EN_CAMINO` desde `LISTO_PARA_RETIRO` o `RETIRADO` (compatibilidad con órdenes que ya están en ese estado), pero `RoleTransitionPolicy` no autoriza a ningún rol actual (`Cliente`, `Restaurante`, `Repartidor`) a entrar a `EN_CAMINO`. En la práctica, el endpoint `PUT /api/orders/{id}/status` no puede transicionar hacia `EN_CAMINO`. Las órdenes legacy que ya están en `EN_CAMINO` pueden salir a `RETIRADO` o `ENTREGADO` (matriz + policy lo permiten, `Repartidor` las finaliza).
 
 ### FR-5 — Rutas del gateway
 

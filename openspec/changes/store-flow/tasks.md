@@ -2,6 +2,19 @@
 
 > **Revisión aplicada** (Javier, 2026-09-24): se eliminaron T-10/T-11/T-12 (HTTP self-call con cache Caffeine) — catalog resuelve ownership localmente con `GetRestaurantByUserIdUseCase` existente. Se agregó `SecurityConfig` con Spring Security + JWT RS256. Se cambió `store_owner` → `Restaurante`. Se agregó necesidad de código (no solo YAML) en PR-gateway-2 para multipart. Se cambió `image` para aceptar object key, no URL.
 
+## Status (al cierre del review de Felipe)
+
+| PR | SHA | Estado |
+|---|---|---|
+| `PR-orders-jwt-roles` (incluye C-3 fix del contrato con Catalog) | `eb9caed` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-orders-metrics` (`GET /api/orders/restaurants/{id}/sales-summary`) | `54713f0` | ✅ Implementado en `origin/feat/orders-jwt-roles` |
+| `PR-catalog-image` (Spring Security + S3 + multipart) | — | ⏳ Pendiente (bloqueado por `P-2`) |
+| `PR-catalog-products` (CRUD `/api/catalog/my/products`) | — | ⏳ Pendiente (depende de `PR-catalog-image`) |
+| `PR-gateway-2` (multipart + 2 rutas nuevas) | — | ⏳ Pendiente |
+| Pre-work `P-0` (Spring Boot align) / `P-1` (CI catalog) / `P-2` (S3 Floci) | — | ⏳ Pendiente |
+
+Los PRs de orders viven en `origin/feat/orders-jwt-roles` (sin merge a `main`). Catalog y gateway todavía no tocaron este change.
+
 ## Pre-work (antes de los PRs)
 
 ### P-0 — Alinear Spring Boot del monorepo
