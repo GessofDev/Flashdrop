@@ -32,15 +32,18 @@ public class ProductController {
     private final ListProductsUseCase listProductsUseCase;
     private final GetProductsByIdsUseCase getProductsByIdsUseCase;
     private final CreateProductUseCase createProductUseCase;
+    private final ProductImageUrlResolver productImageUrlResolver;
 
     public ProductController(
             ListProductsUseCase listProductsUseCase,
             GetProductsByIdsUseCase getProductsByIdsUseCase,
-            CreateProductUseCase createProductUseCase
+            CreateProductUseCase createProductUseCase,
+            ProductImageUrlResolver productImageUrlResolver
     ) {
         this.listProductsUseCase = listProductsUseCase;
         this.getProductsByIdsUseCase = getProductsByIdsUseCase;
         this.createProductUseCase = createProductUseCase;
+        this.productImageUrlResolver = productImageUrlResolver;
     }
 
     @PostMapping
@@ -58,7 +61,8 @@ public class ProductController {
         );
 
         // El use case guarda el producto y el DTO deja lista la respuesta JSON.
-        ProductResponse response = ProductResponse.fromDomain(createProductUseCase.execute(product));
+        Product savedProduct = createProductUseCase.execute(product);
+        ProductResponse response = toResponse(savedProduct);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -68,9 +72,9 @@ public class ProductController {
             @RequestParam(required = false) Long restaurantId
     ) {
         // GET /catalog/products: lista productos y los transforma a respuesta publica.
-        return listProductsUseCase.execute(categoryId, restaurantId)
+        return listProductsUseCase.executeAvailable(categoryId, restaurantId)
                 .stream()
-                .map(ProductResponse::fromDomain)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -87,8 +91,15 @@ public class ProductController {
 
         return new ValidateProductsResponse(
                 missingIds.isEmpty(),
-                products.stream().map(ProductResponse::fromDomain).toList(),
+                products.stream().map(this::toResponse).toList(),
                 missingIds
+        );
+    }
+
+    private ProductResponse toResponse(Product product) {
+        return ProductResponse.fromDomain(
+                product,
+                productImageUrlResolver.resolve(product.getImage())
         );
     }
 }

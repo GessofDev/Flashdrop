@@ -2,6 +2,8 @@ package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -59,6 +61,29 @@ class PublicCatalogControllerTest {
                 .andExpect(jsonPath("$[0].name").value("Burger doble"))
                 .andExpect(jsonPath("$[0].price").value(8990))
                 .andExpect(jsonPath("$[0].available").value(true));
+    }
+
+    @Test
+    void listProductsDoesNotReturnInactiveProducts() throws Exception {
+        String body = """
+                {
+                  "categoryId": 1,
+                  "restaurantId": 1,
+                  "name": "Producto oculto",
+                  "price": 3990,
+                  "available": false
+                }
+                """;
+
+        mockMvc.perform(post("/api/internal/products")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/catalog/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].name", not(hasItem("Producto oculto"))));
     }
 
     @Test

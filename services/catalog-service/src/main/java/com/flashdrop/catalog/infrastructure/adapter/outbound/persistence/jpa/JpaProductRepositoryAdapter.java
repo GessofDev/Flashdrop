@@ -30,6 +30,14 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public List<Product> findAllAvailable() {
+        return repository.findAllByAvailableTrue()
+                .stream()
+                .map(ProductEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Product> findByIds(List<Long> ids) {
         return repository.findByIdIn(ids)
                 .stream()
@@ -46,8 +54,24 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public List<Product> findByCategoryIdAndAvailableTrue(Long categoryId) {
+        return repository.findByCategoryIdAndAvailableTrue(categoryId)
+                .stream()
+                .map(ProductEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Product> findByRestaurantId(Long restaurantId) {
         return repository.findByRestaurantId(restaurantId)
+                .stream()
+                .map(ProductEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Product> findByRestaurantIdAndAvailableTrue(Long restaurantId) {
+        return repository.findByRestaurantIdAndAvailableTrue(restaurantId)
                 .stream()
                 .map(ProductEntity::toDomain)
                 .toList();

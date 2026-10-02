@@ -9,4 +9,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-postgres}
       POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
+      AUTH_SERVICE_JWKS_URI: ${AUTH_SERVICE_JWKS_URI:-http://auth-service:8081/auth/.well-known/jwks.json}
+      AUTH_SERVICE_ISSUER: ${AUTH_SERVICE_ISSUER:-flashdrop-auth}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://host.docker.internal:4566}
+      S3_BUCKET: ${S3_BUCKET:-flashdrop-products}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-test}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-test}
+      S3_PUBLIC_URL_BASE: ${S3_PUBLIC_URL_BASE:-/catalog/images}
     restart: unless-stopped
