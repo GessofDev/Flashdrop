@@ -98,17 +98,18 @@ public class CatalogHttpClientAdapter implements CatalogPort {
         long uid = IdConverter.toLong(userId);
         log.debug("Consultando restaurante por usuario interno userId={}", uid);
         try {
-            InternalRestaurantDto[] dtos = catalogInternalRestClient.get()
+            // Contrato C-3 real (InternalCatalogController de catalog-service): devuelve UN
+            // objeto, no una lista. "Sin restaurante" llega como 404, manejado abajo.
+            InternalRestaurantDto dto = catalogInternalRestClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/internal/restaurants")
                             .queryParam("userId", uid)
                             .build())
                     .retrieve()
-                    .body(InternalRestaurantDto[].class);
-            if (dtos == null || dtos.length == 0) {
-                return Optional.empty();
-            }
-            return Optional.of(IdConverter.toUuid(dtos[0].id()));
+                    .body(InternalRestaurantDto.class);
+            return dto == null
+                    ? Optional.empty()
+                    : Optional.of(IdConverter.toUuid(dto.id()));
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 return Optional.empty();

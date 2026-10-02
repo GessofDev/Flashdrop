@@ -186,34 +186,98 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     // claimOrders / countActiveOrdersByDelivery / findByIdsForClaim / findByIds
     // ------------------------------------------------------------------
 
+    /** PR-orders-claim (spec FR-3): el claim solo asigna el repartidor; cada pedido conserva su estado. */
     @Test
-    void claimOrders_shouldAssignDeliveryAndStatusToAllRequestedOrders() {
+    void claimOrders_shouldAssignDeliveryAndPreserveEachOrderStatus() {
         Order order1 = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
-        Order order2 = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        Order order2 = adapter.save(baseOrder().status(OrderStatus.PREPARANDO).items(List.of()).build());
         UUID deliveryId = IdConverter.toUuid(9L);
 
-        int updated = adapter.claimOrders(List.of(order1.getId(), order2.getId()), deliveryId, OrderStatus.EN_CAMINO);
+        int updated = adapter.claimOrders(List.of(order1.getId(), order2.getId()), deliveryId);
 
         assertEquals(2, updated);
-        assertEquals(deliveryId, adapter.findById(order1.getId()).orElseThrow().getDeliveryId());
-        assertEquals(OrderStatus.EN_CAMINO, adapter.findById(order2.getId()).orElseThrow().getStatus());
+        Order reloaded1 = adapter.findById(order1.getId()).orElseThrow();
+        Order reloaded2 = adapter.findById(order2.getId()).orElseThrow();
+        assertEquals(deliveryId, reloaded1.getDeliveryId());
+        assertEquals(deliveryId, reloaded2.getDeliveryId());
+        assertEquals(OrderStatus.LISTO_PARA_RETIRO, reloaded1.getStatus());
+        assertEquals(OrderStatus.PREPARANDO, reloaded2.getStatus());
+    }
+
+    /**
+     * Ruta activa = pedidos del repartidor aún no entregados. Como el claim ya no muta a
+     * EN_CAMINO, un pedido tomado y todavía no retirado queda en LISTO_PARA_RETIRO y también
+     * cuenta (si no, el repartidor podría tomar otro lote antes de terminar su ruta).
+     */
+    @Test
+    void countActiveOrdersByDelivery_shouldCountClaimedNotYetDeliveredOrders() {
+        UUID deliveryId = IdConverter.toUuid(9L);
+        claimWithStatus(deliveryId, OrderStatus.LISTO_PARA_RETIRO);
+        claimWithStatus(deliveryId, OrderStatus.RETIRADO);
+        claimWithStatus(deliveryId, OrderStatus.EN_CAMINO);
+        // Estos no cuentan: ya entregado / distinto repartidor.
+        claimWithStatus(deliveryId, OrderStatus.ENTREGADO);
+        claimWithStatus(IdConverter.toUuid(99L), OrderStatus.EN_CAMINO);
+
+        assertEquals(3, adapter.countActiveOrdersByDelivery(deliveryId));
+    }
+
+    private void claimWithStatus(UUID deliveryId, OrderStatus status) {
+        Order saved = adapter.save(baseOrder().status(status).items(List.of()).build());
+        adapter.claimOrders(List.of(saved.getId()), deliveryId);
+    }
+
+    // ------------------------------------------------------------------
+    // findAvailableForDelivery (PR-orders-available, spec FR-2)
+    // ------------------------------------------------------------------
+
+    /** Restaurante propio por test: el contenedor Postgres es compartido entre clases. */
+    private static UUID uniqueRestaurantId() {
+        return IdConverter.toUuid(1_000_000L + (System.nanoTime() % 1_000_000L));
+    }
+
+    private Order saveForRestaurant(UUID restId, OrderStatus status, OffsetDateTime createdAt) {
+        return adapter.save(baseOrder().restaurantId(restId).status(status)
+                .createdAt(createdAt).items(List.of(sampleItem(101L, 1, BigDecimal.valueOf(2000)))).build());
     }
 
     @Test
-    void countActiveOrdersByDelivery_shouldCountOnlyEnCaminoAndRetiradoStatuses() {
-        UUID deliveryId = IdConverter.toUuid(9L);
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                deliveryId, OrderStatus.EN_CAMINO);
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                deliveryId, OrderStatus.RETIRADO);
-        // Este no cuenta: distinto repartidor.
-        adapter.claimOrders(
-                List.of(adapter.save(baseOrder().items(List.of()).build()).getId()),
-                IdConverter.toUuid(99L), OrderStatus.EN_CAMINO);
+    void findAvailableForDelivery_shouldReturnOnlyReadyAndUnassignedOrdersOfTheRestaurant() {
+        UUID restId = uniqueRestaurantId();
+        OffsetDateTime t0 = OffsetDateTime.now().minusHours(1);
+        Order ready = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, t0);
+        saveForRestaurant(restId, OrderStatus.NUEVO_PEDIDO, t0);
+        saveForRestaurant(restId, OrderStatus.PREPARANDO, t0);
+        saveForRestaurant(restId, OrderStatus.RETIRADO, t0);
+        saveForRestaurant(uniqueRestaurantId(), OrderStatus.LISTO_PARA_RETIRO, t0);
+        // Tomado por un repartidor: sigue en LISTO_PARA_RETIRO (el claim no muta estado) pero ya no está disponible.
+        Order claimed = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, t0);
+        adapter.claimOrders(List.of(claimed.getId()), IdConverter.toUuid(9L));
 
-        assertEquals(2, adapter.countActiveOrdersByDelivery(deliveryId));
+        List<Order> result = adapter.findAvailableForDelivery(restId, 50);
+
+        assertEquals(List.of(ready.getId()), result.stream().map(Order::getId).toList());
+        assertEquals(1, result.get(0).getItems().size(), "debe hidratar los items del pedido");
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldOrderFifoByCreatedAtAndApplyLimit() {
+        UUID restId = uniqueRestaurantId();
+        OffsetDateTime base = OffsetDateTime.now().minusHours(5);
+        Order third = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base.plusMinutes(30));
+        Order first = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base);
+        Order second = saveForRestaurant(restId, OrderStatus.LISTO_PARA_RETIRO, base.plusMinutes(10));
+
+        List<UUID> all = adapter.findAvailableForDelivery(restId, 50).stream().map(Order::getId).toList();
+        List<UUID> limited = adapter.findAvailableForDelivery(restId, 2).stream().map(Order::getId).toList();
+
+        assertEquals(List.of(first.getId(), second.getId(), third.getId()), all);
+        assertEquals(List.of(first.getId(), second.getId()), limited);
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldReturnEmptyWhenNothingAvailable() {
+        assertTrue(adapter.findAvailableForDelivery(uniqueRestaurantId(), 5).isEmpty());
     }
 
     @Test

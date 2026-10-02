@@ -33,8 +33,10 @@ public interface CatalogPort {
     Optional<RestaurantInfo> findRestaurantById(UUID restaurantId);
 
     /**
-     * Obtiene el ID del restaurante del primer restaurante asociado a un usuario.
-     * Utilizado para filtrar pedidos por dueño de restaurante.
+     * Obtiene el ID del restaurante asociado a un usuario (dueño de tienda).
+     * Utilizado para filtrar pedidos por dueño de restaurante y validar ownership.
+     *
+     * @return vacío si el usuario no tiene restaurante
      */
     Optional<UUID> findRestaurantIdByUserId(UUID userId);
 }

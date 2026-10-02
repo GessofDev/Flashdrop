@@ -7,7 +7,10 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -92,38 +95,41 @@ public class Order {
     }
 
     /**
-     * Valida que la transición de estado sea permitida.
-     * Aplica las reglas de flujo definidas para el negocio.
-     *
-     * @param newStatus el nuevo estado solicitado
-     * @throws OrderDomainException si la transición no es válida
+     * Transiciones de estado permitidas (spec FR-4, tasks T-11). ENTREGADO es terminal.
+     * EN_CAMINO es legacy (deprecated): el claim ya no lo asigna, pero los pedidos que
+     * quedaron en ese estado deben poder terminar su ciclo.
      */
-    public void validateStatusTransition(OrderStatus newStatus) {
-        // Pedidos entregados no pueden cambiar de estado
-        if (this.status == OrderStatus.ENTREGADO) {
-            throw new OrderDomainException(
-                    "El pedido ya fue entregado y no puede modificar su estado");
-        }
-        // Pedidos cancelados (no existe en el sistema, pero si se agrega en el futuro)
-        // se podrá validar aquí sin modificar los casos de uso
-    }
+    private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
+            OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+            OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO),
+            OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO),
+            OrderStatus.RETIRADO, EnumSet.of(OrderStatus.ENTREGADO, OrderStatus.EN_CAMINO),
+            OrderStatus.EN_CAMINO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
+            OrderStatus.ENTREGADO, EnumSet.noneOf(OrderStatus.class)
+    );
 
     /**
-     * Asigna el delivery y actualiza el estado del pedido al ser tomado por un repartidor.
+     * Valida que la transición de estado sea permitida según {@link #VALID_TRANSITIONS}.
+     *
+     * @param newStatus el nuevo estado solicitado
+     * @throws OrderDomainException si la transición no es válida (se mapea a 409 CONFLICT)
      */
-    public void assignDelivery(UUID deliveryId) {
-        if (this.status.isClosed()) {
-            throw new OrderDomainException(
-                    "No se puede asignar repartidor a un pedido que ya fue tomado o entregado");
+    public void validateStatusTransition(OrderStatus newStatus) {
+        if (!VALID_TRANSITIONS.getOrDefault(this.status, Set.of()).contains(newStatus)) {
+            throw new OrderDomainException("Transicion de estado no permitida: "
+                    + this.status.getValue() + " -> " + newStatus.getValue());
         }
-        this.deliveryId = deliveryId;
-        this.status = OrderStatus.EN_CAMINO;
     }
 
     /**
      * Indica si el pedido puede ser tomado por un repartidor.
+     *
+     * <p>PR-orders-claim (spec FR-3): el claim ya no muta el estado a EN_CAMINO, así que un
+     * pedido tomado sigue en LISTO_PARA_RETIRO — lo que lo marca como tomado es tener
+     * repartidor asignado. Se mantiene además el chequeo por estado para los pedidos legacy
+     * que ya están en EN_CAMINO/RETIRADO/ENTREGADO.</p>
      */
     public boolean isClaimable() {
-        return !this.status.isClosed();
+        return this.deliveryId == null && !this.status.isClosed();
     }
 }
