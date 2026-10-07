@@ -3,6 +3,7 @@ package com.flashdrop.catalog.application.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,6 +81,25 @@ class OwnerProductUseCasesTest {
 
         assertThatThrownBy(() -> useCase.execute(7L, 5L, command(true)))
                 .isInstanceOf(OwnershipAccessDeniedException.class);
+    }
+
+    /** Plan de pruebas §2.3: la actualización no puede cambiar el restaurante del producto —
+     *  el comando del dueño no trae restaurantId y siempre se usa el del usuario autenticado. */
+    @Test
+    void updateAlwaysUsesTheAuthenticatedUsersRestaurant() {
+        Product updated = product(5L, 10L, true);
+        when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product(5L, 10L, true)));
+        when(updateProductUseCase.execute(eq(5L), argThat(request -> Long.valueOf(10L).equals(request.restaurantId()))))
+                .thenReturn(updated);
+
+        Product result = new OwnerUpdateProductUseCase(
+                getRestaurantByUserIdUseCase,
+                productRepositoryPort,
+                updateProductUseCase
+        ).execute(7L, 5L, command(true));
+
+        assertThat(result).isSameAs(updated);
+        verify(updateProductUseCase).execute(eq(5L), argThat(request -> Long.valueOf(10L).equals(request.restaurantId())));
     }
 
     @Test

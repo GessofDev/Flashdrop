@@ -1,6 +1,5 @@
 package cl.flashdrop.orders.infrastructure.api;
 
-import cl.flashdrop.orders.application.OrderEnricher;
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
@@ -9,7 +8,6 @@ import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.PaymentMethod;
-import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
@@ -40,12 +38,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * PR-orders-available (spec FR-2): {@code GET /api/orders/available-for-delivery} a nivel
- * HTTP, con controller y use case reales (solo el repositorio y el enricher son mocks).
- * El filtrado por estado, por repartidor asignado y el orden FIFO se prueban contra
- * Postgres real en {@code JpaOrderRepositoryAdapterTest}.
+ * Plan de pruebas §3.2: {@code GET /api/orders/available-for-delivery} — conversión de
+ * {@code restaurant_id} (Long a UUID vía {@code IdConverter}), límite por query param y
+ * códigos 200 y 400 si falta el parámetro obligatorio.
  *
- * <p>Nombre {@code *Test} (no {@code *IT}): el pom no configura Failsafe.</p>
+ * <p>Prueba de capa web con MockMvc standalone y el caso de uso <b>simulado</b>
+ * ({@link ListAvailableOrdersUseCase}, Mockito), como pide el plan. Las validaciones que
+ * decide el caso de uso (límite entre 1 y 50, restaurante obligatorio) y el filtro de
+ * pedidos disponibles se prueban en {@code ListAvailableOrdersUseCaseTest} y
+ * {@code JpaOrderRepositoryAdapterTest}.</p>
+ *
+ * <p>Los tres últimos casos (403 sin rol, usuario con varios roles, id no numérico) son
+ * comportamiento del controller heredado de la versión anterior de esta prueba; no están en
+ * el texto del plan y se conservan para no perder cobertura.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class AvailableDeliveryOrdersControllerTest {
@@ -54,8 +59,7 @@ class AvailableDeliveryOrdersControllerTest {
     @Mock private GetOrderDetailUseCase getOrderDetailUseCase;
     @Mock private ListOrdersUseCase listOrdersUseCase;
     @Mock private UpdateOrderStatusUseCase updateOrderStatusUseCase;
-    @Mock private OrderRepositoryPort orderRepository;
-    @Mock private OrderEnricher enricher;
+    @Mock private ListAvailableOrdersUseCase listAvailableOrdersUseCase;
 
     private MockMvc mockMvc;
 
@@ -65,7 +69,7 @@ class AvailableDeliveryOrdersControllerTest {
     void setUp() {
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
                 listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver(),
-                new ListAvailableOrdersUseCase(orderRepository, enricher));
+                listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -97,9 +101,9 @@ class AvailableDeliveryOrdersControllerTest {
     }
 
     @Test
-    void repartidor_recibePedidosDisponiblesEnOrden_conLimitePorDefecto5() throws Exception {
+    void repartidor_recibeLaListaDelCasoDeUsoEnElMismoOrden_200() throws Exception {
         autenticadoComo("Repartidor");
-        when(orderRepository.findAvailableForDelivery(RESTAURANT_ID, 5))
+        when(listAvailableOrdersUseCase.execute(RESTAURANT_ID, 5))
                 .thenReturn(List.of(pedidoListo(501L), pedidoListo(502L)));
 
         mockMvc.perform(get("/api/orders/available-for-delivery").param("restaurant_id", "7"))
@@ -111,9 +115,9 @@ class AvailableDeliveryOrdersControllerTest {
                 .andExpect(jsonPath("$.data[0].status").value("Listo para retiro"));
     }
 
-    /** Wire Long → dominio UUID en el borde (mismo criterio que {@code GET /api/orders?user_id=}). */
+    /** Wire Long, dominio UUID: la conversión se hace en el borde, antes del caso de uso. */
     @Test
-    void conviertaRestaurantIdLongAUuidYRespetaElLimitePedido() throws Exception {
+    void restaurantIdLong_llegaAlCasoDeUsoConvertidoAUuid_yConElLimitePedido() throws Exception {
         autenticadoComo("Repartidor");
 
         mockMvc.perform(get("/api/orders/available-for-delivery")
@@ -121,7 +125,41 @@ class AvailableDeliveryOrdersControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
 
-        verify(orderRepository).findAvailableForDelivery(RESTAURANT_ID, 3);
+        verify(listAvailableOrdersUseCase).execute(RESTAURANT_ID, 3);
+    }
+
+    @Test
+    void sinLimit_llegaAlCasoDeUsoElValorPorDefecto5() throws Exception {
+        autenticadoComo("Repartidor");
+
+        mockMvc.perform(get("/api/orders/available-for-delivery").param("restaurant_id", "7"))
+                .andExpect(status().isOk());
+
+        verify(listAvailableOrdersUseCase).execute(RESTAURANT_ID, 5);
+    }
+
+    @Test
+    void faltaRestaurantId_400_yNoInvocaElCasoDeUso() throws Exception {
+        autenticadoComo("Repartidor");
+
+        mockMvc.perform(get("/api/orders/available-for-delivery"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Parametro obligatorio: restaurant_id"));
+
+        verify(listAvailableOrdersUseCase, never()).execute(any(), anyInt());
+    }
+
+    // ---- Casos heredados (no están en el texto del plan) ----
+
+    @Test
+    void sinRolRepartidor_403_yNoInvocaElCasoDeUso() throws Exception {
+        autenticadoComo("Restaurante");
+
+        mockMvc.perform(get("/api/orders/available-for-delivery").param("restaurant_id", "7"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+        verify(listAvailableOrdersUseCase, never()).execute(any(), anyInt());
     }
 
     /** Usuario multirol (admin@demo.cl): basta con que tenga el rol Repartidor. */
@@ -134,53 +172,12 @@ class AvailableDeliveryOrdersControllerTest {
     }
 
     @Test
-    void sinRolRepartidor_403() throws Exception {
-        autenticadoComo("Restaurante");
-
-        mockMvc.perform(get("/api/orders/available-for-delivery").param("restaurant_id", "7"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
-
-        verify(orderRepository, never()).findAvailableForDelivery(any(), anyInt());
-    }
-
-    @Test
-    void faltaRestaurantId_400() throws Exception {
-        autenticadoComo("Repartidor");
-
-        mockMvc.perform(get("/api/orders/available-for-delivery"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Parametro obligatorio: restaurant_id"));
-
-        verify(orderRepository, never()).findAvailableForDelivery(any(), anyInt());
-    }
-
-    @Test
-    void limiteMayorA50_400() throws Exception {
-        autenticadoComo("Repartidor");
-
-        mockMvc.perform(get("/api/orders/available-for-delivery")
-                        .param("restaurant_id", "7").param("limit", "51"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("El limite debe estar entre 1 y 50"));
-
-        verify(orderRepository, never()).findAvailableForDelivery(any(), anyInt());
-    }
-
-    @Test
-    void limiteCero_400() throws Exception {
-        autenticadoComo("Repartidor");
-
-        mockMvc.perform(get("/api/orders/available-for-delivery")
-                        .param("restaurant_id", "7").param("limit", "0"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void restaurantIdNoNumerico_400() throws Exception {
+    void restaurantIdNoNumerico_400_yNoInvocaElCasoDeUso() throws Exception {
         autenticadoComo("Repartidor");
 
         mockMvc.perform(get("/api/orders/available-for-delivery").param("restaurant_id", "abc"))
                 .andExpect(status().isBadRequest());
+
+        verify(listAvailableOrdersUseCase, never()).execute(any(), anyInt());
     }
 }

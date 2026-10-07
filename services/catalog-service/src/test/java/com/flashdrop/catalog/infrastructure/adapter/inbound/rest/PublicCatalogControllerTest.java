@@ -1,268 +1,126 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.web.servlet.MockMvc;
+import java.math.BigDecimal;
+import java.util.List;
 
-@SpringBootTest(properties = "INTERNAL_API_KEY=dev-key")
-@AutoConfigureMockMvc
-@ActiveProfiles("local")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.flashdrop.catalog.application.usecase.CreateProductUseCase;
+import com.flashdrop.catalog.application.usecase.GetProductsByIdsUseCase;
+import com.flashdrop.catalog.application.usecase.ListProductsUseCase;
+import com.flashdrop.catalog.domain.model.Product;
+import com.flashdrop.catalog.domain.valueobjects.Money;
+
+/**
+ * Plan de pruebas §3.3: {@code GET /catalog/products} usa las consultas que filtran
+ * {@code is_available = true}, para no exponer productos desactivados al cliente.
+ *
+ * <p>Slice web con {@code MockMvc} standalone y el caso de uso <b>simulado</b>
+ * ({@link ListProductsUseCase}, Mockito): no levanta Spring Boot. Se comprueba que el
+ * controller llama siempre a las variantes {@code executeAvailable(...)} y nunca a las que
+ * no filtran ({@code execute(...)}). La consulta que filtra en la base de datos pertenece a
+ * la capa de repositorio (integración, fuera de esta prueba). El contrato público completo
+ * (categorías, restaurantes, alta interna) se prueba en {@code PublicCatalogControllerIT}.</p>
+ */
 class PublicCatalogControllerTest {
 
-    private static final String INTERNAL_API_KEY = "dev-key";
-
-    @Autowired
+    private ListProductsUseCase listProductsUseCase;
     private MockMvc mockMvc;
 
-    @Test
-    void listCategoriesReturnsPublicContractFields() throws Exception {
-        mockMvc.perform(get("/catalog/categories"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(3)))
-                .andExpect(jsonPath("$[0].id").value(3))
-                .andExpect(jsonPath("$[0].name").value("Bebidas"))
-                .andExpect(jsonPath("$[0].description").value("Bebidas frias"))
-                .andExpect(jsonPath("$[0].image").value("assets/img/bag.png"));
+    @BeforeEach
+    void setUp() {
+        listProductsUseCase = mock(ListProductsUseCase.class);
+        ProductController controller = new ProductController(
+                listProductsUseCase,
+                mock(GetProductsByIdsUseCase.class),
+                mock(CreateProductUseCase.class),
+                new ProductImageUrlResolver("/catalog/images"));
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new RestExceptionHandler())
+                .build();
+    }
+
+    private static Product availableProduct(Long id, Long categoryId, Long restaurantId) {
+        return new Product(id, categoryId, restaurantId, "Producto " + id, "Descripcion",
+                new Money(BigDecimal.valueOf(2500)), "products/2026/10/imagen-" + id + ".webp", true);
+    }
+
+    private void assertNeverUsesTheUnfilteredQueries() {
+        verify(listProductsUseCase, never()).execute();
+        verify(listProductsUseCase, never()).execute(any(), any());
     }
 
     @Test
-    void listRestaurantsReturnsPublicContractFields() throws Exception {
-        mockMvc.perform(get("/catalog/restaurants"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].name").value("Flash Restaurant Demo"))
-                .andExpect(jsonPath("$[0].address").value("Av. Providencia 1200, Santiago"));
-    }
-
-    @Test
-    void listProductsReturnsPublicContractFields() throws Exception {
-        mockMvc.perform(get("/catalog/products"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()", greaterThanOrEqualTo(2)))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].categoryId").value(1))
-                .andExpect(jsonPath("$[0].restaurantId").value(1))
-                .andExpect(jsonPath("$[0].name").value("Burger doble"))
-                .andExpect(jsonPath("$[0].price").value(8990))
-                .andExpect(jsonPath("$[0].available").value(true));
-    }
-
-    @Test
-    void listProductsDoesNotReturnInactiveProducts() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 1,
-                  "name": "Producto oculto",
-                  "price": 3990,
-                  "available": false
-                }
-                """;
-
-        mockMvc.perform(post("/api/internal/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated());
+    void listProducts_withoutFilters_usesTheAvailableOnlyQuery_andReturnsWhatItGives() throws Exception {
+        when(listProductsUseCase.executeAvailable(null, null))
+                .thenReturn(List.of(availableProduct(1L, 1L, 10L), availableProduct(2L, 2L, 11L)));
 
         mockMvc.perform(get("/catalog/products"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].name", not(hasItem("Producto oculto"))));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].available").value(true))
+                .andExpect(jsonPath("$[0].image").value("/catalog/images/products/2026/10/imagen-1.webp"))
+                .andExpect(jsonPath("$[1].id").value(2));
+
+        verify(listProductsUseCase).executeAvailable(null, null);
+        assertNeverUsesTheUnfilteredQueries();
     }
 
     @Test
-    void createProductReturnsCreatedProduct() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 1,
-                  "name": "Completo italiano",
-                  "description": "Vienesa, tomate, palta y mayo",
-                  "price": 3990,
-                  "image": "assets/img/completo.png",
-                  "available": true
-                }
-                """;
+    void listProducts_byCategory_usesTheAvailableOnlyQuery() throws Exception {
+        when(listProductsUseCase.executeAvailable(3L, null)).thenReturn(List.of(availableProduct(5L, 3L, 10L)));
 
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.categoryId").value(1))
-                .andExpect(jsonPath("$.restaurantId").value(1))
-                .andExpect(jsonPath("$.name").value("Completo italiano"))
-                .andExpect(jsonPath("$.description").value("Vienesa, tomate, palta y mayo"))
-                .andExpect(jsonPath("$.price").value(3990))
-                .andExpect(jsonPath("$.image").value("assets/img/completo.png"))
-                .andExpect(jsonPath("$.available").value(true));
-    }
-
-    @Test
-    void createProductRequiresApiKey() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 1,
-                  "name": "Completo italiano",
-                  "price": 3990
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
-                .andExpect(jsonPath("$.message").value("Invalid internal API key"));
-    }
-
-    @Test
-    void createProductReturnsBadRequestForNegativePrice() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 1,
-                  "name": "Completo italiano",
-                  "price": -100
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
-    }
-
-    @Test
-    void createProductReturnsBadRequestForEmptyName() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 1,
-                  "name": "",
-                  "price": 3990
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
-    }
-
-    @Test
-    void createProductReturnsNotFoundForMissingCategory() throws Exception {
-        String body = """
-                {
-                  "categoryId": 999,
-                  "restaurantId": 1,
-                  "name": "Completo italiano",
-                  "price": 3990
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Category not found with id: 999"));
-    }
-
-    @Test
-    void createProductReturnsNotFoundForMissingRestaurant() throws Exception {
-        String body = """
-                {
-                  "categoryId": 1,
-                  "restaurantId": 999,
-                  "name": "Completo italiano",
-                  "price": 3990
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Restaurant not found with id: 999"));
-    }
-
-    @Test
-    void createProductReturnsBadRequestForMalformedJson() throws Exception {
-        mockMvc.perform(post("/catalog/products")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("El cuerpo de la solicitud no es valido"));
-    }
-
-    @Test
-    void validateProductsReturnsFoundProductsAndMissingIds() throws Exception {
-        String body = """
-                {
-                  "productIds": [1, 999]
-                }
-                """;
-
-        mockMvc.perform(post("/catalog/products/validate")
-                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+        mockMvc.perform(get("/catalog/products").param("categoryId", "3"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.valid").value(false))
-                .andExpect(jsonPath("$.products", hasSize(1)))
-                .andExpect(jsonPath("$.products[0].id").value(1))
-                .andExpect(jsonPath("$.missingIds", hasSize(1)))
-                .andExpect(jsonPath("$.missingIds[0]").value(999));
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(listProductsUseCase).executeAvailable(3L, null);
+        assertNeverUsesTheUnfilteredQueries();
     }
 
     @Test
-    void validateProductsRequiresApiKey() throws Exception {
-        String body = """
-                {
-                  "productIds": [1, 999]
-                }
-                """;
+    void listProducts_byRestaurant_usesTheAvailableOnlyQuery() throws Exception {
+        when(listProductsUseCase.executeAvailable(null, 7L)).thenReturn(List.of(availableProduct(6L, 1L, 7L)));
 
-        mockMvc.perform(post("/catalog/products/validate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
-                .andExpect(jsonPath("$.message").value("Invalid internal API key"));
+        mockMvc.perform(get("/catalog/products").param("restaurantId", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(listProductsUseCase).executeAvailable(null, 7L);
+        assertNeverUsesTheUnfilteredQueries();
+    }
+
+    @Test
+    void listProducts_byCategoryAndRestaurant_usesTheAvailableOnlyQuery() throws Exception {
+        when(listProductsUseCase.executeAvailable(3L, 7L)).thenReturn(List.of(availableProduct(8L, 3L, 7L)));
+
+        mockMvc.perform(get("/catalog/products").param("categoryId", "3").param("restaurantId", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(listProductsUseCase).executeAvailable(3L, 7L);
+        assertNeverUsesTheUnfilteredQueries();
+    }
+
+    @Test
+    void listProducts_whenNothingIsAvailable_returnsAnEmptyList() throws Exception {
+        when(listProductsUseCase.executeAvailable(null, null)).thenReturn(List.of());
+
+        mockMvc.perform(get("/catalog/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 }

@@ -11,6 +11,7 @@ import com.flashdrop.auth.domain.valueobject.Email;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -93,6 +95,19 @@ class UpdateUserProfileServiceTest {
         User guardado = guardado();
         assertNull(guardado.phone());
         assertNull(guardado.photo());
+    }
+
+    /** Plan de pruebas §2.1: propagación del conflicto (409) ante colisión de teléfono.
+     *  El caso de uso no captura el error de la restricción única de users.phone: lo deja
+     *  pasar para que GlobalExceptionHandler lo devuelva como 409. */
+    @Test
+    void elConflictoDeTelefonoQueLanzaElRepositorioSePropaga() {
+        doThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"users_phone_key\""))
+                .when(users).save(any());
+
+        assertThrows(DataIntegrityViolationException.class, () -> service.updateProfile(1L,
+                new UpdateUserProfileCommand("Nico", "Leiva", "+56999998888", null)));
     }
 
     @Test
