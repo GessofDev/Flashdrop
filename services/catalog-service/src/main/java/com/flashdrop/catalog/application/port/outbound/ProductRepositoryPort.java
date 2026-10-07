@@ -12,12 +12,18 @@ public interface ProductRepositoryPort {
     // Trae todos los productos del origen de datos activo.
     List<Product> findAll();
 
+    List<Product> findAllAvailable();
+
     // Busca solo los productos cuyos ids llegaron desde otra logica, por ejemplo pedidos.
     List<Product> findByIds(List<Long> ids);
 
     List<Product> findByCategoryId(Long categoryId);
 
+    List<Product> findByCategoryIdAndAvailableTrue(Long categoryId);
+
     List<Product> findByRestaurantId(Long restaurantId);
+
+    List<Product> findByRestaurantIdAndAvailableTrue(Long restaurantId);
 
     // Busca un producto puntual para operaciones internas de actualizacion.
     Optional<Product> findById(Long id);

@@ -14,7 +14,7 @@ info:
     **Base path:** /catalog
 
     ## Notas para el desarrollador
-    - Los IDs en la base de datos son **UUID**, pero este servicio puede usar Long internamente
+    - Los IDs de Catalog son **Long** en la base, el dominio y el contrato HTTP
     - Las operaciones GET son **públicas** (no requieren JWT)
     - Las operaciones POST requieren `X-Internal-Api-Key`
     - El perfil `postgres` usa PostgreSQL con Flyway/JPA
@@ -43,6 +43,8 @@ tags:
     description: Health checks
   - name: Internal
     description: Endpoints internos entre microservicios
+  - name: Images
+    description: Carga y entrega de imagenes de productos
 
 paths:
   /health:
@@ -159,6 +161,167 @@ paths:
                 $ref: '#/components/schemas/ValidateProductsResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/my/products:
+    get:
+      tags: [Products]
+      summary: Listar productos del restaurante autenticado
+      description: Incluye productos activos e inactivos. La tienda se deriva del JWT.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Productos de la tienda autenticada
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Products]
+      summary: Crear producto para el restaurante autenticado
+      description: El restaurantId se deriva del subject del JWT y nunca se toma del body.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnerCreateProductRequest'
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/my/products/{productId}:
+    parameters:
+      - in: path
+        name: productId
+        required: true
+        schema:
+          type: integer
+          format: int64
+    put:
+      tags: [Products]
+      summary: Reemplazar un producto propio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnerUpdateProductRequest'
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Products]
+      summary: Desactivar un producto propio
+      description: Soft delete; conserva la fila y marca available=false.
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Producto desactivado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/my/products/image:
+    post:
+      tags: [Images]
+      summary: Subir imagen de producto del restaurante autenticado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG o WebP de hasta 5 MB
+      responses:
+        '201':
+          description: Imagen almacenada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImageUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          description: La imagen supera el limite permitido
+        '502':
+          description: El almacenamiento S3 no esta disponible
+
+  /catalog/images/products/{year}/{month}/{filename}:
+    get:
+      tags: [Images]
+      summary: Descargar una imagen publica de producto
+      parameters:
+        - in: path
+          name: year
+          required: true
+          schema: { type: string, pattern: '^\\d{4}$' }
+        - in: path
+          name: month
+          required: true
+          schema: { type: string, pattern: '^(0[1-9]|1[0-2])$' }
+        - in: path
+          name: filename
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Bytes de la imagen
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /catalog/categories:
     get:
@@ -336,6 +499,11 @@ paths:
           $ref: '#/components/responses/NotFound'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     CreateProductRequest:
       type: object
@@ -368,7 +536,7 @@ components:
           example: "https://supabase.storage/fotos/products/hamburger.jpg"
         available:
           type: boolean
-          description: Si el producto está disponible (default: true)
+          description: "Si el producto está disponible (default: true)"
           example: true
 
     UpdateProductRequest:
@@ -408,6 +576,38 @@ components:
           description: Si el producto está disponible
           example: true
 
+    OwnerCreateProductRequest:
+      type: object
+      required: [categoryId, name, price]
+      properties:
+        categoryId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 255
+        price:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+        image:
+          type: string
+          pattern: '^products/\d{4}/(0[1-9]|1[0-2])/[0-9a-fA-F-]{36}\.(jpg|jpeg|png|webp)$'
+          example: products/2026/10/550e8400-e29b-41d4-a716-446655440000.webp
+        available:
+          type: boolean
+          default: true
+
+    OwnerUpdateProductRequest:
+      allOf:
+        - $ref: '#/components/schemas/OwnerCreateProductRequest'
+        - type: object
+          required: [available]
+
     ProductResponse:
       type: object
       properties:
@@ -437,6 +637,19 @@ components:
         available:
           type: boolean
           example: true
+
+    ProductImageUploadResponse:
+      type: object
+      required: [objectKey, url]
+      properties:
+        objectKey:
+          type: string
+          example: products/2026/09/550e8400-e29b-41d4-a716-446655440000.webp
+        url:
+          type: string
+          format: uri-reference
+          description: Ruta relativa; el cliente antepone la URL base del backend.
+          example: /catalog/images/products/2026/09/550e8400-e29b-41d4-a716-446655440000.webp
 
     ValidateProductsRequest:
       type: object
@@ -514,7 +727,7 @@ components:
           example: NOT_FOUND
         message:
           type: string
-          example: Restaurant not found with id: 99
+          example: "Restaurant not found with id: 99"
 
     InternalProductResponse:
       type: object
@@ -562,6 +775,12 @@ components:
           example: Av. Providencia 1200
 
   responses:
+    Unauthorized:
+      description: JWT ausente, invalido o expirado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       description: Solicitud inválida
       content:

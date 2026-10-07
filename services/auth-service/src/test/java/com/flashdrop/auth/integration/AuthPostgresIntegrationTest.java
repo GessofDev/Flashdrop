@@ -6,6 +6,7 @@ import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
 import com.flashdrop.auth.domain.model.RefreshToken;
 import com.flashdrop.auth.domain.valueobject.Email;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -202,5 +204,85 @@ class AuthPostgresIntegrationTest {
 
         assertTrue(creado.id() > 5,
                 "El id deberia venir despues del seed, vino " + creado.id());
+    }
+
+    // ------------------------------------------------------------------ perfil
+
+    /**
+     * PUT /auth/profile contra la base real: cambia los cuatro campos, deja el
+     * email como estaba aunque venga en el cuerpo, conserva el rol y mueve
+     * updated_at, que la V1 declara pero nada actualizaba.
+     *
+     * <p>El alta de este mismo test es ademas la prueba de que mapear
+     * updated_at no rompio el INSERT: si la columna fuera insertable, Hibernate
+     * mandaria NULL y el alta chocaria contra el NOT NULL.
+     */
+    @Test
+    void editarPerfilActualizaLaFilaYMueveUpdatedAt() throws Exception {
+        String token = altaYLogin("perfil@flashdrop.cl", "+56944445555");
+        Long id = jdbc.queryForObject(
+                "select id from users where email = 'perfil@flashdrop.cl'", Long.class);
+        // Se lleva a una fecha vieja para no depender de la resolucion del
+        // reloj entre la JVM y el contenedor.
+        jdbc.update("update users set updated_at = timestamptz '2020-01-01 00:00:00+00' where id = ?", id);
+
+        mvc.perform(put("/auth/profile").header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Nico","lastName":"Leiva","phone":"+56 9 4444 6666",
+                                 "photo":"https://img.flashdrop.cl/perfil.png",
+                                 "email":"otro@flashdrop.cl"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Nico"))
+                .andExpect(jsonPath("$.phone").value("+56944446666"))
+                .andExpect(jsonPath("$.email").value("perfil@flashdrop.cl"));
+
+        var fila = jdbc.queryForMap("select name, last_name, phone, photo, email, "
+                + "updated_at > timestamptz '2021-01-01 00:00:00+00' as movio "
+                + "from users where id = ?", id);
+        assertEquals("Nico", fila.get("name"));
+        assertEquals("Leiva", fila.get("last_name"));
+        assertEquals("+56944446666", fila.get("phone"));
+        assertEquals("https://img.flashdrop.cl/perfil.png", fila.get("photo"));
+        assertEquals("perfil@flashdrop.cl", fila.get("email"));
+        assertEquals(true, fila.get("movio"), "updated_at no se actualizo");
+        assertEquals(1, jdbc.queryForObject(
+                "select count(*) from user_has_roles where id_user = ?", Integer.class, id));
+    }
+
+    /** El telefono choca con el del usuario 1 del seed. La base lo rechaza, la
+     *  respuesta es el 409 generico y la fila queda como estaba. */
+    @Test
+    void editarPerfilConElTelefonoDeOtroUsuarioDevuelve409() throws Exception {
+        String token = altaYLogin("choque@flashdrop.cl", "+56955556666");
+
+        mvc.perform(put("/auth/profile").header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Choque","lastName":"Test","phone":"+56911111111"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_ALREADY_EXISTS"));
+
+        assertEquals("+56955556666", jdbc.queryForObject(
+                "select phone from users where email = 'choque@flashdrop.cl'", String.class));
+    }
+
+    private String altaYLogin(String email, String phone) throws Exception {
+        mvc.perform(post("/auth/register").contentType("application/json")
+                        .content("""
+                                {"email":"%s","password":"Segura1234",
+                                 "name":"Alta","lastName":"Test","phone":"%s"}
+                                """.formatted(email, phone)))
+                .andExpect(status().isCreated());
+
+        String respuesta = mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("""
+                                {"login":"%s","password":"Segura1234"}
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(respuesta, "$.accessToken");
     }
 }

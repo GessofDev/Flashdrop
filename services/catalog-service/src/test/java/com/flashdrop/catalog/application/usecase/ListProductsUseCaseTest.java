@@ -41,6 +41,29 @@ class ListProductsUseCaseTest {
         verify(productRepositoryPort).findByRestaurantId(30L);
     }
 
+    @Test
+    void executeAvailableUsesRepositoryAvailabilityFilter() {
+        Product product = product(3L, 10L, 30L);
+        when(productRepositoryPort.findAllAvailable()).thenReturn(List.of(product));
+
+        List<Product> result = useCase.executeAvailable();
+
+        assertThat(result).containsExactly(product);
+        verify(productRepositoryPort).findAllAvailable();
+    }
+
+    @Test
+    void executeAvailableFiltersByRestaurant() {
+        Product product = product(4L, 10L, 30L);
+        when(productRepositoryPort.findByRestaurantIdAndAvailableTrue(30L))
+                .thenReturn(List.of(product));
+
+        List<Product> result = useCase.executeAvailable(null, 30L);
+
+        assertThat(result).containsExactly(product);
+        verify(productRepositoryPort).findByRestaurantIdAndAvailableTrue(30L);
+    }
+
     private Product product(Long id, Long categoryId, Long restaurantId) {
         return new Product(
                 id,

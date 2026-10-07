@@ -16,6 +16,10 @@ public record ProductResponse(
 ) {
     // DTO de salida: convierte el modelo interno Product al JSON que ve el cliente.
     public static ProductResponse fromDomain(Product product) {
+        return fromDomain(product, product.getImage());
+    }
+
+    public static ProductResponse fromDomain(Product product, String resolvedImage) {
         return new ProductResponse(
                 product.getId(),
                 product.getCategoryId(),
@@ -23,7 +27,7 @@ public record ProductResponse(
                 product.getName(),
                 product.getDescription(),
                 product.getPrice().amount(),
-                product.getImage(),
+                resolvedImage,
                 product.isAvailable()
         );
     }

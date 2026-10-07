@@ -18,7 +18,7 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 | `delivery-service` | Sin cambios en código (auditoría confirmó que no muta status; su claim solo asigna la ruta como `ASSIGNED` y delega a orders) |
 | `orders-service` | Listado de pedidos disponibles, autorización por rol en cambio de estado, claim sin mutación de estado a `EN_CAMINO`, métricas de ventas |
 | `catalog-service` | CRUD de productos con ownership derivada del JWT, upload de imagen a S3/MinIO |
-| `gateway` | 3 rutas nuevas (2 a orders, 1 a catalog); sin código, solo config |
+| `gateway` | Rutas nuevas solo para catalog; las de orders ya están cubiertas por el prefijo `/api/orders` |
 
 **Cero migraciones Flyway.** El modelo de datos soporta todo lo necesario.
 
@@ -45,20 +45,22 @@ Las cuatro áreas de trabajo se mapean limpiamente sobre los servicios existente
 | Path | Método | Servicio | Auth | Body | Respuesta |
 |---|---|---|---|---|---|
 | `/auth/profile` | `PUT` | auth-service | JWT | `{name, lastName, phone, photo}` (sin `email`, sin `rut`) | `UserProfile` |
-| `/api/orders/available-for-delivery` | `GET` | orders-service | JWT (rol delivery) | — (query: `restaurant_id` req, `limit` opcional default 5) | `[OrderListResponse]` |
-| `/api/orders/restaurants/{restaurantId}/sales-summary` | `GET` | orders-service | JWT (rol store_owner) | — (query: `range` opcional `day`/`week`/`month` default `week`) | `SalesSummaryResponse` |
-| `/api/catalog/my/products` | `POST` | catalog-service | JWT (rol store_owner) | `{categoryId, name, description, price, image, available}` (sin `restaurantId`) | `ProductResponse` |
-| `/api/catalog/my/products` | `GET` | catalog-service | JWT (rol store_owner) | — | `[ProductResponse]` |
-| `/api/catalog/my/products/{productId}` | `PUT` | catalog-service | JWT (rol store_owner) | `{categoryId, name, description, price, image, available}` | `ProductResponse` |
-| `/api/catalog/my/products/{productId}` | `DELETE` | catalog-service | JWT (rol store_owner) | — | 204 No Content |
-| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol store_owner) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{url}` |
+| `/api/orders/available-for-delivery` | `GET` | orders-service | JWT (rol `Repartidor`) | — (query: `restaurant_id` req, `limit` opcional default 5) | `[OrderListResponse]` (pedidos en LISTO_PARA_RETIRO sin repartidor asignado, orden FIFO, `limit` entre 1 y 50) |
+| `/api/orders/restaurants/{restaurantId}/sales-summary` | `GET` | orders-service | JWT (rol `Restaurante`) | — (query: `range` opcional `day`/`week`/`month` default `week`) | `SalesSummaryResponse` dentro de `ApiResponse<T>` (`{success, data}`); `restaurantId` Long, `productId` UUID |
+| `/api/catalog/my/products` | `POST` | catalog-service | JWT (rol `Restaurante`) | `{categoryId, name, description, price, image, available}` (sin `restaurantId`) | `ProductResponse` |
+| `/api/catalog/my/products` | `GET` | catalog-service | JWT (rol `Restaurante`) | — | `[ProductResponse]` |
+| `/api/catalog/my/products/{productId}` | `PUT` | catalog-service | JWT (rol `Restaurante`) | `{categoryId, name, description, price, image, available}` | `ProductResponse` |
+| `/api/catalog/my/products/{productId}` | `DELETE` | catalog-service | JWT (rol `Restaurante`) | — | 204 No Content |
+| `/api/catalog/my/products/image` | `POST` | catalog-service | JWT (rol `Restaurante`) | `multipart/form-data` campo `file` (jpeg/png/webp, ≤5MB) | `{objectKey, url}` |
+
+> **Convención de nombres de rol:** los roles reales en `auth-service` son `Cliente`, `Restaurante`, `Repartidor` (ver `auth-service/src/main/resources/db/seed/V2__seed_development.sql`). Estos 3 son los únicos roles existentes (no hay admin). Los nombres tentativos previos (`store_owner`, `delivery`, `customer`) **se descartan** en todo este documento. Esta convención es bloqueada por el fix de `PR-orders-jwt-roles` (ver §4.3.0); si no se lee correctamente del JWT, ningún chequeo `@PreAuthorize("hasRole('Restaurante')")` va a funcionar.
 
 ### 3.2 Endpoints MODIFICADOS (mismo path)
 
 | Path | Cambio |
 |---|---|
-| `PUT /api/orders/{id}/status` | Autorización por rol + validación de transición. Matriz rol → transiciones permitidas: `delivery` solo puede transicionar a `RETIRADO` o `ENTREGADO`; `store_owner` puede transicionar `NUEVO_PEDIDO → PREPARANDO → LISTO_PARA_RETIRO`. 403 si rol no autorizado, 409 si transición inválida |
-| `POST /delivery/claim` | El use case **deja de cambiar** `Order.status`. Solo persiste `deliveryId` en la ruta. El estado del pedido queda en `LISTO_PARA_RETIRO` hasta que el repartidor confirme el pickup con un PUT subsecuente |
+| `PUT /api/orders/{id}/status` | Restaurante puede fijar `PREPARANDO` y `LISTO_PARA_RETIRO`, solo en pedidos de su restaurante. Repartidor puede fijar `RETIRADO` y `ENTREGADO`, solo en pedidos asignados a él. Cliente no puede cambiar estados. El estado actual decide si se puede llegar al nuevo (matriz de §4.3). 403 si el rol no puede fijar ese estado o el pedido no es suyo; 409 si su rol puede fijar ese estado, pero el estado actual del pedido no lo permite. |
+| `POST /delivery/claim` | El use case **deja de cambiar** `Order.status`. Solo asigna `deliveryId`. Un pedido con repartidor asignado ya no se puede volver a tomar. No sincroniza el estado de la ruta. El estado del pedido queda en `LISTO_PARA_RETIRO` hasta que el repartidor confirme el pickup con un PUT subsecuente. |
 
 ### 3.3 Endpoints INTACTOS (verificados)
 
@@ -102,7 +104,7 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 > 4. Toda la mutación de estado (`orderRepository.claimOrders(..., EN_CAMINO)` y `deliveryPort.updateRouteStatus(..., EN_CAMINO)`) reside en `orders-service/ClaimDeliveryOrdersUseCase.java`. Por ende, el trabajo de claim debe ser implementado y testeado 100% en `orders-service`.
 > 5. Para respetar los boundaries de servicio (AGENTS.md), el PR de claim (`PR-orders-claim`, antes `PR-delivery`) pertenece al dev de `orders-service`. El dev de `delivery-service` no tiene cambios de código que commitear.
 
-**Sin archivos nuevos ni modificados en delivery-service.**
+**Sin archivos nuevos ni modificados en delivery-service.** Único cambio de configuración: activar la variable `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=true` en FloCI (`infra/floci/task-definitions/delivery-service.dev.json`) para que el claim delegue a orders-service.
 
 **Sin migración de DB.**
 
@@ -116,21 +118,65 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 > 5. `openapi.yaml` debe actualizarse en cada PR de orders-service que agregue endpoints (no se mencionó en el plan original).
 > 6. `IdConverter.toUuid(restaurantIdLong)` debe aplicarse consistentemente en endpoints con `restaurant_id` como `Long` en query params (patrón ya usado en `OrderController.listOrders` línea 64).
 
-**Nuevos archivos:**
-- `application/usecase/ListAvailableOrdersUseCase.java`
-- `application/usecase/GetRestaurantSalesSummaryUseCase.java`
-- `application/dto/SalesSummaryResponse.java`
-- `infrastructure/api/AvailableDeliveryOrdersController.java` (o agregar a `OrderController`)
-- `infrastructure/api/SalesSummaryController.java` (o agregar a `OrderController`)
-- `domain/exception/InvalidStatusTransitionException.java` (si no existe)
-- `application/port/outbound/RestaurantMetricsRepository.java` (si se prefiere segregar)
-- `application/usecase/ValidateOrderTransitionUseCase.java` (NUEVO) — encapsula la validación `from × to` antes de persistir.
-- `application/port/outbound/RestaurantOwnershipPort.java` (NUEVO) — para que orders resuelva ownership vía HTTP a catalog (`CatalogHttpClientAdapter` ya existe; este es el puerto del lado de orders).
+#### 4.3.0 Fix bloqueante previo — `PR-orders-jwt-roles` (lectura de roles del JWT)
+
+> **Bloquea:** `PR-orders-status-authz`, `PR-orders-available`, `PR-orders-metrics`, `PR-catalog-products`. **No se puede implementar authz por rol de forma segura hasta que este PR esté mergeado.** Estimación: 30-60 min (alcance acotado, ya verificado contra `main @ afc8f0a`).
+
+**Estado actual (bug)** — `config/JwtValidationFilter.java` líneas 86-91 arma el `UsernamePasswordAuthenticationToken` con `new ArrayList<>()` como authorities:
+
+```java
+if (validation.getStatusCode().is2xxSuccessful()) {
+    String subject = extractSubject(token);   // solo lee 'sub'
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(subject, null, new ArrayList<>());
+    //                                                              ^^^^^^^^^^^^^^
+    //                                                              authorities VACÍAS
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+}
+```
+
+El emisor `auth-service/.../JwtTokenService.java:41` sí mete los roles (`.claim("roles", claims.roles())`), y `AuthController.validate()` (`/auth/validate`) retorna el `TokenClaims` completo con roles. El descarte ocurre 100% del lado consumidor: orders extrae solo `sub` y nunca toca el claim `roles`. Consecuencia: cualquier `@PreAuthorize("hasRole('Restaurante')")` falla cerrado (403 universal) o, peor, un chequeo manual que lee authorities vacías queda falla abierto (IDOR). Bloquea PR-orders-status-authz y los demás PRs que dependen de leer el rol.
+
+**Decisiones de diseño** (firmadas en esta vuelta; no se reabren en code review salvo error factual):
+
+1. **Cómo extraer los roles**: decodificar el payload del JWT **localmente** (mismo método `Base64.getUrlDecoder()` que ya usa el filtro para extraer `sub`) y leer el claim `"roles"`. **No** consumir el body JSON de `/auth/validate` — el filtro ya confía en la firma validada por Auth (status 2xx), así que la decodificación local es segura y evita un parseo extra. Si el claim está ausente o no es una lista, authorities queda vacía (mismo comportamiento que hoy; los chequeos de rol fallarán cerrado aguas abajo, que es lo correcto).
+2. **Convención de prefijo**: `SimpleGrantedAuthority("ROLE_" + rol)`. Habilita `@PreAuthorize("hasRole('Restaurante')")` estándar de Spring Security sin mapeos custom. Documentar en el JavaDoc del filtro que el prefijo `ROLE_` se aplica acá; los chequeos en código deben usar `hasRole(...)` o `hasAuthority("ROLE_Restaurante")` consistentemente.
+3. **Nombres de rol**: usar los nombres reales de la BD (`auth-service/.../V2__seed_development.sql`): `Cliente`, `Restaurante`, `Repartidor`. Esta convención reemplaza los nombres tentativos previos del plan (`store_owner`, `delivery`, `customer`). Toda referencia a roles en este documento usa los nombres reales.
+4. **Reusabilidad del filtro**: NO se extrae a `shared-observability` en esta vuelta. `catalog-service` adoptará un enfoque distinto (§4.4 — Spring Security + JWKS local, validación con clave pública). Los dos enfoques son equivalentes en seguridad; unificar es un refactor posterior si surge duplicación real.
+5. **Type safety**: `requireCurrentRoles()` retorna `Set<Role>` (todos los roles del usuario) y `hasRole(Role)`. Enum `Role { CLIENTE, RESTAURANTE, REPARTIDOR }` con el valor del claim (`Cliente`, `Restaurante`, `Repartidor`). No existe rol admin. `admin@demo.cl` es un usuario con los 3 roles; sus permisos son la suma de esos roles. Si el claim tiene un valor que no matchea el enum, `AccessDeniedException("Rol desconocido: <valor>")`.
+
+**Archivos modificados** (todos en `services/orders-service/src/main/java/cl/flashdrop/orders/`):
+
+- `config/JwtValidationFilter.java` — después de validar contra `/auth/validate` (2xx), decodificar el payload del JWT y leer el claim `"roles"`. Si está presente y es una lista, poblar `SimpleGrantedAuthority("ROLE_" + rol)` por cada elemento. Si está ausente o malformado, log warn + authorities vacía.
+- `infrastructure/api/CurrentUserResolver.java` — agregar `requireCurrentRoles()` que retorna `Set<Role>` (todos los roles del usuario) y método helper `hasRole(Role)`. Lanza `AccessDeniedException("No autenticado")` o `AccessDeniedException("Rol desconocido: <x>")` según el caso. `requireCurrentUserId()` se mantiene igual (UUID vía `IdConverter.toUuid(long)`).
+- `domain/model/Role.java` (NUEVO) — enum `Role { CLIENTE, RESTAURANTE, REPARTIDOR }` con el mapeo del claim (`Cliente`, `Restaurante`, `Repartidor`). Sin lógica, sin imports de framework. Cero impacto en DB.
+- `config/SecurityConfig.java` — sin cambios estructurales. La authz fina por rol se aplica en cada controller / use case, no en la cadena global. Mantener `.authenticated()` como hoy.
+- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentRoles` (`Set<Role>`) y `currentUserId` (`UUID`). Validar contra la política de roles y matriz de transiciones (§3.2). Para rol `Restaurante`, validar que `order.getRestaurantId() == catalogPort.findRestaurantIdByUserId(currentUserId)` (D10). Para rol `Repartidor`, validar que `order.getDeliveryId()` sea el delivery del usuario (`DeliveryPort.findDeliveryIdByUserId(currentUserId)`) (D8). Devolver `ForbiddenOperationException` (403) si rol no autorizado o IDOR, `OrderDomainException` si transición inválida (409).
+- `infrastructure/api/OrderController.java` — pasar `currentUserResolver.requireCurrentRoles()` y `currentUserId()` a `UpdateOrderStatusUseCase`. Sin cambios en la firma HTTP.
+
+**Sin migración de DB.** El cambio es 100% en código Java. No toca SQL.
+
+**Tests nuevos** (detalle en §9):
+
+- `JwtValidationFilterTest`: matriz (sin JWT → 401, JWT sin claim `roles` → authorities vacías, JWT con `["Restaurante"]` → `ROLE_Restaurante` en authorities, JWT con `["Cliente", "Repartidor"]` → dos authorities, JWT con claim `roles` mal formado — string en vez de lista — → log warn + authorities vacías).
+- `CurrentUserResolverTest`: `requireCurrentRoles()` con `ROLE_Restaurante` → `Role.RESTAURANTE`; con `ROLE_Cliente` y `ROLE_Repartidor` → sus enums; sin authorities → `AccessDeniedException`; authority con valor que no matchea el enum → `AccessDeniedException("Rol desconocido: <x>")`.
+- `UpdateOrderStatusUseCaseTest`: extender la matriz 2D con casos de (rol × transición) usando `CurrentUserResolver` mockeado.
+- `SecurityIntegrationTest`: extender con casos end-to-end de un JWT real con `roles: ["Restaurante"]` accediendo a un endpoint protegido y verificando 200 vs 403 según el endpoint.
+
+**Nuevos archivos (implementación real):**
+- `domain/model/Role.java`, `domain/model/RoleTransitionPolicy.java`, `domain/model/SalesRange.java`
+- `domain/exception/ForbiddenOperationException.java`, `domain/exception/StatusTransitionForbiddenException.java`
+- `application/usecase/ListAvailableOrdersUseCase.java`, `application/usecase/GetRestaurantSalesSummaryUseCase.java`
+- `application/dto/SalesSummary.java`
+- `infrastructure/api/SalesSummaryController.java`, `infrastructure/api/dto/response/SalesSummaryResponse.java`
+- `config/ClockConfig.java`
+
+*(No se crearon `ValidateOrderTransitionUseCase.java`, `InvalidStatusTransitionException.java`, `RestaurantMetricsRepository.java`, `RestaurantOwnershipPort.java` ni `AvailableDeliveryOrdersController.java`. El endpoint de pedidos disponibles se agregó en `OrderController`, y el cálculo de métricas usa `Clock` inyectable y `CatalogPort` existente).*
 
 **Archivos modificados:**
-- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status`. Cargar matriz rol → transiciones permitidas. Agregar `IdConverter.toUuid(restaurantIdLong)` en handlers con `restaurant_id` (patrón existente en `listOrders`).
-- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `currentUserRole` + `currentUserId` y validar contra la matriz. Para rol `Restaurante`, validar que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` (403 si no). Devolver `AccessDeniedException` si rol no autorizado, `OrderDomainException` si transición inválida.
-- `domain/model/Order.java` — **revisar `validateStatusTransition(newStatus)`**: actualmente solo rechaza `ENTREGADO → *`. Agregar matrix completa `from × to`:
+- `infrastructure/api/OrderController.java` — agregar authz por rol en `PUT /api/orders/{id}/status` y endpoint `GET /api/orders/available-for-delivery`. Validar rol `Repartidor` con `hasRole` (D18). Pasar roles y `currentUserId` a los use cases.
+- `application/usecase/UpdateOrderStatusUseCase.java` — incorporar `Set<Role> currentRoles` + `UUID currentUserId`. Validar rol primero con `RoleTransitionPolicy` (403), luego ownership (403 si Restaurante y no es dueño según `catalogPort.findRestaurantIdByUserId(currentUserId)`; 403 si Repartidor y el pedido no está asignado a él según `deliveryPort.findDeliveryIdByUserId(currentUserId)`), y finalmente transición con `order.validateStatusTransition(newStatus)` (409) (D5, D8, D9, D10, D11).
+- `domain/model/Order.java` — matriz completa `from × to`:
   - `NUEVO_PEDIDO → PREPARANDO` (válido)
   - `NUEVO_PEDIDO → LISTO_PARA_RETIRO` (corto-circuito, válido si la tienda decide saltarse PREPARANDO)
   - `PREPARANDO → LISTO_PARA_RETIRO` (válido)
@@ -138,12 +184,15 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
   - `LISTO_PARA_RETIRO → EN_CAMINO` (legacy — permitido pero deprecated)
   - `RETIRADO → ENTREGADO` (válido)
   - `RETIRADO → EN_CAMINO` (legacy — permitido pero deprecated)
+  - `EN_CAMINO → RETIRADO` (válido para pedidos legacy)
+  - `EN_CAMINO → ENTREGADO` (válido para pedidos legacy)
   - `ENTREGADO → *` rechazado (estado terminal)
   - Cualquier otra transición rechazada con 409 (`OrderDomainException`).
-  - `isClaimable()` también debe actualizarse.
-- `application/port/outbound/OrderRepositoryPort.java` — unificar método a `findByRestaurantAndStatusAndCreatedAtBetween(UUID restaurantId, Collection<OrderStatus> statuses, OffsetDateTime from, OffsetDateTime to)` (alineado con tasks T-19).
-- `openapi.yaml` — actualizar en cada PR que agregue endpoint (PR-orders-status-authz, PR-orders-available, PR-orders-metrics).
-- `ClaimDeliveryOrdersUseCase.java` — **modificar en PR-delivery**: la mutación a `EN_CAMINO` ya no debe ocurrir; el `claim` solo persiste `deliveryId` y deja el estado como está. Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim.
+  - `isClaimable()`: pedido sin repartidor asignado (`deliveryId == null`) y estado no cerrado (D3).
+- `application/port/outbound/OrderRepositoryPort.java` — agregar `findAvailableForDelivery(UUID restaurantId, int limit)`. Cambiar firma de `claimOrders` a `claimOrders(List<UUID> orderIds, UUID deliveryId)` sin parámetro de estado (D4). Cambiar `countActiveOrdersByDelivery` para que también cuente `LISTO_PARA_RETIRO` (D3). Mantener `findByRestaurantAndStatusAndCreatedAtBetween(...)`.
+- `openapi.yaml` — actualizado con los nuevos endpoints y contratos.
+- `ClaimDeliveryOrdersUseCase.java` — el claim solo persiste `deliveryId` y no muta el estado; ya no llama a `deliveryPort.updateRouteStatus` (D4, D17). Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim.
+- **Corrección del contrato C-3:** `CatalogHttpClientAdapter.findRestaurantIdByUserId` deserializa un objeto, no una lista (acuerdo con Javier) (D16).
 
 **Sin migración de DB.**
 
@@ -173,17 +222,17 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 **Archivos modificados:**
 - `build.gradle.kts` — agregar `spring-boot-starter-security`, `spring-boot-starter-oauth2-resource-server`, `aws-sdk-java-v2 s3/netty/auth`.
-- `infrastructure/config/SecurityConfig.java` (NUEVO) — validar JWT RS256 contra JWKS de Auth (`AUTH_JWKS_URI`). `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**")` permitAll (InternalApiKeyFilter cubre `/api/internal/**`). `requestMatchers("/actuator/health/**", "/actuator/info")` permitAll.
+- `infrastructure/config/SecurityConfig.java` (NUEVO) — validar JWT RS256 contra JWKS de Auth (`AUTH_SERVICE_JWKS_URI`) y el issuer `AUTH_SERVICE_ISSUER=flashdrop-auth`. Mapear todos los valores de `roles[]` con prefijo `ROLE_`. `requestMatchers("/api/catalog/my/**")` requiere rol `Restaurante`. `requestMatchers("/catalog/**", "/api/internal/**")` permitAll (InternalApiKeyFilter cubre `/api/internal/**`). `requestMatchers("/actuator/health/**", "/actuator/info")` permitAll.
 - `application/usecase/GetRestaurantByUserIdUseCase.java` — **reutilizar** directamente para resolver `restaurantId` desde `userId` (no crear nuevo resolver).
 - `application/usecase/CreateProductUseCase.java` — **NO se reutiliza para owner**. `MyStoreProductController` invoca wrappers owner que validan ownership.
 - `application/usecase/UpdateProductUseCase.java` — **NO se reutiliza para owner** (debe ignorar `restaurantId` del body y mantener el derivado del JWT).
 - `application/usecase/ListProductsUseCase.java` — agregar métodos `findAllAvailable()` y `findByRestaurantIdAndAvailableTrue(...)` que filtren por `isAvailable=true`. El catálogo público (`GET /catalog/products`, `GET /catalog/products/{id}`) debe usar estos; el endpoint owner (`GET /api/catalog/my/products`) puede usar `findAll` / `findByRestaurantId` sin filtro para permitir ver también los desactivados.
 - `infrastructure/adapter/outbound/persistence/jpa/repository/SpringDataProductRepository.java` — agregar queries derivadas `findAllByIsAvailableTrue`, `findByCategoryIdAndIsAvailableTrue`, `findByRestaurantIdAndIsAvailableTrue`.
-- `infrastructure/adapter/inbound/rest/RestExceptionHandler.java` — agregar handlers para: `AuthenticationException` → 401, `AccessDeniedException` → 403, `MaxUploadSizeExceededException` → 413, `ImageStorageException` → 502. Decidir si conservar `ErrorResponse` propio de catalog o adoptar `ApiError` de `shared-observability` (recomendado para consistencia entre microservicios).
+- `infrastructure/config/SecurityConfig.java` — configurar `AuthenticationEntryPoint` → 401 y `AccessDeniedHandler` → 403, porque los errores de la cadena de filtros no llegan de forma confiable a `RestExceptionHandler`. En `RestExceptionHandler`, agregar `MaxUploadSizeExceededException` → 413 e `ImageStorageException` → 502.
 
 **Sobre `products.image`:**
 - La columna actual es `varchar(255)`. NO es TEXT.
-- **Estrategia recomendada**: persistir **object key estable** (p.ej. `products/{yyyy}/{mm}/{uuid}.webp`), NO URL firmada. Construir la URL pública o firmada al responder. Esto evita (a) URLs que expiran y quedan persistidas como referencia, (b) migración de columna.
+- **Estrategia recomendada**: persistir **object key estable** (p.ej. `products/{yyyy}/{mm}/{uuid}.webp`), NO URL firmada. Construir la ruta relativa `/catalog/images/...` al responder y hacer que Flutter anteponga la URL base del backend. Esto evita (a) URLs que expiran o dependen de un dominio todavía inexistente, (b) migración de columna.
 - **Si se decide persistir URL completa** (no recomendado): agregar migración Flyway a `varchar(1024)` o `TEXT`. Esto invalida la afirmación "cero migraciones" de este change.
 
 **Sin servicios nuevos.** `spring-boot-starter-security` se agrega a la dependencia existente.
@@ -192,14 +241,13 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 
 > **Feedback aplicado** (Javier, 2026-09-24): el gateway **NO puede** transportar multipart de 5MB en el estado actual — Fastify no tiene parser multipart, `engine.ts` serializa body con `JSON.stringify`, y el límite por defecto es inferior a 5MB. PR-gateway-2 **debe incluir código**, no solo YAML.
 
-**`PR-gateway-1`** (profile-and-delivery) — sigue siendo **solo config YAML** (1 ruta nueva a orders, sin multipart).
+**`PR-gateway-1`** (profile-and-delivery) — **sin rutas nuevas**: el prefijo existente `/api/orders` ya cubre `/api/orders/available-for-delivery`. Queda como tarea de verificación (smoke test) para confirmar ruteo y reenvío de `Authorization`.
 
-**`PR-gateway-2`** (store-flow) — **incluye código nuevo** además de YAML:
+**`PR-gateway-2`** (store-flow) — **incluye código nuevo** además de YAML (la ruta de `sales-summary` ya está cubierta por el prefijo `/api/orders`):
 
 - Registrar parser multipart (`@fastify/multipart` o equivalente) y aumentar `bodyLimit` a ≥ 6MB para soportar imagen 5MB + overhead.
 - Modificar `engine.ts` (o nuevo módulo) para **passthrough de bodies multipart** sin `JSON.stringify` — preservar `Content-Type` con boundary, `Content-Length`/`Transfer-Encoding` correctos.
 - Registrar rutas:
-  - `/api/orders/restaurants/{id}/sales-summary` → `orders-service:8083`
   - `/api/catalog/my/products` (POST/GET/PUT/DELETE) → `catalog-service:8082`
   - `/api/catalog/my/products/image` (POST multipart) → `catalog-service:8082`
 - Agregar test de integración que envíe una imagen real a través del gateway y valide que llega intacta al backend.
@@ -217,9 +265,10 @@ Todos los endpoints nuevos devuelven el envelope de `orders-service`/`delivery-s
 - `orders` (orders) — `status`, `restaurant_id`, `created_at` ya indexados o indexables.
 - `delivery_routes` (delivery) — `order_id`, `delivery_person_id` ya disponibles.
 - **`auth-service.users.updated_at`** (V1 línea 24) — la columna existe desde el alta con `default now()`, pero no está mapeada en `UserEntity` ni tiene trigger. **El fix es en código Java (`@PreUpdate` en la entidad), no en SQL.** Cumple la promesa de "sin migración".
-- **`orders.status` admite `EN_CAMINO`** (legacy) — después de PR-delivery no se asignan nuevos pedidos a `EN_CAMINO` directamente. El flujo nuevo es `LISTO_PARA_RETIRO → RETIRADO` (pickup confirmado) → `ENTREGADO`. **Los pedidos legacy que ya están en `EN_CAMINO` se mantienen en la BD**; ningún código los transiciona automáticamente a `RETIRADO`. Decisión: el ciclo de vida legacy queda congelado; pedidos en `EN_CAMINO` eventualmente pasan a `ENTREGADO` por flujo normal. `RETIRADO` también se acepta como `from` válido en `validateStatusTransition` para legacy.
+- **`orders.status` admite `EN_CAMINO`** (legacy) — después de PR-orders-claim no se asignan nuevos pedidos a `EN_CAMINO` directamente. El flujo nuevo es `LISTO_PARA_RETIRO → RETIRADO` (pickup confirmado) → `ENTREGADO`. **Los pedidos legacy que ya están en `EN_CAMINO` se mantienen en la BD**; ningún código los transiciona automáticamente a `RETIRADO`. Decisión: el ciclo de vida legacy queda congelado; pedidos en `EN_CAMINO` eventualmente pasan a `RETIRADO` o `ENTREGADO` por flujo normal.
+- **Definición de pedido "tomado"**: un pedido tomado sigue en `LISTO_PARA_RETIRO` con `delivery_id` asignado; "tomado" se determina por `delivery_id != null`, no por el estado.
 
-**Índice (decisión de PR-orders-metrics, con owner explícito):** el dev de orders mide EXPLAIN con dataset representativo (dataset de prueba con ≥10k órdenes por restaurante) durante PR-orders-metrics. **Owner**: dev de orders ejecutando PR-orders-metrics. Si el índice se justifica (`CREATE INDEX IF NOT EXISTS idx_orders_restaurant_status_created ON orders(restaurant_id, status, created_at DESC)`), se agrega como migración Flyway en el mismo PR. **Si no se mide, el índice no se agrega** (mantener default: cero migraciones). No queda en el limbo.
+**Confirmación de migraciones:** Sin migraciones. El índice de métricas no se agregó: no se midió en esta iteración (ver §11). Se mantiene el default: cero migraciones.
 
 ---
 
@@ -229,24 +278,25 @@ Cada OpenSpec change es **autónomamente testeable y deployable**. Los dos cambi
 
 ### 6.1 OpenSpec change #1 — `profile-and-delivery`
 
-| PR | Servicio | Contenido | Bloquea |
+| PR | Servicio | Contenido | Estado / Bloquea |
 |---|---|---|---|
-| `PR-auth` | auth-service | `PUT /auth/profile` con use case + DTO + controller + tests | — |
-| `PR-orders-status-authz` | orders-service | Matriz rol→transición-permitida en `PUT /api/orders/{id}/status` + tests de la matriz | `PR-gateway-1` |
-| `PR-orders-available` | orders-service | `GET /api/orders/available-for-delivery` (use case + controller + tests) | `PR-gateway-1` |
-| `PR-delivery` | orders-service | Quitar mutación de status a `EN_CAMINO` en `ClaimDeliveryOrdersUseCase.execute()` (líneas 91-98). Tests confirman que `Order.status` queda en `LISTO_PARA_RETIRO` post-claim. `Order.assignDelivery()` es código muerto, no se modifica. Coordinar con dev de delivery antes de merge | — |
-| `PR-gateway-1` | gateway | 2 rutas nuevas (`/api/orders/available-for-delivery` → orders; validar `/api/orders/{id}/status` ya estaba) | último |
+| `PR-auth` | auth-service | `PUT /auth/profile` con use case + DTO + controller + tests | Pendiente |
+| `PR-orders-jwt-roles` | orders-service | **Fix bloqueante.** Poblar authorities desde claim `roles` del JWT en `JwtValidationFilter` + `requireCurrentRoles()`/`hasRole()` en `CurrentUserResolver` + enum `Role` en `domain/` + tests. Detalle completo en §4.3.0 | ✅ **Implementado — rama `feat/orders-jwt-roles` (commit `f739138`)** |
+| `PR-orders-status-authz` | orders-service | Matriz rol→transición-permitida en `PUT /api/orders/{id}/status` + validación de asignación a Repartidor y dueño Restaurante + tests | ✅ **Implementado — rama `feat/orders-jwt-roles` (commit `ef2e32a`)** |
+| `PR-orders-available` | orders-service | `GET /api/orders/available-for-delivery` (use case + controller + tests) sin pedidos tomados | ✅ **Implementado — rama `feat/orders-jwt-roles` (commit `4efe151`)** |
+| `PR-orders-claim` | orders-service | Quitar mutación de status a `EN_CAMINO` en `ClaimDeliveryOrdersUseCase.execute()`. Asignar `deliveryId` sin tocar status. `Order.assignDelivery()` eliminado. Requiere `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=true` en FloCI | ✅ **Implementado — rama `feat/orders-jwt-roles` (commit `8605b8e`)** |
+| `PR-gateway-1` | gateway | Verificación de rutas de orders (prefijo `/api/orders` existente cubre el ruteo) + reenvío de `Authorization` | Tarea de verificación pendiente |
 
 **Trabajo en paralelo:** los 4 PRs de servicio pueden arrancar en paralelo (archivos disjuntos).
 
 ### 6.2 OpenSpec change #2 — `store-flow`
 
-| PR | Servicio | Contenido | Bloquea |
+| PR | Servicio | Contenido | Estado / Bloquea |
 |---|---|---|---|
 | `PR-catalog-image` | catalog-service | S3/MinIO client config + variables de entorno + `POST /api/catalog/my/products/image` + tests | `PR-catalog-products` |
 | `PR-catalog-products` | catalog-service | `/api/catalog/my/products` CRUD (POST/GET/PUT/DELETE) con ownership derivado del JWT + tests | `PR-gateway-2` |
-| `PR-orders-metrics` | orders-service | `GET /api/orders/restaurants/{id}/sales-summary` con agregaciones + tests | `PR-gateway-2` |
-| `PR-gateway-2` | gateway | 2 rutas nuevas (1 a catalog para `/api/catalog/my/*`, 1 a orders para `/api/orders/restaurants/{id}/sales-summary`) | último |
+| `PR-orders-metrics` | orders-service | `GET /api/orders/restaurants/{id}/sales-summary` con agregaciones (subtotal productos sin despacho, ticket medio, top 5) + `SalesSummaryController` + tests | ✅ **Implementado — rama `feat/orders-jwt-roles` (commit `54713f0`)** |
+| `PR-gateway-2` | gateway | Rutas nuevas para catalog (`/api/catalog/my/*`, `/api/catalog/my/products/image`) + soporte multipart (orders ya cubierto) | último |
 
 **Trabajo en paralelo:** `catalog-image` arranca primero (es prerrequisito técnico); `orders-metrics` arranca en paralelo desde el inicio.
 
@@ -254,11 +304,12 @@ Cada OpenSpec change es **autónomamente testeable y deployable**. Los dos cambi
 
 ```
 Change #1:
-  PR-auth      ─────────►
-  PR-orders-1a ─────────►
-  PR-orders-1b ─────────►
-  PR-delivery  ─────────►
-  PR-gateway-1 ────────────────────►
+  PR-orders-jwt-roles ─►                                          (PR previo, bloqueante)
+  PR-auth             ─────────►
+  PR-orders-1a        ─────────►                                  (espera PR-orders-jwt-roles)
+  PR-orders-1b        ─────────►                                  (espera PR-orders-jwt-roles)
+  PR-delivery         ─────────►
+  PR-gateway-1        ────────────────────►
 
 Change #2:
   PR-catalog-image ─► PR-catalog-products ─────────────►
@@ -294,10 +345,12 @@ Flutter → Gateway → auth-service
 ### 7.2 `GET /api/orders/available-for-delivery?restaurant_id=X&limit=5`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter valida JWT (rol delivery)
+                 → JwtValidationFilter valida JWT contra Auth (HTTP /auth/validate)
+                    y extrae userId del `sub` + roles del claim `roles` (ver §4.3.0)
+                 → OrderController valida rol Repartidor con hasRole(Role.REPARTIDOR) (403 si no)
                  → ListAvailableOrdersUseCase(restaurantId, limit)
-                    ├─ OrderRepositoryPort.findByRestaurantAndStatus(
-                    │      restaurantId, LISTO_PARA_RETIRO, limit)
+                    ├─ OrderRepositoryPort.findAvailableForDelivery(
+                    │      restaurantId, limit) (LISTO_PARA_RETIRO y sin repartidor asignado, FIFO)
                     └─ OrderEnricher.enrich(...) (datos de cliente)
                  → 200 [OrderListResponse]
 ```
@@ -305,13 +358,14 @@ Flutter → Gateway → orders-service
 ### 7.3 `PUT /api/orders/{id}/status`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter extrae userId + rol
-                 → UpdateOrderStatusUseCase(orderId, newStatus, rol)
+                 → JwtValidationFilter valida JWT contra Auth (HTTP /auth/validate)
+                    y extrae userId del `sub` + roles del claim `roles` (ver §4.3.0)
+                 → UpdateOrderStatusUseCase(orderId, newStatus, currentRoles, currentUserId)
                     ├─ OrderRepositoryPort.findById(orderId)
-                    ├─ Matriz authz: rol → transiciones permitidas
-                    │   └─ 403 si no autorizado
-                    ├─ order.validateStatusTransition(newStatus)
-                    │   └─ 409 si transición inválida
+                    ├─ RoleTransitionPolicy: ¿algún rol del usuario puede fijar el nuevo estado? (403 si no)
+                    ├─ Si el permiso viene de Restaurante: order.restaurantId == catalogPort.findRestaurantIdByUserId(userId) (403 si no)
+                    ├─ Si el permiso viene de Repartidor:  order.deliveryId == deliveryPort.findDeliveryIdByUserId(userId) (403 si no)
+                    ├─ order.validateStatusTransition(newStatus) (409 si el estado actual no lo permite)
                     └─ OrderRepositoryPort.save(order)
                  → 200 OK
 ```
@@ -319,24 +373,32 @@ Flutter → Gateway → orders-service
 ### 7.4 `GET /api/orders/restaurants/{restaurantId}/sales-summary`
 ```
 Flutter → Gateway → orders-service
-                 → JwtAuthFilter extrae userId + rol
+                 → JwtValidationFilter valida JWT contra Auth y extrae userId + roles (ver §4.3.0)
+                 → SalesSummaryController valida rol Restaurante con hasRole(Role.RESTAURANTE) (403 si no)
                  → GetRestaurantSalesSummaryUseCase(restaurantId, range, currentUserId)
-                    ├─ Validar que currentUserId es dueño de restaurantId (403 si no)
-                    ├─ Calcular rango temporal (from/to según day/week/month)
-                    ├─ OrderRepositoryPort.findByRestaurantAndStatusInRange(...)
-                    ├─ Agregaciones: totalOrders, totalRevenue, avgTicket, topProducts
+                    ├─ Validar que currentUserId es dueño de restaurantId vía
+                    │   catalogPort.findRestaurantIdByUserId(currentUserId) (403 si no)
+                    ├─ Calcular rango temporal (from/to según day/week/month vía Clock inyectable)
+                    ├─ OrderRepositoryPort.findByRestaurantAndStatusAndCreatedAtBetween(...)
+                    ├─ Agregaciones (D13):
+                    │   ├─ totalOrders = cantidad de pedidos ENTREGADO creados en el rango
+                    │   ├─ totalRevenue = suma de subtotales de productos (sin despacho)
+                    │   ├─ avgTicket = totalRevenue ÷ totalOrders, redondeado a pesos (HALF_UP); 0 si vacío
+                    │   └─ topProducts = hasta 5 productos por cantidad (desempate por mayor ingreso)
                     └─ Construir SalesSummaryResponse
-                 → 200 SalesSummaryResponse
+                 → 200 SalesSummaryResponse (dentro de ApiResponse<T>)
 ```
 
 ### 7.5 `/api/catalog/my/products` (CRUD)
 ```
 Flutter → Gateway → catalog-service
-                 → JwtAuthFilter extrae userId + rol store_owner
+                 → Spring Security + JWT RS256 contra JWKS de Auth valida el JWT y mapea
+                    el claim `roles` a authorities (SecurityConfig; §4.4)
                  → MyStoreProductController
-                    ├─ RestaurantOwnershipResolver.resolve(userId)
-                    │   └─ HTTP GET /api/internal/restaurants?userId={userId}
-                    │      → restaurantId (cache TTL 60s)
+                    ├─ Verificar authority `ROLE_Restaurante` (403 si no)
+                    ├─ RestaurantOwnershipResolver.resolve(userId) [uso interno, NO HTTP self-call]
+                    │   └─ GetRestaurantByUserIdUseCase.execute(userId) — local, JPA, sin cache
+                    │      (ver §FR-2 de openspec/changes/store-flow/spec.md y §4.4 del plan)
                     ├─ Validar ownership (403 si producto.restaurantId != resolved)
                     ├─ CRUD JPA normal
                     └─ 200/201/204
@@ -345,12 +407,12 @@ Flutter → Gateway → catalog-service
 ### 7.6 `POST /api/catalog/my/products/image`
 ```
 Flutter → Gateway → catalog-service
-                 → JwtAuthFilter valida JWT (rol store_owner)
+                 → Spring Security + JWT RS256 valida el JWT (rol Restaurante; §4.4)
                  → Validar multipart: tamaño ≤ 5MB, MIME ∈ {jpeg, png, webp}
                  → S3ProductImageStorage.upload(bucket, key, bytes, contentType)
                     └─ 502 si S3 falla
-                 → 201 { url }
-(el cliente luego llama POST /api/catalog/my/products con ese url en image)
+                 → 201 { objectKey, url }
+(el cliente muestra `url` y llama POST /api/catalog/my/products con `objectKey` en image)
 ```
 
 ---
@@ -359,36 +421,42 @@ Flutter → Gateway → catalog-service
 
 | Código | Cuándo |
 |---|---|
-| **400** | Body inválido, MIME no permitido, tamaño excedido |
+| **400** | Body inválido, MIME no permitido, tamaño excedido; parámetro obligatorio faltante o no numérico; `range` inválido; `limit` fuera de 1–50 |
 | **401** | JWT ausente o expirado |
-| **403** | Rol no autorizado / IDOR (repartidor intenta `PUT /status` con `NUEVO_PEDIDO`; tienda intenta editar producto de otro restaurante) |
+| **403** | Rol no autorizado / IDOR (repartidor intenta cambiar pedido no asignado a él; tienda consulta ventas o edita producto de otro restaurante) |
 | **404** | Recurso no existe |
-| **409** | Transición de estado inválida |
+| **409** | Transición de estado inválida (ej. Repartidor intenta `ENTREGADO` sobre un pedido en `LISTO_PARA_RETIRO`) |
 | **413** | Payload > límite (imagen > 5MB) |
 | **502** | Dependencia externa caída (S3/MinIO) |
-| **503** | Servicio abajo (lo emite gateway) |
+| **503** | Servicio abajo (lo emite gateway o fallo externo de Catalog) |
 
-Todos en formato `ApiError` de `shared-observability`.
+Todos en formato `ApiError` de `shared-observability` (nota: `orders-service` usa su propio `ErrorResponse` manteniendo la misma forma `{status, error, message}`).
 
 ---
 
 ## 9. Estrategia de testing
 
 ### Unit tests (sin Docker, corren en CI cada PR)
+- `JwtValidationFilterTest` (orders) — matriz: sin JWT, JWT sin claim `roles`, JWT con `["Restaurante"]`, JWT con `["Cliente", "Repartidor"]`, JWT con `roles` mal formado (string en vez de lista). Verifica que `Authentication.getAuthorities()` contiene `ROLE_<rol>` por cada elemento del claim (detalle en §4.3.0).
+- `CurrentUserResolverTest` (orders) — `requireCurrentRoles()` con cada valor del enum `Role`, con authority ausente (`AccessDeniedException`), y con authority cuyo sufijo no matchea el enum (`AccessDeniedException("Rol desconocido: <x>")`).
+- `RoleTransitionPolicyTest` (orders) — política de transiciones permitidas por rol.
 - `UpdateUserProfileUseCaseTest` (auth)
-- `ListAvailableOrdersUseCaseTest` (orders)
-- `UpdateOrderStatusUseCaseTest` con matriz rol × transición (orders)
-- `GetRestaurantSalesSummaryUseCaseTest` (orders)
+- `ListAvailableOrdersUseCaseTest` (orders) — verificación del listado FIFO excluyendo pedidos ya asignados.
+- `UpdateOrderStatusUseCaseTest` (orders) — validación con política de roles, ownership restaurante y asignación repartidor.
+- `GetRestaurantSalesSummaryUseCaseTest` (orders) — agregaciones de ventas, ticket medio, top productos y control de ownership.
+- `SalesSummaryControllerTest` (orders) — validación de endpoints y respuestas.
 - `OwnerProductUseCasesTest` x 4 CRUD (catalog)
 - `UploadProductImageUseCaseTest` con stub de S3 (catalog)
-- `ClaimDeliveryOrdersUseCaseTest` ajustado: verificar que **no** se modifica `Order.status` ni ruta a `EN_CAMINO` post-claim (orders)
-- `RestaurantOwnershipResolverTest` con stub HTTP (catalog)
+- `ClaimDeliveryOrdersUseCaseTest` ajustado: verificar que **no** se modifica `Order.status` ni ruta a `EN_CAMINO` post-claim y no sincroniza ruta (orders)
+- `RestaurantOwnershipResolverTest` con stub HTTP (catalog) *(en orders no aplica: se reutiliza `CatalogPort`)*
 
-### Integration tests `*IT.java` (test containers, CI los corre)
+### Integration tests (test containers, CI los corre)
+> **Convención de nomenclatura en orders-service:** en orders-service los tests de integración se nombran `*Test` o `*IntegrationTest` (no `*IT.java` porque Maven no tiene Failsafe configurado; `*IT` no se ejecutaría) (D2).
+
 - `AuthControllerIT` — `PUT /auth/profile` con perfil válido, email duplicado, JWT inválido.
-- `OrderControllerIT` — matriz 2D (rol × transición) para `PUT /api/orders/{id}/status`.
-- `AvailableDeliveryOrdersIT` — `GET /api/orders/available-for-delivery` filtrando correctamente por estado y limitando resultados.
-- `RestaurantMetricsIT` — agregaciones correctas, validación de ownership.
+- `OrderControllerStatusAuthzTest` (orders, antes `OrderControllerIT`) — matriz 2D (rol × transición y ownership) para `PUT /api/orders/{id}/status`.
+- `AvailableDeliveryOrdersControllerTest` y `JpaOrderRepositoryAdapterTest` (orders, antes `AvailableDeliveryOrdersIT`) — `GET /api/orders/available-for-delivery` filtrando correctamente pedidos listos sin repartidor, orden FIFO y límites contra Postgres real.
+- `SalesSummaryIntegrationTest` y `SalesSummaryControllerTest` (orders, antes `RestaurantMetricsIT`) — agregaciones de métricas con Postgres real, validación de ownership.
 - `CatalogMyProductsIT` — CRUD con ownership, intento de IDOR devuelve 403.
 - `CatalogImageUploadIT` — multipart válido, MIME inválido, tamaño excedido, S3 caído → 502 (con LocalStack o stub).
 
@@ -416,23 +484,26 @@ Todos en formato `ApiError` de `shared-observability`.
 
 | # | Riesgo | Mitigación |
 |---|---|---|
-| 1 | El PR de `delivery-service` (quitar cambio de status en claim) cambia comportamiento — clientes viejos de Flutter que asumen `EN_CAMINO` post-claim pueden romperse | Coordinar con dev de Flutter antes del merge; documentar en `tasks.md` del OpenSpec que la app debe transicionar manualmente al primer `RETIRADO` |
+| 1 | El PR de claim cambia comportamiento — clientes viejos de Flutter que asumen `EN_CAMINO` post-claim pueden romperse | **Mitigado** — informado a Javier (Flutter); la app transiciona manualmente a `RETIRADO` y luego `ENTREGADO`. Implementación a cargo de Flutter para cuando todos los servicios cumplan el plan (ver sección 6 del informe) |
 | 2 | ~~Cache `userId → restaurantId` en catalog-service puede quedar stale~~ **Eliminado**: el plan corregido usa `GetRestaurantByUserIdUseCase` local, sin cache HTTP self-call | N/A |
-| 3 | S3/MinIO en Floci **NO está aprovisionado** para catalog (`infra/floci/INFRASTRUCTURE.md` marca como `not used`). No hay bucket, vars S3, secretos ni task definition | Antes de PR-catalog-image: crear bucket S3 en Floci, endpoint accesible desde el contenedor, credenciales/rol, política de lectura, CORS, vars en `env.shared.template`, task definition ECS y config local |
-| 4 | **Build integrado del monorepo está roto** para catalog: `services/build.gradle.kts` fija Spring Boot 3.3.5, `services/catalog-service/build.gradle.kts` declara 3.5.16. `services/gradlew.bat :catalog-service:test` FAIL por conflicto | Tarea previa: alinear versión de Spring Boot O retirar catalog del build raíz. Agregar `catalog-service-ci.yml` que ejecute tests autónomos |
-| 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `store_owner`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) rol real es `Restaurante` (no `store_owner`), (d) gateway no reenvía `roles[]` en claims por defecto | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities. Definir convención de roles única |
+| 3 | S3/MinIO en Floci requiere aprovisionamiento para catalog. El código y task definition declaran bucket, vars y secretos, pero el responsable de Floci debe crear el bucket y cargar los valores reales | Antes del deploy: crear `flashdrop-products`, cargar secretos y completar `gateway/docker/env.stack.template`; no usar los archivos archivados de Coolify |
+| 4 | Catalog usa Spring Boot 3.5.16 y el build raíz usa 3.3.5 | Decisión aplicada: retirar Catalog de `services/settings.gradle.kts` y mantener su build autónomo, sin cambiar Auth ni Delivery |
+| 5 | **Catalog no tiene Spring Security**. Plan asume `requestMatchers` con `Restaurante`, pero (a) dependencia no está, (b) `SecurityConfig` no existe, (c) gateway ya reenvía `Authorization: Bearer <jwt>` con el claim `roles` (validado contra `JwtTokenService` de Auth y `middleware/jwt-auth/plugin.ts` del gateway), pero el backend debe leerlo. Detalle del fix en §4.3.0 | Agregar `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`. Implementar `SecurityConfig` que valida JWT RS256 contra JWKS de Auth y mapea `roles` a authorities con prefijo `ROLE_`. Convención de roles ya unificada: `Cliente`/`Restaurante`/`Repartidor` (§4.3.0) |
 | 6 | **Gateway no soporta multipart** para `/api/catalog/my/products/image`. `engine.ts` serializa con `JSON.stringify`, no hay `@fastify/multipart` en deps, bodyLimit insuficiente | PR-gateway-2 debe incluir código real: parser multipart, bodyLimit ≥ 6MB, passthrough raw stream, preservar `Content-Type` con boundary |
 | 7 | **Soft delete no oculta del catálogo público**. `ListProductsUseCase` usa `findAll`/`findByCategoryId`/`findByRestaurantId` sin filtrar `is_available`. Si se implementa el DELETE sin esto, productos desactivados siguen visibles | Agregar queries `...AndIsAvailableTrue` y métodos separados `findAllAvailable()`, `findByRestaurantIdAndAvailableTrue(...)`. Usarlos en endpoints públicos. `/api/catalog/my/*` puede usar los métodos sin filtro para ver desactivados |
 | 8 | **Contrato de errores inconsistente**. Plan exige `ApiError` de shared-observability, pero catalog usa `ErrorResponse` propio y `RestExceptionHandler` no cubre 401/403/413/502 | Decisión: adoptar `ApiError` para consistencia con auth/orders/delivery (recomendado), o mantener `ErrorResponse` y documentar la divergencia. Agregar handlers específicos |
-| 9 | Autorización por rol depende de que el JWT traiga `roles[]`. Si no está, la authz falla cerrado | Verificar que `RegisterUserUseCase` asigne roles correctamente; tests cubren "JWT sin roles" |
-| 10 | Métricas con `LISTO_PARA_RETIRO` muy alto en alguna tienda → query lenta | Evaluar índice `orders(restaurant_id, status, created_at)` en PR-orders-metrics |
+| 9 | (RESUELTO por `PR-orders-jwt-roles`, commit `f739138`) Autorización por rol dependía de que orders-service leyera el claim `roles` del JWT. El filtro actual los descartaba | **Resuelto** — commit `f739138` |
+| 10 | Métricas con `LISTO_PARA_RETIRO` muy alto en alguna tienda → query lenta | No medido; el índice no se agregó (se mantiene default: cero migraciones) |
 | 11 | Tests de integración contra S3 real son flaky | Usar LocalStack o stub in-memory; documentar |
-| 12 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 va al final, después de que los otros estén mergeados a `main` |
+| 12 | El PR-gateway-1 depende de que PR-orders-status-authz y PR-orders-available estén mergeados. Si un dev lo mergea antes, las rutas devuelven 404 | PR-gateway-1 reformulado como verificación (las rutas de orders ya están cubiertas por `/api/orders`) |
 | 13 | catalog-image y catalog-products se mergean en paralelo y ambos tocan `build.gradle.kts` (Spring Security + AWS SDK) y `SecurityConfig` → conflicto | catalog-products depende técnicamente de catalog-image (comparten `build.gradle.kts`, `SecurityConfig`, `application.yml`); el dev de catalog los mergea secuencialmente en su orden interno |
-| 14 | **`Order.validateStatusTransition()` actual está incompleto** (solo rechaza `ENTREGADO → *`). Permite, por ejemplo, `NUEVO_PEDIDO → ENTREGADO` directo. El spec dice "409 si la transición no es válida por el estado actual" pero la lógica para emitir ese 409 no existe | PR-orders-status-authz agrega matrix completa `from × to` en `Order.validateStatusTransition()`. Validaciones unitarias exhaustivas para cada par inválido |
-| 15 | **IDOR en `updateOrderStatus` para rol `Restaurante`**: cualquier `Restaurante` con JWT puede cambiar el estado de cualquier pedido, no solo de su restaurante | PR-orders-status-authz valida que `order.getRestaurantId() == ownershipPort.resolveRestaurantId(currentUserId)` antes de aplicar el cambio (403 si no). Test IT explícito del caso IDOR |
-| 16 | **`openapi.yaml` queda desactualizado**. Si bien el plan dice "sin código nuevo en gateway, solo config", en orders-service los 3 PRs agregan endpoints. El OpenAPI debe actualizarse en el mismo PR o queda drift con la implementación | Cada PR de orders-service que agregue endpoint incluye commit `docs(openapi): update openapi.yaml with new endpoint`. Code review del PR verifica |
-| 17 | **`EN_CAMINO` queda como estado legacy**. Después de PR-delivery, no se asignan nuevos pedidos a `EN_CAMINO`. Pedidos ya en ese estado siguen en la BD; `validateStatusTransition` debe permitir `EN_CAMINO → ENTREGADO` (legacy) | Documentar en `Order.java` que `EN_CAMINO` es legacy. `validateStatusTransition` permite transiciones `EN_CAMINO → RETIRADO`, `EN_CAMINO → ENTREGADO` y viceversa con `RETIRADO`. Pedidos en `EN_CAMINO` se procesan por flujo normal sin migración de datos |
+| 14 | **`Order.validateStatusTransition()` actual está incompleto** (solo rechaza `ENTREGADO → *`) | **Resuelto** — commit `ef2e32a`: matriz completa `from × to` con `RoleTransitionPolicy` |
+| 15 | **IDOR en `updateOrderStatus` para rol `Restaurante` y `Repartidor`** | **Resuelto** — commit `ef2e32a`: validación de dueño de restaurante vía `catalogPort.findRestaurantIdByUserId` y asignación de repartidor vía `deliveryPort.findDeliveryIdByUserId` |
+| 16 | **`openapi.yaml` queda desactualizado** | Resuelto en commits de orders-service con actualización de openapi |
+| 17 | **`EN_CAMINO` queda como estado legacy** | **Resuelto** — Repartidor puede llevar `EN_CAMINO → RETIRADO` y `EN_CAMINO → ENTREGADO`; ningún rol puede llevar a `EN_CAMINO` |
+| 18 | **Bug bloqueante de authorities vacías en JWT** | **Resuelto** — commit `f739138` |
+| 19 | El claim de la app pasa por delivery-service y solo llega a Orders si `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=true`. Sin eso, Orders no conoce el repartidor asignado: el repartidor recibe 403 al marcar Retirado y el pedido sigue disponible | **Mitigado** — activación aprobada en FloCI (`infra/floci/task-definitions/delivery-service.dev.json`), a desplegar junto con los cambios de Orders (ver sección 5 del informe) |
+| 20 | Testcontainers 1.19.7 (orders-service) no funciona con Docker Engine 29: los tests de base de datos fallan en equipos con Docker Desktop reciente | **Mitigación**: subir la versión en el `pom.xml` de orders-service (o temporalmente configurar `~/.docker-java.properties` con `api.version=1.44`) |
 
 ---
 
@@ -440,12 +511,23 @@ Todos en formato `ApiError` de `shared-observability`.
 
 Esta sesión **solo planeó**. Cuando se apruebe este doc:
 
-1. **Crear los dos OpenSpec changes** (`openspec/changes/profile-and-delivery/` y `openspec/changes/store-flow/`) con `proposal.md`, `tasks.md`, `spec.md` y `design.md` — trabajo de esta misma sesión (siguiente paso inmediato).
+0. **(Hecho — commit `f739138`) Implementar `PR-orders-jwt-roles`** — fix del bug de lectura de roles del JWT en `orders-service/JwtValidationFilter.java:86-91`.
+1. **Crear los dos OpenSpec changes** (`openspec/changes/profile-and-delivery/` y `openspec/changes/store-flow/`) con `proposal.md`, `tasks.md`, `spec.md` y `design.md`.
 2. **Asignar los PRs** a los dueños de cada servicio según la tabla §6.
-3. **Coordinar con el dev de Flutter** el cambio de comportamiento del `claim` antes del merge del PR-delivery (riesgo #1).
+3. **(Hecho en Orders) Coordinar con el dev de Flutter** el cambio de comportamiento del claim (informado a Javier; ver sección 6 del informe).
 4. **Configurar el bucket S3/MinIO** en Floci antes del PR-catalog-image (riesgo #3).
-6. **Mergear en orden** los PRs internos de cada change (PR-gateway-* al final de cada uno).
+5. **Mergear en orden** los PRs internos de cada change.
+6. **Activar `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=true` en FloCI** (`infra/floci/task-definitions/delivery-service.dev.json`) al desplegar delivery-service / orders-service.
+7. **Ejecutar pruebas de verificación del gateway** (G1–G8 del informe: validación de rutas y reenvío de `Authorization`).
+8. **Abrir PR de Orders** cuando todos los servicios estén listos y avisar a Nicolás al mergear (el servidor no se actualiza solo).
+9. **Prueba de punta a punta en FloCI**: tomar pedido → Retirado → Entregado → resumen de ventas.
+
+### 12.1 Datos de prueba de referencia (seeds de development)
+- `cliente@demo.cl` (usuario 1, rol `Cliente`)
+- `restaurante@demo.cl` (usuario 2, rol `Restaurante`, dueño del restaurante 1 "Urban Burger Demo")
+- `repartidor@demo.cl` (usuario 3, rol `Repartidor`)
+- `admin@demo.cl` (usuario 4, usuario multirol con los 3 roles: `Cliente`, `Restaurante`, `Repartidor`, dueño del restaurante 2 "Flash Restaurant Demo")
 
 ---
 
-**Sesión de brainstorming cerrada.** Esperando confirmación para commitear este doc y los dos OpenSpec changes al repo.
+**Sesión de brainstorming cerrada.** Documento actualizado conforme a la implementación y acuerdos del informe de Orders.

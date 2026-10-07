@@ -17,8 +17,11 @@ public class ListProductsUseCase {
     }
 
     public List<Product> execute() {
-        // Accion del sistema: listar productos disponibles para el catalogo.
         return productRepositoryPort.findAll();
+    }
+
+    public List<Product> executeAvailable() {
+        return productRepositoryPort.findAllAvailable();
     }
 
     public List<Product> execute(Long categoryId, Long restaurantId) {
@@ -38,5 +41,24 @@ public class ListProductsUseCase {
         }
 
         return execute();
+    }
+
+    public List<Product> executeAvailable(Long categoryId, Long restaurantId) {
+        if (categoryId != null && restaurantId != null) {
+            return productRepositoryPort.findByCategoryIdAndAvailableTrue(categoryId)
+                    .stream()
+                    .filter(product -> restaurantId.equals(product.getRestaurantId()))
+                    .toList();
+        }
+
+        if (categoryId != null) {
+            return productRepositoryPort.findByCategoryIdAndAvailableTrue(categoryId);
+        }
+
+        if (restaurantId != null) {
+            return productRepositoryPort.findByRestaurantIdAndAvailableTrue(restaurantId);
+        }
+
+        return executeAvailable();
     }
 }

@@ -114,7 +114,7 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
 
         UpdateOrderStatusUseCase updateOrderStatusUseCase = new UpdateOrderStatusUseCase(
-                orderRepositoryAdapter, deliveryAdapter, eventPublisher);
+                orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter);
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         ListOrdersUseCase listOrdersUseCase = new ListOrdersUseCase(
@@ -128,8 +128,10 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(claimDeliveryOrdersUseCase, "maxClaimPerRoute", 3);
 
         CurrentUserResolver currentUserResolver = new CurrentUserResolver();
+        ListAvailableOrdersUseCase listAvailableOrdersUseCase = new ListAvailableOrdersUseCase(
+                orderRepositoryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
         orderController = new OrderController(createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase,
-                updateOrderStatusUseCase, currentUserResolver);
+                updateOrderStatusUseCase, currentUserResolver, listAvailableOrdersUseCase);
         deliveryController = new DeliveryController(claimDeliveryOrdersUseCase, currentUserResolver);
 
         // GAP-04/GAP-03: OrderController.createOrder() y DeliveryController.claimOrders()
@@ -192,8 +194,8 @@ class OrdersE2ESimulatedTest {
                         .withBody("{\"success\":true,\"message\":null,\"data\":{\"id\":9,\"userId\":\"1\",\"vehicle\":\"MOTO\"}}")));
 
         // 6. Delivery (C-7): PATCH /api/internal/routes/order/501/status
-        // No hay endpoint bulk todavia (GAP-01b): el claim de un solo pedido dispara una
-        // llamada single por orderId.
+        // PR-orders-claim (spec FR-3): el claim YA NO sincroniza la ruta (no muta estado).
+        // El stub se deja para verificar abajo que NO se llama.
         wireMock.stubFor(patch(urlPathEqualTo("/api/internal/routes/order/501/status"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
                 .willReturn(aResponse()
@@ -249,7 +251,7 @@ class OrdersE2ESimulatedTest {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("[{\"id\":501,\"client_id\":10,\"restaurant_id\":7,\"delivery_id\":9,\"status\":\"En camino\",\"address\":\"Av. Providencia 1200\",\"subtotal\":2000,\"delivery_fee\":2500,\"total\":4500,\"payment_method\":\"Tarjeta\",\"created_at\":\"2026-08-22T00:00:00Z\"}]")));
+                        .withBody("[{\"id\":501,\"client_id\":10,\"restaurant_id\":7,\"delivery_id\":9,\"status\":\"Nuevo pedido\",\"address\":\"Av. Providencia 1200\",\"subtotal\":2000,\"delivery_fee\":2500,\"total\":4500,\"payment_method\":\"Tarjeta\",\"created_at\":\"2026-08-22T00:00:00Z\"}]")));
 
         // GET /order_items?order_id=eq.501
         wireMock.stubFor(get(urlPathMatching("/rest/v1/order_items"))
@@ -303,7 +305,8 @@ class OrdersE2ESimulatedTest {
         OrderDetailResponse detail = detailResponse.getData();
         assertNotNull(detail);
         assertEquals(ORDER_UUID, detail.getId());
-        assertEquals("En camino", detail.getStatus());
+        // PR-orders-claim: tras el claim el pedido conserva su estado (no pasa a "En camino").
+        assertEquals("Nuevo pedido", detail.getStatus());
         assertNotNull(detail.getClient());
         assertEquals("Maria Perez", detail.getClient().getName());
         assertEquals("maria@test.com", detail.getClient().getEmail());
@@ -327,9 +330,11 @@ class OrdersE2ESimulatedTest {
                 .withQueryParam("userId", equalTo("1"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
 
-        wireMock.verify(patchRequestedFor(urlPathEqualTo("/api/internal/routes/order/501/status"))
-                .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
-                .withRequestBody(matchingJsonPath("$.status", equalTo("EN_CAMINO"))));
+        // PR-orders-claim: el claim solo persiste delivery_id — no toca status ni la ruta.
+        wireMock.verify(patchRequestedFor(urlPathMatching("/rest/v1/orders"))
+                .withRequestBody(matchingJsonPath("$.delivery_id", equalTo("9")))
+                .withRequestBody(notContaining("\"status\"")));
+        wireMock.verify(0, patchRequestedFor(urlPathEqualTo("/api/internal/routes/order/501/status")));
 
         wireMock.verify(getRequestedFor(urlEqualTo("/api/internal/users/1"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));

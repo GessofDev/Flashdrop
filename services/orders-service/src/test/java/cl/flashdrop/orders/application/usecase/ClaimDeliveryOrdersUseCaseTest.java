@@ -86,12 +86,58 @@ class ClaimDeliveryOrdersUseCaseTest {
         when(orderRepository.countActiveOrdersByDelivery(DELIVERY_ID)).thenReturn(0);
         when(orderRepository.findByIdsForClaim(orderIds))
                 .thenReturn(List.of(claimableOrder(orderId1), claimableOrder(orderId2)));
-        when(orderRepository.claimOrders(orderIds, DELIVERY_ID, OrderStatus.EN_CAMINO)).thenReturn(2);
+        when(orderRepository.claimOrders(orderIds, DELIVERY_ID)).thenReturn(2);
 
         useCase.execute(USER_ID, orderIds);
 
-        verify(orderRepository).claimOrders(orderIds, DELIVERY_ID, OrderStatus.EN_CAMINO);
-        verify(deliveryPort).updateRouteStatus(orderIds, OrderStatus.EN_CAMINO.getValue());
+        verify(orderRepository).claimOrders(orderIds, DELIVERY_ID);
+    }
+
+    /**
+     * PR-orders-claim (spec FR-3, ADR-1): el claim solo asigna el repartidor. El estado del
+     * pedido y de la ruta NO cambian — el repartidor transiciona manualmente a RETIRADO al
+     * recoger el pedido ({@code PUT /api/orders/{id}/status}).
+     */
+    @Test
+    void claimExitoso_noMutaEstadoDelPedidoNiDeLaRuta() {
+        UUID orderId = UUID.randomUUID();
+        List<UUID> orderIds = List.of(orderId);
+
+        resolveDeliveryFor(USER_ID);
+        when(orderRepository.countActiveOrdersByDelivery(DELIVERY_ID)).thenReturn(0);
+        when(orderRepository.findByIdsForClaim(orderIds)).thenReturn(List.of(claimableOrder(orderId)));
+        when(orderRepository.claimOrders(orderIds, DELIVERY_ID)).thenReturn(1);
+
+        useCase.execute(USER_ID, orderIds);
+
+        verify(orderRepository).claimOrders(orderIds, DELIVERY_ID);
+        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(deliveryPort, never()).updateRouteStatus(anyList(), any());
+    }
+
+    /**
+     * Sin mutación a EN_CAMINO, un pedido tomado sigue en LISTO_PARA_RETIRO: lo que lo marca
+     * como tomado es tener repartidor asignado. Otro repartidor no puede volver a tomarlo.
+     */
+    @Test
+    void pedidoYaAsignadoAOtroRepartidor_lanzaExcepcion() {
+        UUID orderId = UUID.randomUUID();
+        Order assignedOrder = Order.builder()
+                .id(orderId)
+                .restaurantId(RESTAURANT_ID)
+                .deliveryId(UUID.randomUUID())
+                .status(OrderStatus.LISTO_PARA_RETIRO)
+                .build();
+
+        resolveDeliveryFor(USER_ID);
+        when(orderRepository.countActiveOrdersByDelivery(DELIVERY_ID)).thenReturn(0);
+        when(orderRepository.findByIdsForClaim(List.of(orderId))).thenReturn(List.of(assignedOrder));
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> useCase.execute(USER_ID, List.of(orderId)));
+
+        assertEquals("Uno o mas pedidos ya fueron tomados por otro repartidor", ex.getMessage());
+        verify(orderRepository, never()).claimOrders(anyList(), any());
     }
 
     @Test
@@ -102,7 +148,7 @@ class ClaimDeliveryOrdersUseCaseTest {
         resolveDeliveryFor(USER_ID);
         when(orderRepository.countActiveOrdersByDelivery(DELIVERY_ID)).thenReturn(0);
         when(orderRepository.findByIdsForClaim(orderIds)).thenReturn(List.of(claimableOrder(orderId)));
-        when(orderRepository.claimOrders(orderIds, DELIVERY_ID, OrderStatus.EN_CAMINO)).thenReturn(1);
+        when(orderRepository.claimOrders(orderIds, DELIVERY_ID)).thenReturn(1);
 
         useCase.execute(USER_ID, orderIds);
 
@@ -112,7 +158,7 @@ class ClaimDeliveryOrdersUseCaseTest {
         // entrada. DELIVERY_ID y USER_ID son UUIDs distintos generados por separado, así
         // que verificar el argumento exacto de estas dos llamadas basta para probarlo.
         verify(orderRepository).countActiveOrdersByDelivery(DELIVERY_ID);
-        verify(orderRepository).claimOrders(orderIds, DELIVERY_ID, OrderStatus.EN_CAMINO);
+        verify(orderRepository).claimOrders(orderIds, DELIVERY_ID);
     }
 
     @Test
@@ -123,7 +169,7 @@ class ClaimDeliveryOrdersUseCaseTest {
                 () -> useCase.execute(USER_ID, List.of(UUID.randomUUID())));
 
         assertEquals("El usuario no tiene perfil de repartidor", ex.getMessage());
-        verify(orderRepository, never()).claimOrders(anyList(), any(), any());
+        verify(orderRepository, never()).claimOrders(anyList(), any());
         verify(orderRepository, never()).countActiveOrdersByDelivery(any());
     }
 
@@ -136,7 +182,7 @@ class ClaimDeliveryOrdersUseCaseTest {
                 () -> useCase.execute(USER_ID, List.of(UUID.randomUUID())));
 
         assertEquals("Ya tienes pedidos en ruta. Termina tu ruta antes de tomar mas pedidos", ex.getMessage());
-        verify(orderRepository, never()).claimOrders(anyList(), any(), any());
+        verify(orderRepository, never()).claimOrders(anyList(), any());
     }
 
     @Test
@@ -219,7 +265,7 @@ class ClaimDeliveryOrdersUseCaseTest {
         resolveDeliveryFor(USER_ID);
         when(orderRepository.countActiveOrdersByDelivery(DELIVERY_ID)).thenReturn(0);
         when(orderRepository.findByIdsForClaim(List.of(orderId))).thenReturn(List.of(claimableOrder(orderId)));
-        when(orderRepository.claimOrders(List.of(orderId), DELIVERY_ID, OrderStatus.EN_CAMINO)).thenReturn(0);
+        when(orderRepository.claimOrders(List.of(orderId), DELIVERY_ID)).thenReturn(0);
 
         OrderDomainException ex = assertThrows(OrderDomainException.class,
                 () -> useCase.execute(USER_ID, List.of(orderId)));

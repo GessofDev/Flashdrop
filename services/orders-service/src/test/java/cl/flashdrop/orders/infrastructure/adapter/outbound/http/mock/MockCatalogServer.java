@@ -89,12 +89,15 @@ public final class MockCatalogServer {
     }
 
     // ── C-3: GET /api/internal/restaurants?userId={userId} ─────────────
+    // Contrato real de Catalog (InternalCatalogController.getRestaurantByUserId, confirmado
+    // por Javier): devuelve UN objeto InternalRestaurantResponse, no una lista. Si el
+    // usuario no tiene restaurante, Catalog responde 404 (no existe el caso "lista vacía").
 
     public static void stubGetRestaurantsByUserIdOk(WireMockExtension wm, long userId, long restaurantId,
                                                      String name, String address) {
         String json = String.format(
-                "[{\"id\":%d,\"name\":\"%s\",\"address\":\"%s\",\"userId\":%d}]",
-                restaurantId, name, address, userId);
+                "{\"id\":%d,\"userId\":%d,\"name\":\"%s\",\"address\":\"%s\"}",
+                restaurantId, userId, name, address);
         wm.stubFor(get(urlPathMatching("/api/internal/restaurants"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
                 .withQueryParam("userId", equalTo(String.valueOf(userId)))
@@ -102,16 +105,6 @@ public final class MockCatalogServer {
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody(json)));
-    }
-
-    public static void stubGetRestaurantsByUserIdEmpty(WireMockExtension wm, long userId) {
-        wm.stubFor(get(urlPathMatching("/api/internal/restaurants"))
-                .withHeader("X-Internal-Api-Key", equalTo(API_KEY))
-                .withQueryParam("userId", equalTo(String.valueOf(userId)))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody("[]")));
     }
 
     public static void stubGetRestaurantsByUserIdNotFound(WireMockExtension wm, long userId) {

@@ -41,7 +41,14 @@ public class InMemoryProductRepositoryAdapter implements ProductRepositoryPort {
 
     @Override
     public List<Product> findAll() {
-        return products;
+        return List.copyOf(products);
+    }
+
+    @Override
+    public List<Product> findAllAvailable() {
+        return products.stream()
+                .filter(Product::isAvailable)
+                .toList();
     }
 
     @Override
@@ -59,8 +66,24 @@ public class InMemoryProductRepositoryAdapter implements ProductRepositoryPort {
     }
 
     @Override
+    public List<Product> findByCategoryIdAndAvailableTrue(Long categoryId) {
+        return products.stream()
+                .filter(Product::isAvailable)
+                .filter(product -> product.getCategoryId().equals(categoryId))
+                .toList();
+    }
+
+    @Override
     public List<Product> findByRestaurantId(Long restaurantId) {
         return products.stream()
+                .filter(product -> product.getRestaurantId().equals(restaurantId))
+                .toList();
+    }
+
+    @Override
+    public List<Product> findByRestaurantIdAndAvailableTrue(Long restaurantId) {
+        return products.stream()
+                .filter(Product::isAvailable)
                 .filter(product -> product.getRestaurantId().equals(restaurantId))
                 .toList();
     }

@@ -2,7 +2,6 @@ package cl.flashdrop.orders.application.usecase;
 
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.Order;
-import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +20,12 @@ import java.util.stream.Collectors;
  *
  * Permite a un repartidor seleccionar entre 1 y 3 pedidos del mismo restaurante
  * para iniciar su ruta. Aplica todas las validaciones de negocio necesarias.
+ *
+ * <p>PR-orders-claim (spec FR-3, ADR-1): el claim SOLO asigna el repartidor. Ya no muta
+ * el estado del pedido a EN_CAMINO ni sincroniza la ruta: cada pedido conserva su estado
+ * y el repartidor transiciona manualmente a RETIRADO al recogerlo
+ * ({@code PUT /api/orders/{id}/status}). Un pedido "tomado" es uno con repartidor
+ * asignado ({@link Order#isClaimable()}).</p>
  */
 @Slf4j
 @Service
@@ -73,9 +78,9 @@ public class ClaimDeliveryOrdersUseCase {
             throw new OrderDomainException("Uno o mas pedidos ya no estan disponibles");
         }
 
-        // 4. Verificar que ninguno ha sido ya tomado
-        boolean hasClosed = orders.stream().anyMatch(o -> o.getStatus().isClosed());
-        if (hasClosed) {
+        // 4. Verificar que ninguno ha sido ya tomado (tiene repartidor o estado cerrado)
+        boolean alreadyTaken = orders.stream().anyMatch(o -> !o.isClaimable());
+        if (alreadyTaken) {
             throw new OrderDomainException("Uno o mas pedidos ya fueron tomados por otro repartidor");
         }
 
@@ -87,15 +92,13 @@ public class ClaimDeliveryOrdersUseCase {
             throw new OrderDomainException("Solo puedes agrupar pedidos del mismo restaurante");
         }
 
-        // 6. Asignar repartidor y cambiar estado (con optimistic lock: sólo si siguen disponibles)
-        int updated = orderRepository.claimOrders(uniqueOrderIds, deliveryId, OrderStatus.EN_CAMINO);
+        // 6. Asignar repartidor, sin tocar el estado de los pedidos
+        int updated = orderRepository.claimOrders(uniqueOrderIds, deliveryId);
         if (updated != uniqueOrderIds.size()) {
             throw new OrderDomainException(
                     "Alguien tomo uno de estos pedidos antes que tu. Actualiza la lista");
         }
 
-        // 7. Sincronizar rutas
-        deliveryPort.updateRouteStatus(uniqueOrderIds, OrderStatus.EN_CAMINO.getValue());
 
         log.info("Repartidor {} tomó {} pedidos: {}", deliveryId, uniqueOrderIds.size(), uniqueOrderIds);
     }

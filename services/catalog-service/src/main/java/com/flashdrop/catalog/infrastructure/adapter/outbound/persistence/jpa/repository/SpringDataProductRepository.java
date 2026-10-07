@@ -11,7 +11,13 @@ public interface SpringDataProductRepository extends JpaRepository<ProductEntity
 
     List<ProductEntity> findByIdIn(Collection<Long> ids);
 
+    List<ProductEntity> findAllByAvailableTrue();
+
     List<ProductEntity> findByCategoryId(Long categoryId);
 
+    List<ProductEntity> findByCategoryIdAndAvailableTrue(Long categoryId);
+
     List<ProductEntity> findByRestaurantId(Long restaurantId);
+
+    List<ProductEntity> findByRestaurantIdAndAvailableTrue(Long restaurantId);
 }

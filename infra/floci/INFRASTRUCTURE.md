@@ -34,7 +34,8 @@ de un servicio emulado sin recursos, no la de uno inexistente.
 | ELBv2 (ALB / NLB)  | ✅ verificado   | Public-facing load balancing         | Sin recursos todavía |
 | IAM / STS          | ✅              | Task roles, cross-service auth       | Planned       |
 | CloudWatch Logs    | ✅ verificado   | Logs de las tareas ECS              | **Active** — Floci ya crea grupos por instancia RDS |
-| S3, SQS, SNS       | ✅ (not used)   | Reserved for future needs            | n/a           |
+| S3                 | ✅              | Product images for catalog           | Bucket `flashdrop-products` required |
+| SQS, SNS           | ✅ (not used)   | Reserved for future needs            | n/a           |
 | Lambda             | ✅ (not used)   | Reserved for future needs            | n/a           |
 
 **CloudWatch Logs está emulado.** Verificado el 2026-09-10: `describe-log-groups`
@@ -322,7 +323,34 @@ following must be identical between FloCI and real AWS:
 If a row on this checklist differs between dev and prod, that is a bug to fix
 **before** the production deploy, not after.
 
-## 8. Cross-service networking
+## 8. Catalog product images (S3)
+
+Catalog stores only an immutable object key (`products/YYYY/MM/<uuid>.<ext>`).
+The object remains private in S3; clients download it through the gateway route
+`/catalog/images/**`, which proxies to Catalog. Catalog returns that relative
+path and the app prepends its configured backend base URL. Create the development
+bucket before deploying the image endpoints:
+
+```bash
+aws --endpoint-url http://127.0.0.1:4566 s3api create-bucket \
+  --bucket flashdrop-products --region us-east-1
+```
+
+The Catalog container uses `http://floci:4566` because it joins
+`floci_default`. S3 uses path-style requests so the bucket is not treated as a
+DNS subdomain. Only these values are stored as secrets outside source control:
+
+- `catalog/s3-access-key`
+- `catalog/s3-secret-key`
+
+`S3_PUBLIC_URL_BASE=/catalog/images` is ordinary configuration, not a secret.
+The private bucket does not require browser CORS because image bytes are served
+by Catalog through the gateway.
+
+The active Compose template is `gateway/docker/env.stack.template`. Do not add
+these values to the archived Coolify files.
+
+## 9. Cross-service networking
 
 Today delivery-service can call other services because they all share
 `floci_default`. The DNS names `flashdrop-auth:8081`, `flashdrop-orders:8083`,
@@ -333,7 +361,7 @@ Until then: cross-service calls in dev are by IP (`172.16.1.X:port`). This is
 acceptable for dev but **must not** leak into code — every cross-service URL must
 come from config / env var, never be hardcoded.
 
-## 9. Operational notes
+## 10. Operational notes
 
 - **Backups**: FloCI's RDS instances are not backed up. Treat them as
   ephemeral — every DB state we care about lives in Flyway migrations.
@@ -349,7 +377,7 @@ come from config / env var, never be hardcoded.
 - **Metrics**: not wired. Add when needed (FloCI likely supports CloudWatch
   metrics — to verify).
 
-## 10. References
+## 11. References
 
 - FloCI project: https://github.com/floci/floci
 - FloCI docs: see project README for the full list of emulated services

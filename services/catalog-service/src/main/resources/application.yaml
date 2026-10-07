@@ -3,6 +3,15 @@ spring:
     name: catalog-service
   config:
     import: optional:file:.env[.properties]
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   port: 8082
@@ -12,5 +21,15 @@ internal:
     key: ${INTERNAL_API_KEY}
 
 catalog:
+  auth:
+    issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}
   cors:
     allowed-origins: ${CATALOG_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200}
+  storage:
+    s3:
+      endpoint: ${S3_ENDPOINT:http://localhost:4566}
+      bucket: ${S3_BUCKET:flashdrop-products}
+      region: ${S3_REGION:us-east-1}
+      access-key: ${S3_ACCESS_KEY:test}
+      secret-key: ${S3_SECRET_KEY:test}
+      public-url-base: ${S3_PUBLIC_URL_BASE:/catalog/images}

@@ -4,9 +4,11 @@ import cl.flashdrop.orders.application.command.CreateOrderCommand;
 import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
+import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
@@ -21,6 +23,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,9 +44,9 @@ import java.util.stream.Collectors;
  *       (403 si no); sin {@code user_id} se preserva el comportamiento existente
  *       (lista completa) — ver informe de auditoría, sección de riesgos residuales.</li>
  * </ul>
- * {@code getOrderDetail} y {@code updateOrderStatus} no reciben ningún {@code userId}
- * suplantable en su request; no se les agregó un modelo de ownership nuevo que
- * MIGRATION_PLAN.md no define (queda documentado como riesgo residual).</p>
+ * {@code getOrderDetail} no recibe ningún {@code userId} suplantable en su request; no se
+ * le agregó un modelo de ownership nuevo que MIGRATION_PLAN.md no define.
+ * {@code updateOrderStatus} sí tiene ownership desde PR-orders-status-authz (ver su Javadoc).</p>
  */
 @Slf4j
 @RestController
@@ -56,6 +59,7 @@ public class OrderController {
     private final ListOrdersUseCase listOrdersUseCase;
     private final UpdateOrderStatusUseCase updateOrderStatusUseCase;
     private final CurrentUserResolver currentUserResolver;
+    private final ListAvailableOrdersUseCase listAvailableOrdersUseCase;
 
     @GetMapping
     public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) Long userIdLong) {
@@ -74,6 +78,26 @@ public class OrderController {
                 .map(this::toListResponse)
                 .collect(Collectors.toList());
         return ApiResponse.success(response);
+    }
+
+    /**
+     * PR-orders-available (spec FR-2): pedidos de un restaurante que el repartidor puede
+     * tomar (LISTO_PARA_RETIRO, sin repartidor asignado, FIFO). Solo rol Repartidor (403).
+     * Wire: {@code restaurant_id} Long (lo emite catalog-service); dominio: UUID — misma
+     * conversión al límite que {@link #listOrders}.
+     */
+    @GetMapping("/available-for-delivery")
+    public ApiResponse<List<OrderListResponse>> listAvailableForDelivery(
+            @RequestParam("restaurant_id") Long restaurantIdLong,
+            @RequestParam(value = "limit", defaultValue = "5") int limit) {
+        log.debug("GET /api/orders/available-for-delivery, restaurant_id={}, limit={}", restaurantIdLong, limit);
+        if (!currentUserResolver.hasRole(Role.REPARTIDOR)) {
+            throw new AccessDeniedException("Solo los repartidores pueden ver pedidos disponibles");
+        }
+        List<Order> orders = listAvailableOrdersUseCase.execute(IdConverter.toUuid(restaurantIdLong), limit);
+        return ApiResponse.success(orders.stream()
+                .map(this::toListResponse)
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}")
@@ -124,12 +148,19 @@ public class OrderController {
         return ApiResponse.success("Pedido creado", result);
     }
 
+    /**
+     * PR-orders-status-authz (spec FR-4): el use case valida rol (403), ownership del
+     * restaurante para el rol Restaurante (403) y la transición desde el estado actual (409),
+     * con los roles e identidad tomados del JWT — nunca del body.
+     */
     @PutMapping("/{id}/status")
     public ApiResponse<Void> updateOrderStatus(
             @PathVariable("id") UUID orderId,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
         log.debug("PUT /api/orders/{}/status, status={}", orderId, request.getStatus());
-        updateOrderStatusUseCase.execute(orderId, request.getStatus());
+        Set<Role> currentRoles = currentUserResolver.requireCurrentRoles();
+        UUID currentUserId = currentUserResolver.requireCurrentUserId();
+        updateOrderStatusUseCase.execute(orderId, request.getStatus(), currentRoles, currentUserId);
         return ApiResponse.success("Estado actualizado");
     }
 
