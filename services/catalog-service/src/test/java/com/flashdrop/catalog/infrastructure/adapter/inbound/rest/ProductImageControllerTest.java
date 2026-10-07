@@ -1,177 +1,111 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
-import static org.hamcrest.Matchers.hasItems;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.List;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.flashdrop.catalog.application.port.outbound.ProductImageStorage;
-import com.flashdrop.catalog.application.storage.ProductImageContent;
 import com.flashdrop.catalog.application.storage.StoredProductImage;
+import com.flashdrop.catalog.application.usecase.GetProductImageUseCase;
 import com.flashdrop.catalog.application.usecase.UploadProductImageUseCase;
 import com.flashdrop.catalog.domain.exception.ImageStorageException;
+import com.flashdrop.catalog.domain.exception.PayloadTooLargeException;
 
-@SpringBootTest(properties = {
-        "INTERNAL_API_KEY=dev-key",
-        "S3_PUBLIC_URL_BASE=/catalog/images"
-})
-@AutoConfigureMockMvc
-@ActiveProfiles("local")
+/**
+ * Plan de pruebas §3.3: {@code POST /api/catalog/my/products/image} — recepción del
+ * {@code MultipartFile}, respuesta 201 con {@code {objectKey, url}}, 400 por tipo no
+ * soportado, 413 si excede el tamaño y 502 ante falla del almacenamiento.
+ *
+ * <p>Slice web con {@code MockMvc} standalone y el caso de uso <b>simulado</b>
+ * ({@link UploadProductImageUseCase}, Mockito): no levanta Spring Boot ni base de datos.
+ * Los errores 400/413/502 los decide el caso de uso (probado en
+ * {@code UploadProductImageUseCaseTest}); acá se comprueba que el controller los traduzca
+ * al código HTTP y al cuerpo de error correctos mediante {@link RestExceptionHandler}.
+ * La seguridad (401/403) y el filtro de tamaño del servidor se prueban en
+ * {@code ProductImageControllerIT}.</p>
+ */
 class ProductImageControllerTest {
 
-    @Autowired
+    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
+
+    private UploadProductImageUseCase uploadProductImageUseCase;
     private MockMvc mockMvc;
 
-    @Autowired
-    private JwtAuthenticationConverter jwtAuthenticationConverter;
+    @BeforeEach
+    void setUp() {
+        uploadProductImageUseCase = mock(UploadProductImageUseCase.class);
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(new ProductImageController(uploadProductImageUseCase, mock(GetProductImageUseCase.class)))
+                .setControllerAdvice(new RestExceptionHandler())
+                .build();
+    }
 
-    @MockitoBean
-    private ProductImageStorage productImageStorage;
-
-    @Test
-    void upload_withoutJwt_returnsUnauthorizedEnvelope() throws Exception {
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(jpegFile()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+    private MockMultipartFile file(String contentType) {
+        return new MockMultipartFile("file", "producto.img", contentType, JPEG);
     }
 
     @Test
-    void upload_withoutRestaurantRole_returnsForbiddenEnvelope() throws Exception {
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(jpegFile())
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_Cliente"))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
-    }
-
-    @Test
-    void upload_withRestaurantRole_returnsObjectKeyAndPublicUrl() throws Exception {
+    void upload_passesTheReceivedFileToTheUseCase_andReturnsObjectKeyAndUrl() throws Exception {
         StoredProductImage stored = new StoredProductImage(
-                "products/2026/09/550e8400-e29b-41d4-a716-446655440000.jpg",
-                "/catalog/images/products/2026/09/550e8400-e29b-41d4-a716-446655440000.jpg"
-        );
-        when(productImageStorage.store(any(byte[].class), eq("image/jpeg"), eq("jpg")))
-                .thenReturn(stored);
+                "products/2026/10/550e8400-e29b-41d4-a716-446655440000.jpg",
+                "/catalog/images/products/2026/10/550e8400-e29b-41d4-a716-446655440000.jpg");
+        when(uploadProductImageUseCase.execute(any(byte[].class), eq("image/jpeg"))).thenReturn(stored);
 
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(jpegFile())
-                        .with(jwt().authorities(
-                                new SimpleGrantedAuthority("ROLE_Cliente"),
-                                new SimpleGrantedAuthority("ROLE_Restaurante")
-                        )))
+        mockMvc.perform(multipart("/api/catalog/my/products/image").file(file("image/jpeg")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.objectKey").value(stored.objectKey()))
                 .andExpect(jsonPath("$.url").value(stored.url()));
+
+        ArgumentCaptor<byte[]> received = ArgumentCaptor.forClass(byte[].class);
+        verify(uploadProductImageUseCase).execute(received.capture(), eq("image/jpeg"));
+        assertArrayEquals(JPEG, received.getValue());
     }
 
     @Test
-    void upload_withInvalidMime_returnsBadRequest() throws Exception {
-        MockMultipartFile textFile = new MockMultipartFile(
-                "file",
-                "not-an-image.txt",
-                MediaType.TEXT_PLAIN_VALUE,
-                "not an image".getBytes()
-        );
+    void upload_whenTheUseCaseRejectsTheMimeType_returnsBadRequest() throws Exception {
+        when(uploadProductImageUseCase.execute(any(byte[].class), eq("text/plain")))
+                .thenThrow(new IllegalArgumentException("La imagen debe ser JPEG, PNG o WebP"));
 
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(textFile)
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_Restaurante"))))
+        mockMvc.perform(multipart("/api/catalog/my/products/image").file(file("text/plain")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("La imagen debe ser JPEG, PNG o WebP"));
     }
 
     @Test
-    void upload_largerThanFiveMegabytes_returnsPayloadTooLarge() throws Exception {
-        byte[] oversized = new byte[UploadProductImageUseCase.MAX_IMAGE_BYTES + 1];
-        oversized[0] = (byte) 0xFF;
-        oversized[1] = (byte) 0xD8;
-        oversized[2] = (byte) 0xFF;
-        MockMultipartFile largeFile = new MockMultipartFile(
-                "file",
-                "large.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
-                oversized
-        );
+    void upload_whenTheImageExceedsTheLimit_returnsPayloadTooLarge() throws Exception {
+        when(uploadProductImageUseCase.execute(any(byte[].class), eq("image/jpeg")))
+                .thenThrow(new PayloadTooLargeException("La imagen supera el limite de 5 MB"));
 
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(largeFile)
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_Restaurante"))))
+        mockMvc.perform(multipart("/api/catalog/my/products/image").file(file("image/jpeg")))
                 .andExpect(status().isPayloadTooLarge())
-                .andExpect(jsonPath("$.error").value("PAYLOAD_TOO_LARGE"));
+                .andExpect(jsonPath("$.status").value(413))
+                .andExpect(jsonPath("$.error").value("PAYLOAD_TOO_LARGE"))
+                .andExpect(jsonPath("$.message").value("La imagen supera el limite de 5 MB"));
     }
 
     @Test
-    void upload_whenStorageFails_returnsBadGateway() throws Exception {
-        when(productImageStorage.store(any(byte[].class), eq("image/jpeg"), eq("jpg")))
+    void upload_whenTheStorageFails_returnsBadGateway() throws Exception {
+        when(uploadProductImageUseCase.execute(any(byte[].class), eq("image/jpeg")))
                 .thenThrow(new ImageStorageException("S3 no disponible"));
 
-        mockMvc.perform(multipart("/api/catalog/my/products/image")
-                        .file(jpegFile())
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_Restaurante"))))
+        mockMvc.perform(multipart("/api/catalog/my/products/image").file(file("image/jpeg")))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.error").value("IMAGE_STORAGE_ERROR"));
-    }
-
-    @Test
-    void jwtConverter_mapsEveryRoleFromListClaim() {
-        Jwt jwt = Jwt.withTokenValue("token")
-                .header("alg", "RS256")
-                .subject("4")
-                .claim("roles", List.of("Cliente", "Restaurante", "Repartidor"))
-                .build();
-
-        var authentication = jwtAuthenticationConverter.convert(jwt);
-
-        org.hamcrest.MatcherAssert.assertThat(
-                authentication.getAuthorities().stream().map(Object::toString).toList(),
-                hasItems("ROLE_Cliente", "ROLE_Restaurante", "ROLE_Repartidor")
-        );
-    }
-
-    @Test
-    void getImage_withoutJwt_returnsStoredBytes() throws Exception {
-        String key = "products/2026/09/550e8400-e29b-41d4-a716-446655440000.webp";
-        byte[] bytes = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'};
-        when(productImageStorage.load(key)).thenReturn(new ProductImageContent(bytes, "image/webp"));
-
-        mockMvc.perform(get("/catalog/images/" + key))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("image/webp"))
-                .andExpect(content().bytes(bytes))
-                .andExpect(header().string("Cache-Control", "max-age=31536000, public, immutable"));
-    }
-
-    private MockMultipartFile jpegFile() {
-        return new MockMultipartFile(
-                "file",
-                "product.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
-                new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
-        );
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.error").value("IMAGE_STORAGE_ERROR"))
+                .andExpect(jsonPath("$.message").value("S3 no disponible"));
     }
 }

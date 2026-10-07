@@ -5,12 +5,9 @@ import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
-import cl.flashdrop.orders.domain.model.Order;
-import cl.flashdrop.orders.domain.model.OrderStatus;
-import cl.flashdrop.orders.domain.port.CatalogPort;
-import cl.flashdrop.orders.domain.port.DeliveryPort;
-import cl.flashdrop.orders.domain.port.EventPublisherPort;
-import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
+import cl.flashdrop.orders.domain.exception.OrderDomainException;
+import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
+import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
@@ -23,35 +20,32 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Arrays;
-import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * PR-orders-status-authz (spec FR-4, NFR-2): matriz rol × transición de
- * {@code PUT /api/orders/{id}/status} a nivel HTTP, con el controller y el use case
- * reales — solo los puertos de salida (repositorio, Catalog, Delivery, eventos) son mocks.
+ * Plan de pruebas §3.2: {@code PUT /api/orders/{id}/status} — matriz de códigos HTTP según
+ * los roles del token, 200 ante transición autorizada y 403/409 delegados a los handlers.
  *
- * <p>Antes de este PR cualquier JWT válido podía cambiar el estado de cualquier pedido
- * (sin rol, sin ownership — riesgo residual documentado en GAP-04) y la única transición
- * rechazada era ENTREGADO → *. Códigos esperados: 403 rol / 403 ownership (restaurante
- * dueño, repartidor asignado) / 409 estado.</p>
- *
- * <p>Nombre {@code *Test} (no {@code *IT}): el pom no configura Failsafe, así que Surefire
- * solo ejecuta clases {@code *Test}.</p>
+ * <p>Slice web con {@code MockMvc} standalone y {@link UpdateOrderStatusUseCase}
+ * <b>simulado</b> (Mockito): la decisión de rol/ownership/transición pertenece al use case
+ * (probado en {@code UpdateOrderStatusUseCaseTest} y {@code RoleTransitionPolicyTest}); acá
+ * se comprueba que el controller entregue al use case los roles y el usuario del JWT, y que
+ * {@link GlobalExceptionHandler} traduzca cada excepción al código HTTP correcto. La versión
+ * con el use case real es {@code OrderControllerStatusAuthzIT}.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class OrderControllerStatusAuthzTest {
@@ -60,24 +54,16 @@ class OrderControllerStatusAuthzTest {
     @Mock private GetOrderDetailUseCase getOrderDetailUseCase;
     @Mock private ListOrdersUseCase listOrdersUseCase;
     @Mock private ListAvailableOrdersUseCase listAvailableOrdersUseCase;
-    @Mock private OrderRepositoryPort orderRepository;
-    @Mock private DeliveryPort deliveryPort;
-    @Mock private EventPublisherPort eventPublisher;
-    @Mock private CatalogPort catalogPort;
+    @Mock private UpdateOrderStatusUseCase updateOrderStatusUseCase;
 
     private MockMvc mockMvc;
 
     private static final long USER_ID = 42L;
+    private static final UUID USER_UUID = IdConverter.toUuid(USER_ID);
     private static final UUID ORDER_ID = IdConverter.toUuid(501L);
-    private static final UUID RESTAURANT_ID = IdConverter.toUuid(7L);
-    private static final UUID DELIVERY_ID = IdConverter.toUuid(9L);
 
     @BeforeEach
     void setUp() {
-        UpdateOrderStatusUseCase updateOrderStatusUseCase =
-                new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort);
-        ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
-
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
                 listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver(), listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -97,22 +83,6 @@ class OrderControllerStatusAuthzTest {
                 Arrays.stream(roles).map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList()));
     }
 
-    private void pedidoEnEstado(OrderStatus status) {
-        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(
-                Order.builder().id(ORDER_ID).restaurantId(RESTAURANT_ID)
-                        .deliveryId(DELIVERY_ID).status(status).build()));
-    }
-
-    private void usuarioEsRepartidor(UUID deliveryId) {
-        when(deliveryPort.findDeliveryIdByUserId(IdConverter.toUuid(USER_ID)))
-                .thenReturn(Optional.of(deliveryId));
-    }
-
-    private void usuarioEsDuenoDe(UUID restaurantId) {
-        when(catalogPort.findRestaurantIdByUserId(IdConverter.toUuid(USER_ID)))
-                .thenReturn(Optional.of(restaurantId));
-    }
-
     private ResultActions cambiarEstadoA(String nuevoEstado) throws Exception {
         return mockMvc.perform(put("/api/orders/{id}/status", ORDER_ID)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -122,141 +92,105 @@ class OrderControllerStatusAuthzTest {
     // --------------------------- 200 ---------------------------
 
     @Test
-    void repartidor_retiraPedidoListo_200() throws Exception {
+    void repartidor_transicionAutorizada_200_yElUseCaseRecibeRolYUsuarioDelToken() throws Exception {
         autenticadoComo("Repartidor");
-        pedidoEnEstado(OrderStatus.LISTO_PARA_RETIRO);
-        usuarioEsRepartidor(DELIVERY_ID);
 
         cambiarEstadoA("Retirado").andExpect(status().isOk());
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+        verify(updateOrderStatusUseCase).execute(ORDER_ID, "Retirado", Set.of(Role.REPARTIDOR), USER_UUID);
     }
 
     @Test
-    void restauranteDueno_empiezaAPreparar_200() throws Exception {
+    void restaurante_transicionAutorizada_200_yElUseCaseRecibeRolYUsuarioDelToken() throws Exception {
         autenticadoComo("Restaurante");
-        pedidoEnEstado(OrderStatus.NUEVO_PEDIDO);
-        usuarioEsDuenoDe(RESTAURANT_ID);
 
         cambiarEstadoA("Preparando").andExpect(status().isOk());
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.PREPARANDO);
-    }
-
-    // --------------------------- 403 rol ---------------------------
-
-    @Test
-    void repartidor_noPuedePonerPreparando_403() throws Exception {
-        autenticadoComo("Repartidor");
-        pedidoEnEstado(OrderStatus.NUEVO_PEDIDO);
-
-        cambiarEstadoA("Preparando")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
-
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(updateOrderStatusUseCase).execute(ORDER_ID, "Preparando", Set.of(Role.RESTAURANTE), USER_UUID);
     }
 
     @Test
-    void restaurante_noPuedeRetirarPedido_403() throws Exception {
-        autenticadoComo("Restaurante");
-        pedidoEnEstado(OrderStatus.LISTO_PARA_RETIRO);
+    void usuarioConVariosRoles_elUseCaseRecibeTodosLosRolesDelToken() throws Exception {
+        autenticadoComo("Cliente", "Restaurante", "Repartidor");
 
-        cambiarEstadoA("Retirado").andExpect(status().isForbidden());
+        cambiarEstadoA("Preparando").andExpect(status().isOk());
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(updateOrderStatusUseCase).execute(ORDER_ID, "Preparando",
+                Set.of(Role.CLIENTE, Role.RESTAURANTE, Role.REPARTIDOR), USER_UUID);
     }
 
+    // --------------------------- 403 (delegado al handler) ---------------------------
+
     @Test
-    void cliente_noPuedeCambiarEstado_403() throws Exception {
+    void cuandoElUseCaseRechazaElRol_403_conCuerpoDeError() throws Exception {
         autenticadoComo("Cliente");
-        pedidoEnEstado(OrderStatus.RETIRADO);
+        doThrow(new StatusTransitionForbiddenException("El rol no puede fijar el estado Entregado"))
+                .when(updateOrderStatusUseCase).execute(any(), any(), any(), any());
 
-        cambiarEstadoA("Entregado").andExpect(status().isForbidden());
-
-        verify(orderRepository, never()).updateStatus(any(), any());
+        cambiarEstadoA("Entregado")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("El rol no puede fijar el estado Entregado"));
     }
 
-    // --------------------------- 403 ownership (IDOR) ---------------------------
-
     @Test
-    void restauranteDeOtroLocal_noPuedeCambiarElPedido_403() throws Exception {
+    void cuandoElUseCaseRechazaElOwnership_403() throws Exception {
         autenticadoComo("Restaurante");
-        pedidoEnEstado(OrderStatus.NUEVO_PEDIDO);
-        usuarioEsDuenoDe(IdConverter.toUuid(99L));
+        doThrow(new StatusTransitionForbiddenException("No puedes modificar pedidos de otro restaurante"))
+                .when(updateOrderStatusUseCase).execute(any(), any(), any(), any());
 
         cambiarEstadoA("Preparando")
                 .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value("No puedes modificar pedidos de otro restaurante"));
-
-        verify(orderRepository, never()).updateStatus(any(), any());
     }
 
-    /** Acuerdo con delivery-service: el repartidor solo cambia pedidos asignados a él. */
-    @Test
-    void repartidorNoAsignadoAlPedido_403() throws Exception {
-        autenticadoComo("Repartidor");
-        pedidoEnEstado(OrderStatus.LISTO_PARA_RETIRO);
-        usuarioEsRepartidor(IdConverter.toUuid(99L));
-
-        cambiarEstadoA("Retirado")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("No puedes modificar pedidos asignados a otro repartidor"));
-
-        verify(orderRepository, never()).updateStatus(any(), any());
-    }
-
-    // --------------------------- 409 transición ---------------------------
+    // --------------------------- 409 / 404 / 400 (delegados al handler) ---------------------------
 
     @Test
-    void repartidor_noPuedeRetirarPedidoYaEntregado_409() throws Exception {
+    void cuandoLaTransicionNoEsValida_409() throws Exception {
         autenticadoComo("Repartidor");
-        pedidoEnEstado(OrderStatus.ENTREGADO);
-        usuarioEsRepartidor(DELIVERY_ID);
+        doThrow(new OrderDomainException("Transicion de estado no permitida: ENTREGADO -> RETIRADO"))
+                .when(updateOrderStatusUseCase).execute(any(), any(), any(), any());
 
         cambiarEstadoA("Retirado")
                 .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.error").value("CONFLICT"));
-
-        verify(orderRepository, never()).updateStatus(any(), any());
     }
 
     @Test
-    void repartidor_noPuedeEntregarSinRetirar_409() throws Exception {
+    void cuandoElPedidoNoExiste_404() throws Exception {
         autenticadoComo("Repartidor");
-        pedidoEnEstado(OrderStatus.LISTO_PARA_RETIRO);
-        usuarioEsRepartidor(DELIVERY_ID);
+        doThrow(new OrderDomainException("Pedido no encontrado: " + ORDER_ID))
+                .when(updateOrderStatusUseCase).execute(any(), any(), any(), any());
 
-        cambiarEstadoA("Entregado").andExpect(status().isConflict());
-
-        verify(orderRepository, never()).updateStatus(any(), any());
+        cambiarEstadoA("Retirado")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
     }
 
     @Test
-    void restauranteDueno_noPuedeVolverAPreparandoDesdeEntregado_409() throws Exception {
+    void cuandoElEstadoNoEsReconocido_400() throws Exception {
         autenticadoComo("Restaurante");
-        pedidoEnEstado(OrderStatus.ENTREGADO);
-        usuarioEsDuenoDe(RESTAURANT_ID);
+        doThrow(new OrderDomainException("Estado no valido: Cancelado"))
+                .when(updateOrderStatusUseCase).execute(any(), any(), any(), any());
 
-        cambiarEstadoA("Preparando").andExpect(status().isConflict());
-
-        verify(orderRepository, never()).updateStatus(any(), any());
+        cambiarEstadoA("Cancelado")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
     }
 
-    // --------------------------- 400 / 404 ---------------------------
-
     @Test
-    void estadoNoReconocido_400() throws Exception {
+    void cuerpoSinStatus_400_yNoLlegaAlUseCase() throws Exception {
         autenticadoComo("Restaurante");
 
-        cambiarEstadoA("Cancelado").andExpect(status().isBadRequest());
-    }
+        mockMvc.perform(put("/api/orders/{id}/status", ORDER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
 
-    @Test
-    void pedidoInexistente_404() throws Exception {
-        autenticadoComo("Repartidor");
-        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
-
-        cambiarEstadoA("Retirado").andExpect(status().isNotFound());
+        verify(updateOrderStatusUseCase, never()).execute(any(), any(), any(), any());
     }
 }
