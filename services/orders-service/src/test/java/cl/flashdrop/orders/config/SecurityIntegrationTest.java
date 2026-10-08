@@ -32,6 +32,8 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -133,7 +135,7 @@ class SecurityIntegrationTest {
     @Test
     void getOrders_withValidJwtAndNoUserId_isAllowed() throws Exception {
         stubAuthValidateOk();
-        when(listOrdersUseCase.execute(null)).thenReturn(List.of());
+        when(listOrdersUseCase.execute(eq(IdConverter.toUuid(1L)), anySet())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/orders").header("Authorization", "Bearer " + jwtFor(1L)))
                 .andExpect(status().isOk());
@@ -151,7 +153,7 @@ class SecurityIntegrationTest {
         // sub del JWT). OrderController.listOrders hace IdConverter.toUuid(user_idLong)
         // antes de comparar contra el del token y de pasar al use case. El mock espera
         // entonces el UUID del dominio, mismo patron que OrderController produce.
-        when(listOrdersUseCase.execute(IdConverter.toUuid(ownUserIdLong))).thenReturn(List.of());
+        when(listOrdersUseCase.execute(eq(IdConverter.toUuid(ownUserIdLong)), anySet())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/orders")
                         .param("user_id", String.valueOf(ownUserIdLong))

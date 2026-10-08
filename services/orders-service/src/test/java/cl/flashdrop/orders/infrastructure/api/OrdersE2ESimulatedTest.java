@@ -118,10 +118,10 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         ListOrdersUseCase listOrdersUseCase = new ListOrdersUseCase(
-                orderRepositoryAdapter, catalogAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
 
         GetOrderDetailUseCase getOrderDetailUseCase = new GetOrderDetailUseCase(
-                orderRepositoryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
 
         ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase = new ClaimDeliveryOrdersUseCase(
                 orderRepositoryAdapter, deliveryAdapter);
@@ -139,7 +139,8 @@ class OrdersE2ESimulatedTest {
         // body. USER_UUID = IdConverter.toUuid(1L) simula al mismo usuario "1" que antes
         // se enviaba en el body de ambos requests.
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("1", null, List.of()));
+                new UsernamePasswordAuthenticationToken("1", null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_Cliente"))));
     }
 
     @AfterEach

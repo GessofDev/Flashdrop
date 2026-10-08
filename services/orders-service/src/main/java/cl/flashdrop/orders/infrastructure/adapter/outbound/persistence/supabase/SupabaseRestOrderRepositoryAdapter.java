@@ -90,6 +90,22 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    public List<Order> findByClientId(UUID clientId) {
+        if (clientId == null) return List.of();
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("client_id", "eq." + IdConverter.toLong(clientId))
+                        .queryParam("select", "*")
+                        .queryParam("order", "id.desc")
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        if (rows == null) return List.of();
+        return Arrays.stream(rows).map(r -> mapToOrder(r, List.of())).collect(Collectors.toList());
+    }
+
+    @Override
     public void updateStatus(UUID orderId, OrderStatus status) {
         long rawId = IdConverter.toLong(orderId);
         Map<String, Object> body = new LinkedHashMap<>();

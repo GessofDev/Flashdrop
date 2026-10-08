@@ -98,6 +98,13 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<Order> findByClientId(UUID clientId) {
+        if (clientId == null) return List.of();
+        return mapWithItems(orderRepository.findByClientId(IdConverter.toLong(clientId)));
+    }
+
+    @Override
     @Transactional
     public void updateStatus(UUID orderId, OrderStatus status) {
         if (orderId == null || status == null) return;
