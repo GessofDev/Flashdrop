@@ -187,6 +187,35 @@ src/main/resources/db/seed/V2__seed_development.sql
 El perfil `postgres` ejecuta el esquema. Para incluir los datos de desarrollo,
 usar `postgres,seed`; Flyway ejecuta entonces tambien `V2__seed_development.sql`.
 
+## Pruebas de filtros y persistencia
+
+Desde `services/catalog-service`, ejecutar la suite completa:
+
+```powershell
+.\gradlew.bat test
+```
+
+`PublicCatalogControllerTest` comprueba que `categoryId` y `restaurantId` no
+numericos, decimales o fuera del rango Long devuelven 400 con `BAD_REQUEST`.
+Los filtros numericos validos conservan el contrato existente.
+
+`JpaProductRepositoryAdapterIT` usa PostgreSQL 16 con Testcontainers y las
+migraciones reales. Comprueba las consultas activas generales, por categoria,
+por restaurante y combinadas, ademas del GET publico y la desactivacion de un
+producto sin perderlo en la consulta del dueno. Cada caso se revierte mediante
+la transaccion del test. No usa la base de FloCI ni las credenciales del `.env`.
+
+Para ejecutar solo esta integracion, iniciar Docker y luego:
+
+```powershell
+.\gradlew.bat test --tests '*JpaProductRepositoryAdapterIT' --rerun-tasks
+```
+
+Si Docker no esta disponible, esta clase se omite localmente; eso no equivale
+a aprobar sus casos. El workflow de Catalog exige que el reporte de esta clase
+exista y no tenga casos omitidos, fallidos ni errores. El reporte completo queda
+en `build/reports/tests/test/index.html`.
+
 Para probar sin base real:
 
 ```powershell
