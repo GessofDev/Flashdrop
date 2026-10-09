@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildRequestBody } from '../../../src/proxy/engine.js';
+import { computeContentLength } from '../../../src/proxy/headers.js';
 
 /**
  * Tests for the body-dispatch helper used by ProxyEngine.forward().
@@ -108,6 +109,87 @@ describe('buildRequestBody (engine body dispatch)', () => {
     it('returns Buffer for PATCH', () => {
       const buf = Buffer.from('data');
       expect(buildRequestBody(buf, 'PATCH')).toBe(buf);
+    });
+  });
+});
+
+/**
+ * Tests for `computeContentLength`, the helper that recomputes the
+ * `content-length` header from the actual outgoing body. The bug fixed
+ * alongside this helper (PR #50, QA report 2026-10-09) was that the
+ * gateway copied the client's `content-length` and sent a re-serialized
+ * body with a different byte count, producing 502 errors on any
+ * non-compact JSON input.
+ *
+ * Contract:
+ *   - string  -> Buffer.byteLength(string, 'utf8')
+ *   - Buffer  -> buffer.length
+ *   - null    -> null  (caller must not overwrite content-length)
+ *   - stream  -> null  (caller must not overwrite content-length)
+ */
+describe('computeContentLength (outgoing content-length helper)', () => {
+  describe('string bodies', () => {
+    it('returns Buffer.byteLength of a compact JSON string', () => {
+      const s = '{"foo":"bar","n":2500}';
+      expect(computeContentLength(s)).toBe(Buffer.byteLength(s, 'utf8'));
+    });
+
+    it('counts multibyte UTF-8 characters correctly (ñ is 2 bytes)', () => {
+      // '{"x":"ñ"}' is 9 characters but the `ñ` occupies 2 bytes in
+      // UTF-8, so the byte length is 10 (8 single-byte chars + 2 bytes
+      // for ñ). This matters when a backend normalizes the encoding.
+      const s = '{"x":"ñ"}';
+      expect(computeContentLength(s)).toBe(10);
+      expect(Buffer.byteLength(s, 'utf8')).toBe(10);
+    });
+
+    it('returns 0 for an empty string', () => {
+      expect(computeContentLength('')).toBe(0);
+    });
+  });
+
+  describe('buffer bodies', () => {
+    it('returns buffer.length for binary payloads', () => {
+      const buf = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+      expect(computeContentLength(buf)).toBe(6);
+    });
+
+    it('returns 0 for an empty buffer', () => {
+      expect(computeContentLength(Buffer.alloc(0))).toBe(0);
+    });
+  });
+
+  describe('stream bodies (no overwrite)', () => {
+    it('returns null for an AsyncIterable (caller must not touch content-length)', () => {
+      async function* gen() {
+        yield Buffer.from('chunk');
+      }
+      expect(computeContentLength(gen())).toBeNull();
+    });
+  });
+
+  describe('null bodies (no body)', () => {
+    it('returns null for null', () => {
+      expect(computeContentLength(null)).toBeNull();
+    });
+  });
+
+  describe('regression: round-trip shrink', () => {
+    it('shrinks when JSON.stringify normalizes a number (2500.0 -> 2500)', () => {
+      // The original request was 13 bytes: {"n":2500.0}
+      // The outgoing body is 10 bytes: {"n":2500}
+      // The gateway must advertise 10, not 13.
+      const original = '{"n":2500.0}';
+      const reserialized = JSON.stringify(JSON.parse(original));
+      expect(reserialized).toBe('{"n":2500}');
+      expect(computeContentLength(reserialized)).toBe(10);
+    });
+
+    it('shrinks when JSON.stringify strips pretty-print whitespace', () => {
+      const pretty = JSON.stringify({ a: 1, b: 2 }, null, 2);
+      const compact = JSON.stringify({ a: 1, b: 2 });
+      expect(pretty.length).toBeGreaterThan(compact.length);
+      expect(computeContentLength(compact)).toBe(compact.length);
     });
   });
 });

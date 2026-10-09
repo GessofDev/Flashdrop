@@ -210,4 +210,82 @@ describe('Binary upload integration (binary passthrough via gateway)', () => {
     expect(backend.lastBody.toString('utf8')).toBe(jsonString);
     expect(backend.lastHeaders['content-type']).toBe('application/json');
   });
+
+  /**
+   * Regression for PR #50 (`c506ea0`): the gateway used to copy the
+   * `content-length` header from the original request even when the body was
+   * re-serialized to a different (shorter) compact form, producing a
+   * "Request body length does not match content-length header" 502 for any
+   * non-compact JSON input. The fix must always recompute `content-length`
+   * from the outgoing body bytes, not from the client's headers.
+   *
+   * Reference: QA report by Felipe, 2026-10-09, topic "Gateway: un JSON con
+   * espacios o saltos de línea devuelve 502".
+   */
+  it('forwards pretty-printed JSON without 502 and matches content-length to body', async () => {
+    const jsonBody = { foo: 'bar', n: 2500.0 };
+    // Two-space indentation produces whitespace and newlines; the formatted
+    // payload is meaningfully longer than its compact form would be.
+    const formattedJson = JSON.stringify(jsonBody, null, 2);
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/catalog/echo',
+      headers: {
+        'content-type': 'application/json',
+      },
+      payload: formattedJson,
+    });
+
+    // Must not 502: the gateway is responsible for keeping
+    // `content-length` consistent with the body it actually sends.
+    expect(response.statusCode).toBe(200);
+
+    // The backend must have received the request body.
+    expect(backend.lastBody.length).toBeGreaterThan(0);
+
+    // The body must be semantically equal to the original JSON value.
+    // Whitespace is not significant, but the numeric value must survive.
+    const received = JSON.parse(backend.lastBody.toString('utf8'));
+    expect(received).toEqual(jsonBody);
+
+    // The `content-length` header the backend observes must match the
+    // exact byte count of the body the gateway sent. This is the
+    // invariant PR #50 broke for the JSON path.
+    expect(backend.lastHeaders['content-length']).toBe(
+      String(backend.lastBody.length),
+    );
+  });
+
+  /**
+   * Companion regression: a compact JSON whose number re-serializes to a
+   * shorter form (2500.0 -> 2500) shrinks the body but keeps the original
+   * `content-length`, which the receiver rejects. Same root cause as the
+   * pretty-printed case but triggered by a single character difference.
+   */
+  it('forwards JSON with a number that round-trips shorter without 502', async () => {
+    // 13 bytes: {"n":2500.0}
+    // Re-serializes to {"n":2500} (10 bytes) — the same shrink the gateway
+    // itself performs when re-stringifying parsed JSON.
+    const inputJson = '{"n":2500.0}';
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/catalog/echo',
+      headers: {
+        'content-type': 'application/json',
+      },
+      payload: inputJson,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(backend.lastBody.length).toBeGreaterThan(0);
+
+    const received = JSON.parse(backend.lastBody.toString('utf8'));
+    expect(received).toEqual({ n: 2500 });
+
+    expect(backend.lastHeaders['content-length']).toBe(
+      String(backend.lastBody.length),
+    );
+  });
 });

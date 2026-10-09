@@ -12,7 +12,11 @@ import type {
   ProxyTimeoutConfig,
 } from './types.js';
 import { buildProxyContext, createProxyError, buildErrorResponse } from './hooks.js';
-import { buildForwardingHeaders } from './headers.js';
+import {
+  buildForwardingHeaders,
+  computeContentLength,
+  HOP_BY_HOP_RESPONSE_HEADERS,
+} from './headers.js';
 
 /**
  * Builds the request body for forwarding through Undici, preserving the
@@ -227,6 +231,19 @@ export class ProxyEngine {
     // blindly — this was the cause of binary-upload corruption.
     const body = buildRequestBody(requestBody, options.method);
 
+    // Always recompute `content-length` from the outgoing body. The
+    // header value supplied by the client reflects the bytes the client
+    // sent; when the gateway re-serializes parsed JSON (whitespace
+    // stripped, numbers normalized) the byte count shrinks and the
+    // receiver rejects the request with a "Request body length does not
+    // match content-length header" error (regression introduced by
+    // PR #50 `c506ea0`, reported by QA on 2026-10-09). For streaming
+    // bodies we leave `content-length` alone so Undici can frame chunked.
+    const outgoingLength = computeContentLength(body);
+    if (outgoingLength !== null) {
+      options.headers['content-length'] = String(outgoingLength);
+    }
+
     return pool
       .request({
         method: options.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
@@ -274,12 +291,19 @@ export class ProxyEngine {
   ): Promise<void> {
     const { statusCode, headers, body } = response;
 
-    // Set response headers
+    // Set response headers, skipping hop-by-hop headers (RFC 7230 §6.1).
+    // These describe the connection to the backend, not the resource;
+    // forwarding them confuses clients (e.g. `Transfer-Encoding: chunked`
+    // on a body Undici has already de-chunked breaks the read).
     for (const [key, value] of Object.entries(headers)) {
-      if (value !== undefined) {
-        const headerValue = Array.isArray(value) ? value.join(', ') : String(value);
-        reply.header(key, headerValue);
+      if (value === undefined) {
+        continue;
       }
+      if (HOP_BY_HOP_RESPONSE_HEADERS.has(key.toLowerCase())) {
+        continue;
+      }
+      const headerValue = Array.isArray(value) ? value.join(', ') : String(value);
+      reply.header(key, headerValue);
     }
 
     reply.status(statusCode);
