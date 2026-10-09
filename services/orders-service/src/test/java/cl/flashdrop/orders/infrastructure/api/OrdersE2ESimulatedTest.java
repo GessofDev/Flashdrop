@@ -80,7 +80,7 @@ class OrdersE2ESimulatedTest {
                 .build();
 
         // 1. Client REST para servicios internos (Catalog, Auth, Delivery)
-        RestClient internalRestClient = RestClient.builder()
+        RestClient internalRestClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", API_KEY)
@@ -89,7 +89,7 @@ class OrdersE2ESimulatedTest {
                 .build();
 
         // 2. Client REST para PostgREST (Supabase BD propia)
-        RestClient supabaseRestClient = RestClient.builder()
+        RestClient supabaseRestClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .baseUrl("http://localhost:" + wireMock.getPort() + "/rest/v1")
                 .defaultHeader("apikey", "test-role-key")

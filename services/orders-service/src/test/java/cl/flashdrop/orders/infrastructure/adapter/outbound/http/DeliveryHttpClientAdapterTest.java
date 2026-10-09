@@ -35,7 +35,7 @@ class DeliveryHttpClientAdapterTest {
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
-        RestClient restClient = RestClient.builder()
+        RestClient restClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
@@ -74,7 +74,7 @@ class DeliveryHttpClientAdapterTest {
     void shouldThrowExternalServiceExceptionServiceUnavailableWhenServiceDownOrTimeout() {
         // MIGRATION_PLAN.md §10: "servicio dependiente caído o timeout" -> 503
         // SERVICE_UNAVAILABLE (antes 502 BAD_GATEWAY, corregido en la auditoría 2026-09-04).
-        RestClient offlineClient = RestClient.builder()
+        RestClient offlineClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .baseUrl("http://localhost:59999")
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
                 .build();
