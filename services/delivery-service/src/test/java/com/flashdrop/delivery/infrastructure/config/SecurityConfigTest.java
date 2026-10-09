@@ -1,13 +1,16 @@
 package com.flashdrop.delivery.infrastructure.config;
 
 import com.flashdrop.delivery.application.port.inbound.ClaimDeliveryOrdersUseCase;
+import com.flashdrop.delivery.application.port.inbound.CreateDeliveryPersonUseCase;
 import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase;
 import com.flashdrop.delivery.application.port.inbound.UpdateRouteStatusUseCase;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.delivery.infrastructure.adapter.inbound.rest.DeliveryController;
+import com.flashdrop.delivery.infrastructure.adapter.inbound.rest.DeliveryPersonController;
 import com.flashdrop.delivery.infrastructure.adapter.inbound.rest.RouteController;
+import com.flashdrop.delivery.infrastructure.security.CurrentUserResolver;
 import com.flashdrop.delivery.infrastructure.security.JwtAuthenticationFilter;
 import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import jakarta.servlet.FilterChain;
@@ -39,6 +42,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -58,8 +62,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code roles: ["Repartidor"]} (mapped to {@code ROLE_Repartidor} by the
  * filter) pass the matcher.
  */
-@WebMvcTest(controllers = {RouteController.class, DeliveryController.class})
-@Import(SecurityConfig.class)
+@WebMvcTest(controllers = {RouteController.class, DeliveryController.class, DeliveryPersonController.class})
+@Import({SecurityConfig.class, CurrentUserResolver.class})
 @TestPropertySource(properties = {
         "auth.issuer=flashdrop-auth",
         "auth.jwks-uri=http://auth-service:8081/auth/.well-known/jwks.json"
@@ -84,6 +88,15 @@ class SecurityConfigTest {
 
     @MockBean
     private ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase;
+
+    /**
+     * Required by {@code DeliveryPersonController} (POST /api/delivery/persons,
+     * WU-4). Even when the security filter rejects the request with 403
+     * before the controller runs, Spring still needs the bean to wire up
+     * the application context.
+     */
+    @MockBean
+    private CreateDeliveryPersonUseCase createDeliveryPersonUseCase;
 
     /**
      * RouteController resolves deliveryPersonId by calling
@@ -266,6 +279,44 @@ class SecurityConfigTest {
             mockMvc.perform(get("/api/delivery/routes")
                             .with(authentication(new UsernamePasswordAuthenticationToken(
                                     "42", null, List.of()))))
+                    .andExpect(status().isForbidden());
+        }
+
+        /**
+         * WU-8: PUT /delivery/routes/{id}/status is also under
+         * /delivery/**, so hasRole("Repartidor") applies. Changing a
+         * route's status is a courier action — a Cliente must not be
+         * able to flip a route to "Entregado" or similar.
+         */
+        @Test
+        @DisplayName("TC7: PUT /delivery/routes/{id}/status with ROLE_Cliente → 403")
+        void updateRouteStatus_withClienteRole_returns403() throws Exception {
+            mockMvc.perform(
+                            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                    .put("/delivery/routes/{routeId}/status", 1L)
+                                    .with(authentication(new UsernamePasswordAuthenticationToken(
+                                            "42", null,
+                                            List.of(new SimpleGrantedAuthority("ROLE_Cliente")))))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"ENTREGADO\"}"))
+                    .andExpect(status().isForbidden());
+        }
+
+        /**
+         * WU-8: POST /api/delivery/persons (the courier self-signup
+         * endpoint from WU-4) is also under /api/delivery/**. A user
+         * with only ROLE_Cliente (no Repartidor) must not be able to
+         * create a courier profile — the matcher is the gatekeeper.
+         */
+        @Test
+        @DisplayName("TC8: POST /api/delivery/persons with ROLE_Cliente → 403")
+        void createMyProfile_withClienteRole_returns403() throws Exception {
+            mockMvc.perform(post("/api/delivery/persons")
+                            .with(authentication(new UsernamePasswordAuthenticationToken(
+                                    "42", null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_Cliente")))))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"vehicle\":\"MOTO\"}"))
                     .andExpect(status().isForbidden());
         }
     }
