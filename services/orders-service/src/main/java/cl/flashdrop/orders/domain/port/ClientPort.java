@@ -20,6 +20,13 @@ public interface ClientPort {
     Optional<UUID> findClientIdByUserId(UUID userId);
 
     /**
+     * Resuelve el id de perfil de cliente del usuario y, si aún no existe, lo crea (primera
+     * compra). Seguro ante llamadas simultáneas: {@code user_id} es único y el alta ignora el
+     * conflicto, por lo que dos pedidos a la vez terminan con el mismo perfil.
+     */
+    UUID findOrCreateClientIdByUserId(UUID userId);
+
+    /**
      * Obtiene la información completa de un cliente por su id de perfil.
      */
     Optional<ClientInfo> findClientById(UUID clientId);

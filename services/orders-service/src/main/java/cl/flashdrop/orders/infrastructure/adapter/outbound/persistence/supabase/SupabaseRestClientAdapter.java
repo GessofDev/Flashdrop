@@ -71,6 +71,30 @@ public class SupabaseRestClientAdapter implements ClientPort {
     }
 
     @Override
+    public UUID findOrCreateClientIdByUserId(UUID userId) {
+        long rawUserId = IdConverter.toLong(userId);
+        try {
+            supabaseRestClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/" + TABLE)
+                            .queryParam("on_conflict", "user_id")
+                            .build())
+                    .header("Prefer", "resolution=ignore-duplicates,return=minimal")
+                    .body(java.util.Map.of("user_id", rawUserId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpStatusCodeException e) {
+            throw cl.flashdrop.orders.infrastructure.adapter.outbound.http.InternalHttpSupport
+                    .httpError("Client", e);
+        } catch (ResourceAccessException e) {
+            throw cl.flashdrop.orders.infrastructure.adapter.outbound.http.InternalHttpSupport
+                    .connectionFailure("Client", e);
+        }
+        return findClientIdByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("No se pudo crear el perfil de cliente"));
+    }
+
+    @Override
     public Optional<ClientInfo> findClientById(UUID clientId) {
         if (clientId == null) {
             return Optional.empty();

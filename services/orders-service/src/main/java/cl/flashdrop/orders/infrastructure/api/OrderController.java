@@ -138,6 +138,7 @@ public class OrderController {
 
         CreateOrderCommand command = CreateOrderCommand.builder()
                 .userId(authenticatedUserId)
+                .clientProfileAllowed(currentUserResolver.hasRole(Role.CLIENTE))
                 .address(request.getAddress())
                 .paymentMethod(request.getPaymentMethod())
                 .distanceKm(request.getDistanceKm())
