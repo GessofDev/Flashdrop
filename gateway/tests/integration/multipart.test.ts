@@ -1,5 +1,6 @@
 import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest';
 import http from 'node:http';
+import type { FastifyInstance } from 'fastify';
 import { buildServer } from '../../src/server.js';
 import { MiddlewarePipeline } from '../../src/middleware/pipeline.js';
 import pino from 'pino';
@@ -84,8 +85,7 @@ class MockBackend {
 describe('Binary upload integration (binary passthrough via gateway)', () => {
   let backend: MockBackend;
   let backendPort: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let server: any;
+  let server: FastifyInstance;
 
   beforeAll(async () => {
     backend = new MockBackend();
@@ -94,8 +94,11 @@ describe('Binary upload integration (binary passthrough via gateway)', () => {
     const config: GatewayConfig = {
       server: { port: 3000, host: '127.0.0.1', bodyLimit: 6 * 1024 * 1024 },
       redis: { url: 'redis://localhost:6379' },
-      logging: { level: 'silent' },
-      metrics: { enabled: false, path: '/metrics' },
+      // The actual logger is created below with `pino({ level: 'silent' })`;
+      // the config-level `logging.level` is metadata for the gateway and
+      // must satisfy the LoggingConfig union.
+      logging: { level: 'error' },
+      metrics: { enabled: false, path: '/metrics', defaultLabels: {} },
       routes: [
         {
           prefix: '/catalog',
