@@ -41,6 +41,20 @@ jobs:
       - name: Run Catalog tests
         run: ./gradlew test --no-daemon
 
+      - name: Require PostgreSQL integration coverage
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report = Path("build/test-results/test/TEST-com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.JpaProductRepositoryAdapterIT.xml")
+          suite = ET.parse(report).getroot()
+          if int(suite.attrib["tests"]) == 0 or any(
+              int(suite.attrib.get(key, "0")) for key in ("skipped", "failures", "errors")
+          ):
+              raise SystemExit("PostgreSQL integration tests must execute and pass in CI")
+          PY
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4

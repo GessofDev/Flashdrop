@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,6 +15,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -122,5 +125,24 @@ class PublicCatalogControllerTest {
         mockMvc.perform(get("/catalog/products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "categoryId, abc",
+            "restaurantId, abc",
+            "categoryId, 1.5",
+            "restaurantId, 1.5",
+            "categoryId, 9223372036854775808",
+            "restaurantId, 9223372036854775808"
+    })
+    void listProducts_invalidNumericFilter_returnsBadRequest(String parameter, String value) throws Exception {
+        mockMvc.perform(get("/catalog/products").param(parameter, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("El parametro '" + parameter + "' tiene un formato invalido"));
+
+        verifyNoInteractions(listProductsUseCase);
     }
 }

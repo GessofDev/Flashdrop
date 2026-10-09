@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.exception.ImageStorageException;
@@ -19,6 +20,12 @@ import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.ErrorRespon
 
 @RestControllerAdvice
 public class RestExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+        return error(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                "El parametro '" + exception.getName() + "' tiene un formato invalido");
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException exception) {
