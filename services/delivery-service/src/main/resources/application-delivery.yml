@@ -1,6 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DELIVERY_DB_HOST:localhost}:${DELIVERY_DB_PORT:5432}/${DELIVERY_DB_NAME:delivery_db}
+    url: >-
+      jdbc:postgresql://${DELIVERY_DB_HOST:localhost}:${DELIVERY_DB_PORT:5432}/
+      ${DELIVERY_DB_NAME:delivery_db}
     username: ${DELIVERY_DB_USER:delivery_svc}
     password: ${DELIVERY_DB_PASSWORD:delivery_svc_password}
     driver-class-name: org.postgresql.Driver
@@ -18,18 +20,25 @@ spring:
 
 # JWT auth (RS256) — verified locally against auth-service's JWKS endpoint.
 # Path is non-standard (/auth/.well-known/jwks.json), verified at
-# services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/adapter/inbound/rest/JwksController.java
+# services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/
+# adapter/inbound/rest/JwksController.java
 auth:
-  jwks-uri: ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  jwks-uri: >-
+    ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
   issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}
 
 # PR-B: feature flag for delegating the claim to orders-service
-# (POST /api/internal/orders/claim). Defaults OFF — production behavior
-# unchanged until the flag is flipped manually (plan D8).
+# (POST /api/internal/orders/claim). Default ON — the claim must reach
+# orders-service so that the order row gets its delivery_id and the
+# status is left untouched ("Listo para retiro" / READY_FOR_PICKUP).
+# Local dev and CI tests that want to isolate the delivery-side
+# behaviour set DELIVERY_CLAIM_DELEGATE_TO_ORDERS=false. FloCI's
+# task definition (infra/floci/task-definitions/delivery-service.dev.json)
+# already sets it to true.
 delivery:
   claim:
     delegate-to-orders:
-      enabled: ${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:false}
+      enabled: ${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:true}
 
 # PR-B: orders-service base URL for the claim delegation adapter.
 # Resolves via docker-compose DNS in local dev and via FloCI task-definition

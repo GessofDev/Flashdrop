@@ -174,6 +174,29 @@
           </excludes>
         </configuration>
       </plugin>
+      <!--
+        Surefire (test phase) runs *Test classes.
+        Failsafe (integration-test + verify phases) runs *IT classes — the
+        Spring controller / authz / HTTP wiring tests that need a real
+        application context. Before this declaration the *IT suite was
+        silently never executed: `mvnw test` only invokes Surefire, and
+        Surefire's default includes are *Test, *Tests, Test*. The CI
+        workflow now runs `./mvnw verify` so both phases execute.
+        Version is inherited from spring-boot-starter-parent's
+        pluginManagement — no <version> needed.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 

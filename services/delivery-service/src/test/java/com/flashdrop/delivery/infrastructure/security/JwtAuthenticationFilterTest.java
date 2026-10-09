@@ -20,13 +20,16 @@ import org.slf4j.MDC;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -102,6 +105,22 @@ class JwtAuthenticationFilterTest {
         return jwt.serialize();
     }
 
+    private String issueTokenWithRoles(long subject, String issuerOverride, long ttlSeconds,
+                                       List<String> roles) throws Exception {
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(KID).build();
+        JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
+                .subject(Long.toString(subject))
+                .issuer(issuerOverride)
+                .issueTime(new Date())
+                .expirationTime(new Date(System.currentTimeMillis() + ttlSeconds * 1000L));
+        if (roles != null) {
+            builder.claim("roles", roles);
+        }
+        SignedJWT jwt = new SignedJWT(header, builder.build());
+        jwt.sign(new RSASSASigner(privateKey));
+        return jwt.serialize();
+    }
+
     private MockHttpServletRequest buildRequest(String token) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/delivery/routes");
@@ -147,6 +166,65 @@ class JwtAuthenticationFilterTest {
                     .isEqualTo("42");
             // No refresh on happy path.
             verify(jwksKeyProvider, never()).refresh();
+        }
+
+        @Test
+        @DisplayName("TC1b: valid token with roles=['Repartidor'] → authorities contain ROLE_Repartidor")
+        void validTokenWithRoles_populatesRoleAuthorities() throws Exception {
+            String token = issueTokenWithRoles(42L, ISSUER, 3600, List.of("Repartidor"));
+            when(jwksKeyProvider.findKeyByKid(KID)).thenReturn(Optional.of(publicJwk));
+
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(buildRequest(token), response, chain);
+
+            assertThat(response.getStatus()).isEqualTo(200);
+            assertThat(chain.getRequest()).isNotNull();
+            Collection<? extends GrantedAuthority> authorities =
+                    SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+            assertThat(authorities)
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactly("ROLE_Repartidor");
+        }
+
+        @Test
+        @DisplayName("TC1c: valid token with all three roles → all three ROLE_<rol> authorities")
+        void validTokenWithAllThreeRoles_populatesAllAuthorities() throws Exception {
+            String token = issueTokenWithRoles(42L, ISSUER, 3600,
+                    List.of("Cliente", "Restaurante", "Repartidor"));
+            when(jwksKeyProvider.findKeyByKid(KID)).thenReturn(Optional.of(publicJwk));
+
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(buildRequest(token), response, chain);
+
+            assertThat(response.getStatus()).isEqualTo(200);
+            Collection<? extends GrantedAuthority> authorities =
+                    SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+            assertThat(authorities)
+                    .extracting(GrantedAuthority::getAuthority)
+                    .containsExactly("ROLE_Cliente", "ROLE_Restaurante", "ROLE_Repartidor");
+        }
+
+        @Test
+        @DisplayName("TC1d: valid token WITHOUT roles claim → empty authorities (fail-closed)")
+        void validTokenWithoutRolesClaim_emptyAuthorities() throws Exception {
+            // issueTokenWithRoles(..., null) omits the claim entirely, matching the
+            // scenario where auth-service has not yet added 'roles' to its token format.
+            String token = issueTokenWithRoles(42L, ISSUER, 3600, null);
+            when(jwksKeyProvider.findKeyByKid(KID)).thenReturn(Optional.of(publicJwk));
+
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(buildRequest(token), response, chain);
+
+            assertThat(response.getStatus()).isEqualTo(200);
+            assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                    .as("missing roles claim → no authorities → any hasRole(...) check will deny")
+                    .isEmpty();
         }
     }
 
