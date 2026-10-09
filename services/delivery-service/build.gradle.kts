@@ -24,12 +24,28 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.mockito:mockito-core")
     testImplementation("org.mockito:mockito-junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
-    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql:1.20.4")
+    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
-    testRuntimeOnly("org.testcontainers:postgresql")
+
+    // Pin Testcontainers 1.20.4 (matches auth-service BOM). 1.19.8 ships
+    // docker-java-api 3.3.6 which speaks Docker Engine API 1.32, but Docker
+    // Desktop 4.85.0 (Engine 29.6.2) requires API 1.40+. 1.20.4 ships
+    // docker-java 3.4.x with API 1.43+, restoring IT compatibility.
+    // Explicit versions on the direct deps are not enough: Spring Boot's
+    // auto-imported BOM still wins the transitive conflict, so we also
+    // pin every testcontainers artifact via resolutionStrategy.eachDependency
+    // (see block below).
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.testcontainers") {
+            useVersion("1.20.4")
+        }
+    }
 }
 
 tasks.withType<Test> {

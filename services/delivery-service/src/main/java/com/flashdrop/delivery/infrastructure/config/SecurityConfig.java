@@ -22,16 +22,20 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *
  * <p>Matcher map:
  * <ul>
- *   <li>{@code /api/delivery/**}, {@code /delivery/**} — {@code authenticated()}.
- *       The actor's identity comes from the JWT subject (set by
- *       {@link JwtAuthenticationFilter}); the controller parses it as a
- *       {@code Long}.</li>
+ *   <li>{@code /api/delivery/**}, {@code /delivery/**} —
+ *       {@code hasRole("Repartidor")}. The actor's identity comes from the
+ *       JWT subject (set by {@link JwtAuthenticationFilter}); the roles come
+ *       from the JWT's {@code roles} claim, mapped to
+ *       {@code ROLE_<claimValue>} authorities. Only callers whose token
+ *       carries {@code roles: ["Repartidor"]} (or multi-role tokens that
+ *       include it) pass the matcher. A token with no roles claim, or with
+ *       only Cliente/Restaurante, gets 403 — fail-closed.</li>
  *   <li>{@code /actuator/health/**}, {@code /actuator/info}, {@code /error} —
  *       {@code permitAll()} (health checks are anonymous by design).</li>
  *   <li>{@code /api/internal/**} — handled by {@code InternalApiKeyFilter}
  *       from {@code shared-observability} (X-Internal-Api-Key header).</li>
- *   <li>Everything else — also {@code authenticated()} as a defence-in-depth
- *       default; we never want an unauthenticated endpoint to leak through
+ *   <li>Everything else — also {@code hasRole("Repartidor")} as a
+ *       defence-in-depth default; we never want an endpoint to leak through
  *       because of a missing matcher.</li>
  * </ul>
  *
@@ -65,8 +69,8 @@ public class SecurityConfig {
                 // by shared-observability). Spring Security must NOT demand
                 // JWT here — the X-Internal-Api-Key header is sufficient.
                 .requestMatchers("/api/internal/**").permitAll()
-                .requestMatchers("/api/delivery/**", "/delivery/**").authenticated()
-                .anyRequest().authenticated()
+                .requestMatchers("/api/delivery/**", "/delivery/**").hasRole("Repartidor")
+                .anyRequest().hasRole("Repartidor")
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authenticationEntryPoint())

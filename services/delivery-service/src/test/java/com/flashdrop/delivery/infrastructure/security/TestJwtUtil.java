@@ -14,6 +14,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Generates real signed JWTs for integration testing of JwtAuthenticationFilter.
@@ -38,19 +39,33 @@ public class TestJwtUtil {
     }
 
     public static String generateValidJwt(String subject) throws Exception {
+        return generateValidJwt(subject, null);
+    }
+
+    /**
+     * Generates a real signed JWT for integration testing of {@code JwtAuthenticationFilter}.
+     *
+     * @param subject the {@code sub} claim (Long.toString(userId) per auth-service's contract)
+     * @param roles   values for the {@code roles} claim, or {@code null} to omit it entirely
+     *                (matches tokens issued before auth-service started adding the claim, and
+     *                also lets tests verify the "missing claim → empty authorities" path).
+     */
+    public static String generateValidJwt(String subject, List<String> roles) throws Exception {
         RSAKey key = getOrCreateRsaKey();
 
         JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
                 .keyID(key.getKeyID())
                 .build();
 
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+        JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder()
                 .subject(subject)
                 .issuer("auth-service")
-                .expirationTime(new Date(Instant.now().plusSeconds(3600).toEpochMilli()))
-                .build();
+                .expirationTime(new Date(Instant.now().plusSeconds(3600).toEpochMilli()));
+        if (roles != null) {
+            claimsBuilder.claim("roles", roles);
+        }
 
-        SignedJWT signedJWT = new SignedJWT(header, claims);
+        SignedJWT signedJWT = new SignedJWT(header, claimsBuilder.build());
         RSASSASigner signer = new RSASSASigner(key);
         signedJWT.sign(signer);
 

@@ -35,7 +35,7 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
                                           RouteRepository routeRepository,
                                           OrderServicePort orderServicePort,
                                           InternalOrdersClientPort internalOrdersClient,
-                                          @Value("${delivery.claim.delegate-to-orders.enabled:false}") boolean delegateToOrdersEnabled) {
+                                          @Value("${delivery.claim.delegate-to-orders.enabled:true}") boolean delegateToOrdersEnabled) {
         this.deliveryPersonRepository = deliveryPersonRepository;
         this.routeRepository = routeRepository;
         this.orderServicePort = orderServicePort;

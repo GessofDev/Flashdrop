@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -167,12 +168,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Extract the 'roles' claim and map it to Spring authorities. The claim is
+        // emitted by auth-service's JwtTokenService (com.flashdrop.auth.infrastructure.
+        // adapter.outbound.security.JwtTokenService#issue) and contains strings like
+        // "Cliente", "Restaurante", "Repartidor". A missing or non-list claim falls back
+        // to an empty authority set — fail-closed: a token without a role cannot pass
+        // any hasRole(...) check downstream (403, which is what we want for an
+        // endpoint gated by role).
+        List<String> roles = extractRolesClaim(claims);
+        List<GrantedAuthority> authorities = RoleAuthoritiesExtractor.fromClaim(roles);
+
         UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(subject, null, List.of());
+                new UsernamePasswordAuthenticationToken(subject, null, authorities);
         SecurityContextHolder.getContext().setAuthentication(auth);
-        log.debug("JWT validated: subject={}", subject);
+        log.debug("JWT validated: subject={}, roles={}", subject, roles);
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * Reads the {@code roles} claim from the validated JWT. Returns an empty list
+     * if the claim is absent, malformed, or not a JSON array of strings — the
+     * downstream {@link RoleAuthoritiesExtractor} will then publish an empty
+     * authority set and any {@code hasRole(…)} check will deny the request.
+     */
+    private static List<String> extractRolesClaim(JWTClaimsSet claims) {
+        try {
+            List<String> roles = claims.getStringListClaim("roles");
+            return roles != null ? roles : List.of();
+        } catch (ParseException e) {
+            log.debug("JWT 'roles' claim missing or not a string list: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
