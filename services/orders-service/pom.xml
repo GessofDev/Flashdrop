@@ -162,6 +162,22 @@
           </annotationProcessorPaths>
         </configuration>
       </plugin>
+      <!-- Ejecuta tambien las clases *IT con `mvnw test` (no hay Failsafe configurado): sin esto
+           Surefire solo corre *Test y las pruebas de integracion nunca se ejecutan en el CI.
+           Se repiten los patrones por defecto porque `includes` los reemplaza. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/Test*.java</include>
+            <include>**/*Test.java</include>
+            <include>**/*Tests.java</include>
+            <include>**/*TestCase.java</include>
+            <include>**/*IT.java</include>
+          </includes>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
