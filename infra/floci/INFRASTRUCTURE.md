@@ -173,9 +173,11 @@ FloCI no valida credenciales — su propia consola muestra la cuenta como
 - **delivery-service** sigue siendo el único servicio corriendo, levantado a
   mano, y ocupa el puerto **8084**. Hay que apagarlo antes de levantar el stack
   completo: si no, el contenedor nuevo no puede bindear ese puerto.
-  - Perfil: `delivery,mock-orders` — está hablando con un **mock** de orders, no
-    con el servicio real. Se levantó cuando orders-service no existía, así que
-    cualquier prueba hecha contra ese puerto pasó por un simulador.
+  - Perfil: `delivery` — habla con orders-service real (delegación de claim
+    activa por default, `DELIVERY_CLAIM_DELEGATE_TO_ORDERS=true`). Antes de
+    WU-5 este contenedor corría con el perfil `delivery,mock-orders` porque
+    orders-service no existía; eso quedó como deuda técnica hasta que
+    orders-service estuvo listo y delivery pasó el WU-5 de este plan.
   - Su `DELIVERY_DB_PASSWORD` ya quedó guardada en Secrets Manager como
     `delivery/db-password`.
 
@@ -218,7 +220,7 @@ The end state is "deploy via `aws` CLI the same way against FloCI and real AWS":
         │            ├──► auth-service        ─► auth_db      (RDS via Secrets Mgr)
         │            ├──► catalog-service     ─► catalog_db
         │            ├──► orders-service      ─► orders_db
-        │            └──► delivery-service    ─► delivery_db  (mock-orders profile off)
+        │            └──► delivery-service    ─► delivery_db  (claim delegates to orders-service)
         │
         ▼
 [ Secrets Manager ]   DB passwords, internal.api.key, JWT signing key
