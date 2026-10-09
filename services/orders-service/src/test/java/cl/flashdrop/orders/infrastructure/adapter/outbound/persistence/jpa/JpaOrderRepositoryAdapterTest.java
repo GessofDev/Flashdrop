@@ -217,6 +217,33 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         assertEquals(OrderStatus.PREPARANDO, reloaded2.getStatus());
     }
 
+    @Test
+    void claimOrders_shouldNotStealAnOrderAlreadyAssignedToAnotherDelivery() {
+        Order order = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        UUID first = IdConverter.toUuid(9L);
+        UUID second = IdConverter.toUuid(10L);
+
+        assertEquals(1, adapter.claimOrders(List.of(order.getId()), first));
+        assertEquals(0, adapter.claimOrders(List.of(order.getId()), second));
+
+        assertEquals(first, adapter.findById(order.getId()).orElseThrow().getDeliveryId());
+    }
+
+    @Test
+    void claimOrders_shouldAssignOnlyTheOrdersThatAreStillFree() {
+        Order free = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        Order taken = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        UUID owner = IdConverter.toUuid(9L);
+        UUID newcomer = IdConverter.toUuid(10L);
+        adapter.claimOrders(List.of(taken.getId()), owner);
+
+        int updated = adapter.claimOrders(List.of(free.getId(), taken.getId()), newcomer);
+
+        assertEquals(1, updated);
+        assertEquals(newcomer, adapter.findById(free.getId()).orElseThrow().getDeliveryId());
+        assertEquals(owner, adapter.findById(taken.getId()).orElseThrow().getDeliveryId());
+    }
+
     /**
      * Ruta activa = pedidos del repartidor aún no entregados. Como el claim ya no muta a
      * EN_CAMINO, un pedido tomado y todavía no retirado queda en LISTO_PARA_RETIRO y también
