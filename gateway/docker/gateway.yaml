@@ -66,6 +66,11 @@ routes:
     # mantienen la defensa X-Internal-Api-Key en el propio servicio.
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
 
+  - prefix: /api/catalog
+    target: http://catalog-service:8082
+    stripPrefix: false
+    backendName: catalog-service
+
   # === ORDERS (2 prefijos distintos, mismo target) ===
   - prefix: /api/orders
     target: http://orders-service:8083
