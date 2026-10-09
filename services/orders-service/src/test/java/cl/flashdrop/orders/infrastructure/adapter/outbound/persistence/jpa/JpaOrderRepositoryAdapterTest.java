@@ -151,6 +151,19 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     }
 
     @Test
+    void findByClientId_shouldReturnOnlyThatClientsOrders() {
+        Order mine = adapter.save(baseOrder().items(List.of()).build());
+        ClientEntity other = clientRepository.save(ClientEntity.builder()
+                .userId(System.nanoTime() + 1).createdAt(OffsetDateTime.now()).build());
+        adapter.save(baseOrder().clientId(IdConverter.toUuid(other.getId())).items(List.of()).build());
+
+        List<Order> result = adapter.findByClientId(clientId);
+
+        assertEquals(List.of(mine.getId()), result.stream().map(Order::getId).toList());
+        assertTrue(adapter.findByClientId(null).isEmpty());
+    }
+
+    @Test
     void findAll_shouldReturnAllOrdersWhenRestaurantIdIsNull() {
         adapter.save(baseOrder().items(List.of()).build());
         adapter.save(baseOrder().restaurantId(IdConverter.toUuid(8L)).items(List.of()).build());
