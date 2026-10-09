@@ -243,8 +243,11 @@ class OrdersE2ESimulatedTest {
                         .withBody("[{\"id\":501,\"client_id\":10,\"restaurant_id\":7,\"delivery_id\":null,\"status\":\"Nuevo pedido\",\"address\":\"Av. Providencia 1200\",\"subtotal\":2000,\"delivery_fee\":2500,\"total\":4500,\"payment_method\":\"Tarjeta\",\"created_at\":\"2026-08-22T00:00:00Z\"}]")));
 
         // PATCH /orders (claim update)
+        // PostgREST con Prefer: return=representation devuelve las filas actualizadas (claim atomico).
         wireMock.stubFor(patch(urlPathMatching("/rest/v1/orders"))
-                .willReturn(aResponse().withStatus(204)));
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("[{\"id\":501}]")));
 
         // GET /orders?id=eq.501 (getOrderDetail final)
         wireMock.stubFor(get(urlPathMatching("/rest/v1/orders"))
