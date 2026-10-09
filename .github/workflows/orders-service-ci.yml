@@ -1,10 +1,11 @@
 name: Orders Service CI
 
-# GAP-02 (auditoria Orders, 2026-09-04/05): los tests JpaClientAdapterTest y
-# JpaOrderRepositoryAdapterTest usan Testcontainers para levantar PostgreSQL real.
-# En Windows local, docker-java no logra hablar con el proxy named-pipe de Docker
-# Desktop (confirmado incluso fuera de Maven, con una JVM standalone). Este workflow
-# corre en ubuntu-latest, donde Testcontainers usa el Docker Engine nativo del
+# GAP-02 (auditoria Orders, 2026-09-04/05): los tests
+# JpaClientAdapterTest y JpaOrderRepositoryAdapterTest usan Testcontainers
+# para levantar PostgreSQL real. En Windows local, docker-java no logra
+# hablar con el proxy named-pipe de Docker Desktop (confirmado incluso
+# fuera de Maven, con una JVM standalone). Este workflow corre en
+# ubuntu-latest, donde Testcontainers usa el Docker Engine nativo del
 # runner (socket unix) sin ninguna configuracion especial.
 
 on:
@@ -20,7 +21,7 @@ on:
 
 jobs:
   test:
-    name: mvnw test (incluye JPA + Testcontainers)
+    name: mvnw verify (Surefire *Test + Failsafe *IT)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -36,7 +37,7 @@ jobs:
           java-version: "21"
 
       # El repo trackea mvnw con modo 100644 (no ejecutable) — sin este paso
-      # "./mvnw test" falla con Permission denied en Linux.
+      # "./mvnw verify" falla con Permission denied en Linux.
       - name: Dar permiso de ejecucion a mvnw
         run: chmod +x mvnw
 
@@ -44,5 +45,93 @@ jobs:
       # (PostgresIntegrationTestSupport) usando el Docker Engine del runner.
       # Sin variables de entorno de BD: la URL/usuario/password los inyecta
       # dinamicamente Testcontainers via @DynamicPropertySource.
-      - name: Run tests
-        run: ./mvnw test
+      #
+      # `./mvnw verify` corre dos fases:
+      #   1. test              -> Surefire ejecuta **/*Test.java
+      #   2. integration-test  -> Failsafe ejecuta **/*IT.java
+      #   3. verify            -> Failsafe verifica que las IT pasaron
+      #
+      # Antes de esta PR el CI corria `./mvnw test` (solo Surefire) y
+      # `OrderControllerStatusAuthzIT` (12 casos) NUNCA se ejecutaba.
+      - name: Run tests (Surefire + Failsafe)
+        run: ./mvnw verify
+
+      # Red de seguridad estilo Catalog: verifica que al menos una clase
+      # *IT se ejecuto y paso. Si Failsafe no se ejecuto (e.g. alguien
+      # borra el plugin del pom), este check rompe el build antes de que
+      # un PR silencie la regresion.
+      - name: Require *IT coverage
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          reports_dir = Path("target/failsafe-reports")
+          if not reports_dir.exists():
+              msg = (
+                  "ERROR: target/failsafe-reports/ missing; "
+                  "Failsafe never ran."
+              )
+              print(msg)
+              sys.exit(1)
+
+          it_reports = sorted(reports_dir.glob("TEST-*IT.xml"))
+          if not it_reports:
+              msg = (
+                  f"ERROR: no TEST-*IT.xml in {reports_dir}; "
+                  "*IT tests did not execute."
+              )
+              print(msg)
+              sys.exit(1)
+
+          problems = []
+          total_tests = 0
+          for report in it_reports:
+              suite = ET.parse(report).getroot()
+              tests = int(suite.attrib.get("tests", "0"))
+              failures = int(suite.attrib.get("failures", "0"))
+              errors = int(suite.attrib.get("errors", "0"))
+              name = suite.attrib.get("name", report.stem)
+              total_tests += tests
+              if tests == 0:
+                  problems.append(f"{name}: 0 tests executed")
+              if failures > 0 or errors > 0:
+                  problem = (
+                      f"{name}: {failures} failures, {errors} errors"
+                  )
+                  problems.append(problem)
+
+          if problems:
+              print("ERROR: *IT coverage check failed:")
+              for p in problems:
+                  print(f"  - {p}")
+              sys.exit(1)
+
+          summary = (
+              f"OK: {len(it_reports)} *IT class(es) ran, "
+              f"{total_tests} total test(s) executed"
+          )
+          print(summary)
+          PY
+
+      # Subir reports SIEMPRE (no solo en failure) para acumular historico
+      # y permitir diagnosticar corridas intermitentes sin re-correr.
+      # target/surefire-reports/** -> tests unitarios (*Test).
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orders-surefire-reports
+          path: services/orders-service/target/surefire-reports
+          if-no-files-found: ignore
+
+      # target/failsafe-reports/** -> tests de integracion (*IT).
+      - name: Upload Failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orders-failsafe-reports
+          path: services/orders-service/target/failsafe-reports
+          if-no-files-found: ignore
