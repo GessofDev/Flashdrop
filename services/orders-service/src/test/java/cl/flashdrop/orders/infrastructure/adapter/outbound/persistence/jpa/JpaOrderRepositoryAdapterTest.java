@@ -151,6 +151,19 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     }
 
     @Test
+    void findByClientId_shouldReturnOnlyThatClientsOrders() {
+        Order mine = adapter.save(baseOrder().items(List.of()).build());
+        ClientEntity other = clientRepository.save(ClientEntity.builder()
+                .userId(System.nanoTime() + 1).createdAt(OffsetDateTime.now()).build());
+        adapter.save(baseOrder().clientId(IdConverter.toUuid(other.getId())).items(List.of()).build());
+
+        List<Order> result = adapter.findByClientId(clientId);
+
+        assertEquals(List.of(mine.getId()), result.stream().map(Order::getId).toList());
+        assertTrue(adapter.findByClientId(null).isEmpty());
+    }
+
+    @Test
     void findAll_shouldReturnAllOrdersWhenRestaurantIdIsNull() {
         adapter.save(baseOrder().items(List.of()).build());
         adapter.save(baseOrder().restaurantId(IdConverter.toUuid(8L)).items(List.of()).build());
@@ -202,6 +215,33 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         assertEquals(deliveryId, reloaded2.getDeliveryId());
         assertEquals(OrderStatus.LISTO_PARA_RETIRO, reloaded1.getStatus());
         assertEquals(OrderStatus.PREPARANDO, reloaded2.getStatus());
+    }
+
+    @Test
+    void claimOrders_shouldNotStealAnOrderAlreadyAssignedToAnotherDelivery() {
+        Order order = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        UUID first = IdConverter.toUuid(9L);
+        UUID second = IdConverter.toUuid(10L);
+
+        assertEquals(1, adapter.claimOrders(List.of(order.getId()), first));
+        assertEquals(0, adapter.claimOrders(List.of(order.getId()), second));
+
+        assertEquals(first, adapter.findById(order.getId()).orElseThrow().getDeliveryId());
+    }
+
+    @Test
+    void claimOrders_shouldAssignOnlyTheOrdersThatAreStillFree() {
+        Order free = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        Order taken = adapter.save(baseOrder().status(OrderStatus.LISTO_PARA_RETIRO).items(List.of()).build());
+        UUID owner = IdConverter.toUuid(9L);
+        UUID newcomer = IdConverter.toUuid(10L);
+        adapter.claimOrders(List.of(taken.getId()), owner);
+
+        int updated = adapter.claimOrders(List.of(free.getId(), taken.getId()), newcomer);
+
+        assertEquals(1, updated);
+        assertEquals(newcomer, adapter.findById(free.getId()).orElseThrow().getDeliveryId());
+        assertEquals(owner, adapter.findById(taken.getId()).orElseThrow().getDeliveryId());
     }
 
     /**

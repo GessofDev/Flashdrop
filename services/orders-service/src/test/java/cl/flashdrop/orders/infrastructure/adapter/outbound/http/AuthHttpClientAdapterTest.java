@@ -26,7 +26,7 @@ class AuthHttpClientAdapterTest {
 
     @BeforeEach
     void setUp() {
-        RestClient restClient = RestClient.builder()
+        RestClient restClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
                 .defaultHeader("Accept", "application/json")
@@ -103,7 +103,7 @@ class AuthHttpClientAdapterTest {
     void shouldThrowExternalServiceExceptionServiceUnavailableWhenServiceDownOrTimeout() {
         // MIGRATION_PLAN.md §10: "servicio dependiente caído o timeout" -> 503
         // SERVICE_UNAVAILABLE (antes 502 BAD_GATEWAY, corregido en la auditoría 2026-09-04).
-        RestClient offlineClient = RestClient.builder()
+        RestClient offlineClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .baseUrl("http://localhost:59999")
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
                 .build();

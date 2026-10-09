@@ -41,6 +41,20 @@ jobs:
       - name: Dar permiso de ejecucion a mvnw
         run: chmod +x mvnw
 
+      # Docker Hub a veces no responde (timeout al pedir el token de descarga) y entonces todas
+      # las pruebas con Testcontainers fallan juntas. Se descarga la imagen antes, con
+      # reintentos; Testcontainers la encuentra en local y ya no la pide a Docker Hub.
+      - name: Descargar imagen de PostgreSQL (con reintentos)
+        working-directory: .
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if docker pull postgres:15-alpine; then exit 0; fi
+            echo "Intento $attempt fallido; reintentando en $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          echo "No se pudo descargar postgres:15-alpine tras 5 intentos"
+          exit 1
+
       # Sin services: postgres — Testcontainers levanta el contenedor el mismo
       # (PostgresIntegrationTestSupport) usando el Docker Engine del runner.
       # Sin variables de entorno de BD: la URL/usuario/password los inyecta

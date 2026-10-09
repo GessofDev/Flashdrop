@@ -61,19 +61,19 @@ public class OrderController {
     private final CurrentUserResolver currentUserResolver;
     private final ListAvailableOrdersUseCase listAvailableOrdersUseCase;
 
+    /**
+     * "Mis pedidos": los pedidos del usuario autenticado según sus roles (Restaurante: los de su
+     * restaurante; Cliente: los que hizo). La identidad sale siempre del JWT; el parámetro
+     * {@code user_id}, si viene, debe coincidir con ella (403 si no) y no cambia el resultado.
+     */
     @GetMapping
     public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) Long userIdLong) {
-        // Wire: Long (lo emite auth en el sub del JWT). Dominio interno: UUID.
-        // Conversión al límite, mismo criterio que /api/internal/orders/claim y CreateOrder.
-        UUID userId = userIdLong != null ? IdConverter.toUuid(userIdLong) : null;
+        UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
         log.debug("GET /api/orders, user_id={}", userIdLong);
-        if (userId != null) {
-            UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
-            if (!authenticatedUserId.equals(userId)) {
-                throw new AccessDeniedException("No puedes consultar pedidos de otro usuario");
-            }
+        if (userIdLong != null && !authenticatedUserId.equals(IdConverter.toUuid(userIdLong))) {
+            throw new AccessDeniedException("No puedes consultar pedidos de otro usuario");
         }
-        List<Order> orders = listOrdersUseCase.execute(userId);
+        List<Order> orders = listOrdersUseCase.execute(authenticatedUserId, currentUserResolver.requireCurrentRoles());
         List<OrderListResponse> response = orders.stream()
                 .map(this::toListResponse)
                 .collect(Collectors.toList());
@@ -103,7 +103,8 @@ public class OrderController {
     @GetMapping("/{id}")
     public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable("id") UUID orderId) {
         log.debug("GET /api/orders/{}", orderId);
-        Order order = getOrderDetailUseCase.execute(orderId);
+        Order order = getOrderDetailUseCase.execute(orderId,
+                currentUserResolver.requireCurrentRoles(), currentUserResolver.requireCurrentUserId());
         return ApiResponse.success(toDetailResponse(order));
     }
 
@@ -137,6 +138,7 @@ public class OrderController {
 
         CreateOrderCommand command = CreateOrderCommand.builder()
                 .userId(authenticatedUserId)
+                .clientProfileAllowed(currentUserResolver.hasRole(Role.CLIENTE))
                 .address(request.getAddress())
                 .paymentMethod(request.getPaymentMethod())
                 .distanceKm(request.getDistanceKm())

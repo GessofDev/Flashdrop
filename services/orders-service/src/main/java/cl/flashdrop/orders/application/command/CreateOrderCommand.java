@@ -21,6 +21,12 @@ public class CreateOrderCommand {
      */
     private final UUID userId;
 
+    /**
+     * {@code true} si el token del usuario trae el rol Cliente: en ese caso, si aún no tiene
+     * perfil de cliente en Orders, se crea en esta primera compra. Lo fija {@code OrderController}.
+     */
+    private final boolean clientProfileAllowed;
+
     /** Dirección de entrega */
     private final String address;
 

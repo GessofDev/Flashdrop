@@ -90,6 +90,22 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    public List<Order> findByClientId(UUID clientId) {
+        if (clientId == null) return List.of();
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("client_id", "eq." + IdConverter.toLong(clientId))
+                        .queryParam("select", "*")
+                        .queryParam("order", "id.desc")
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        if (rows == null) return List.of();
+        return Arrays.stream(rows).map(r -> mapToOrder(r, List.of())).collect(Collectors.toList());
+    }
+
+    @Override
     public void updateStatus(UUID orderId, OrderStatus status) {
         long rawId = IdConverter.toLong(orderId);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -111,15 +127,20 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("delivery_id", rawDeliveryId);
         String inClause = rawIds.stream().map(Object::toString).collect(Collectors.joining(","));
-        supabaseRestClient.patch()
+        // Condicional (delivery_id=is.null) y devolviendo las filas actualizadas: solo se asigna lo
+        // que seguía libre y el conteo es real, no el de lo solicitado.
+        OrderRow[] updated = supabaseRestClient.patch()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
                         .queryParam("id", "in.(" + inClause + ")")
+                        .queryParam("delivery_id", "is.null")
+                        .queryParam("select", "id")
                         .build())
+                .header("Prefer", "return=representation")
                 .body(body)
                 .retrieve()
-                .toBodilessEntity();
-        return orderIds.size();
+                .body(OrderRow[].class);
+        return updated != null ? updated.length : 0;
     }
 
     @Override

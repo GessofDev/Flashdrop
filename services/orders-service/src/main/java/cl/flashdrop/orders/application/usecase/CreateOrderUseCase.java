@@ -100,8 +100,15 @@ public class CreateOrderUseCase {
         // 5. Resolver cliente a partir del userId autenticado (ver OrderController /
         // CurrentUserResolver — GAP-04). No existe fallback: si el usuario no tiene un
         // perfil de cliente en la tabla propia `client`, la creación falla explícitamente.
+        // Primera compra: si el token trae el rol Cliente y aún no hay perfil, se crea aquí
+        // (acuerdo con Auth: Auth no interviene en el registro).
         UUID clientId = clientPort.findClientIdByUserId(command.getUserId())
-                .orElseThrow(() -> new OrderDomainException("No existe cliente para crear pedido"));
+                .orElseGet(() -> {
+                    if (!command.isClientProfileAllowed()) {
+                        throw new OrderDomainException("No existe cliente para crear pedido");
+                    }
+                    return clientPort.findOrCreateClientIdByUserId(command.getUserId());
+                });
 
         // 6. Calcular totales
         BigDecimal subtotal = Order.calculateSubtotal(items);

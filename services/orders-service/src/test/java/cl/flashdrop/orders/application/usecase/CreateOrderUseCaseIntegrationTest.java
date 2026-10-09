@@ -48,14 +48,14 @@ class CreateOrderUseCaseIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        RestClient catalogClient = RestClient.builder()
+        RestClient catalogClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
                 .defaultHeader("Accept", "application/json")
                 .build();
         CatalogHttpClientAdapter catalogAdapter = new CatalogHttpClientAdapter(catalogClient);
 
-        RestClient deliveryClient = RestClient.builder()
+        RestClient deliveryClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", "test-internal-key")
                 .defaultHeader("Accept", "application/json")

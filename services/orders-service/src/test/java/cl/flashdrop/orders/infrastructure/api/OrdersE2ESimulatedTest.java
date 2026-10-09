@@ -80,7 +80,7 @@ class OrdersE2ESimulatedTest {
                 .build();
 
         // 1. Client REST para servicios internos (Catalog, Auth, Delivery)
-        RestClient internalRestClient = RestClient.builder()
+        RestClient internalRestClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .baseUrl("http://localhost:" + wireMock.getPort())
                 .defaultHeader("X-Internal-Api-Key", API_KEY)
@@ -89,7 +89,7 @@ class OrdersE2ESimulatedTest {
                 .build();
 
         // 2. Client REST para PostgREST (Supabase BD propia)
-        RestClient supabaseRestClient = RestClient.builder()
+        RestClient supabaseRestClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .baseUrl("http://localhost:" + wireMock.getPort() + "/rest/v1")
                 .defaultHeader("apikey", "test-role-key")
@@ -118,10 +118,10 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         ListOrdersUseCase listOrdersUseCase = new ListOrdersUseCase(
-                orderRepositoryAdapter, catalogAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
 
         GetOrderDetailUseCase getOrderDetailUseCase = new GetOrderDetailUseCase(
-                orderRepositoryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
 
         ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase = new ClaimDeliveryOrdersUseCase(
                 orderRepositoryAdapter, deliveryAdapter);
@@ -139,7 +139,8 @@ class OrdersE2ESimulatedTest {
         // body. USER_UUID = IdConverter.toUuid(1L) simula al mismo usuario "1" que antes
         // se enviaba en el body de ambos requests.
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken("1", null, List.of()));
+                new UsernamePasswordAuthenticationToken("1", null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_Cliente"))));
     }
 
     @AfterEach
@@ -242,8 +243,11 @@ class OrdersE2ESimulatedTest {
                         .withBody("[{\"id\":501,\"client_id\":10,\"restaurant_id\":7,\"delivery_id\":null,\"status\":\"Nuevo pedido\",\"address\":\"Av. Providencia 1200\",\"subtotal\":2000,\"delivery_fee\":2500,\"total\":4500,\"payment_method\":\"Tarjeta\",\"created_at\":\"2026-08-22T00:00:00Z\"}]")));
 
         // PATCH /orders (claim update)
+        // PostgREST con Prefer: return=representation devuelve las filas actualizadas (claim atomico).
         wireMock.stubFor(patch(urlPathMatching("/rest/v1/orders"))
-                .willReturn(aResponse().withStatus(204)));
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("[{\"id\":501}]")));
 
         // GET /orders?id=eq.501 (getOrderDetail final)
         wireMock.stubFor(get(urlPathMatching("/rest/v1/orders"))

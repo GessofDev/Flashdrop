@@ -66,6 +66,30 @@ class JpaClientAdapterTest extends PostgresIntegrationTestSupport {
     }
 
     @Test
+    void findOrCreateClientIdByUserId_shouldCreateTheProfileWhenMissing() {
+        UUID userId = IdConverter.toUuid(601L);
+        assertTrue(adapter.findClientIdByUserId(userId).isEmpty());
+
+        UUID clientId = adapter.findOrCreateClientIdByUserId(userId);
+
+        assertEquals(clientId, adapter.findClientIdByUserId(userId).orElseThrow());
+        assertEquals(1, clientRepository.findAll().stream().filter(c -> c.getUserId() == 601L).count());
+    }
+
+    @Test
+    void findOrCreateClientIdByUserId_shouldReuseTheExistingProfile_withoutDuplicates() {
+        ClientEntity existing = persistClient(602L);
+        UUID userId = IdConverter.toUuid(602L);
+
+        UUID first = adapter.findOrCreateClientIdByUserId(userId);
+        UUID second = adapter.findOrCreateClientIdByUserId(userId);
+
+        assertEquals(IdConverter.toUuid(existing.getId()), first);
+        assertEquals(first, second);
+        assertEquals(1, clientRepository.findAll().stream().filter(c -> c.getUserId() == 602L).count());
+    }
+
+    @Test
     void findClientIdByUserId_shouldReturnEmptyForNullUserId() {
         assertTrue(adapter.findClientIdByUserId(null).isEmpty());
     }

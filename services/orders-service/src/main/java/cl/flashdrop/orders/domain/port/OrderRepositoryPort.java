@@ -37,6 +37,11 @@ public interface OrderRepositoryPort {
     List<Order> findAll(UUID restaurantId);
 
     /**
+     * Lista los pedidos hechos por un cliente (id de perfil de cliente, no de usuario).
+     */
+    List<Order> findByClientId(UUID clientId);
+
+    /**
      * Actualiza \u00FAnicamente el estado de un pedido.
      */
     void updateStatus(UUID orderId, OrderStatus status);

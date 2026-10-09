@@ -185,4 +185,74 @@ class CreateOrderUseCaseTest {
         verify(deliveryPort, never()).saveRoute(any());
         verify(eventPublisher, never()).publish(any(), any());
     }
+
+    // ----------------- Perfil de cliente en la primera compra (acuerdo con Auth) -----------------
+
+    private CreateOrderCommand commandFor(UUID userId, UUID productId, boolean clientProfileAllowed) {
+        return CreateOrderCommand.builder()
+                .userId(userId)
+                .clientProfileAllowed(clientProfileAllowed)
+                .address("Av. Providencia 1200")
+                .paymentMethod("Tarjeta")
+                .items(List.of(CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()))
+                .build();
+    }
+
+    private void stubCatalogForOneProduct(UUID productId, UUID restaurantId) {
+        when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(ProductInfo.builder()
+                .id(productId).restaurantId(restaurantId).price(BigDecimal.valueOf(1000))
+                .name("Burger").available(true).build()));
+    }
+
+    @Test
+    void firstPurchase_withClientRoleAndNoProfile_createsTheProfileAndUsesItInTheOrder() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID();
+        UUID newClientId = UUID.randomUUID();
+        stubCatalogForOneProduct(productId, restaurantId);
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.empty());
+        when(clientPort.findOrCreateClientIdByUserId(userId)).thenReturn(newClientId);
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.empty());
+        when(orderRepository.save(any(Order.class)))
+                .thenReturn(Order.builder().id(UUID.randomUUID()).total(BigDecimal.valueOf(3500)).build());
+
+        createOrderUseCase.execute(commandFor(userId, productId, true));
+
+        org.mockito.ArgumentCaptor<Order> saved = org.mockito.ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(saved.capture());
+        assertEquals(newClientId, saved.getValue().getClientId());
+    }
+
+    @Test
+    void firstPurchase_withoutClientRole_doesNotCreateTheProfile_andFails() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        stubCatalogForOneProduct(productId, UUID.randomUUID());
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.empty());
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(commandFor(userId, productId, false)));
+
+        assertEquals("No existe cliente para crear pedido", ex.getMessage());
+        verify(clientPort, never()).findOrCreateClientIdByUserId(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void existingProfile_isReused_andNothingIsCreated() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID();
+        UUID clientId = UUID.randomUUID();
+        stubCatalogForOneProduct(productId, restaurantId);
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.empty());
+        when(orderRepository.save(any(Order.class)))
+                .thenReturn(Order.builder().id(UUID.randomUUID()).total(BigDecimal.valueOf(3500)).build());
+
+        createOrderUseCase.execute(commandFor(userId, productId, true));
+
+        verify(clientPort, never()).findOrCreateClientIdByUserId(any());
+    }
 }

@@ -98,6 +98,13 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<Order> findByClientId(UUID clientId) {
+        if (clientId == null) return List.of();
+        return mapWithItems(orderRepository.findByClientId(IdConverter.toLong(clientId)));
+    }
+
+    @Override
     @Transactional
     public void updateStatus(UUID orderId, OrderStatus status) {
         if (orderId == null || status == null) return;
@@ -117,12 +124,9 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());
         Long rawDeliveryId = IdConverter.toLong(deliveryId);
 
-        List<OrderEntity> entities = orderRepository.findByIdIn(rawIds);
-        for (OrderEntity entity : entities) {
-            entity.setDeliveryId(rawDeliveryId);
-        }
-        orderRepository.saveAll(entities);
-        return entities.size();
+        // Una sola sentencia condicional (delivery_id IS NULL): atómica frente a dos repartidores
+        // simultáneos. Si devuelve menos que lo pedido, el use case aborta y revierte.
+        return orderRepository.claimUnassigned(rawDeliveryId, rawIds);
     }
 
     @Override
