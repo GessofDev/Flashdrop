@@ -34,8 +34,9 @@ dependencies {
     // Desktop 4.85.0 (Engine 29.6.2) requires API 1.40+. 1.20.4 ships
     // docker-java 3.4.x with API 1.43+, restoring IT compatibility.
     // Explicit versions on the direct deps are not enough: Spring Boot's
-    // auto-imported BOM still wins the transitive conflict, so we
-    // additionally force() every testcontainers group via resolutionStrategy.
+    // auto-imported BOM still wins the transitive conflict, so we also
+    // pin every testcontainers artifact via resolutionStrategy.eachDependency
+    // (see block below).
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
