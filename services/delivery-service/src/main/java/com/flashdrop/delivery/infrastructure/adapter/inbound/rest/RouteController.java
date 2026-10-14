@@ -6,6 +6,7 @@ import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase;
 import com.flashdrop.delivery.application.port.inbound.UpdateRouteStatusUseCase;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.infrastructure.security.CurrentUserResolver;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,13 +32,16 @@ public class RouteController {
     private final ListDeliveryRoutesUseCase listDeliveryRoutesUseCase;
     private final UpdateRouteStatusUseCase updateRouteStatusUseCase;
     private final DeliveryPersonRepository deliveryPersonRepository;
+    private final CurrentUserResolver currentUserResolver;
 
     public RouteController(ListDeliveryRoutesUseCase listDeliveryRoutesUseCase,
                            UpdateRouteStatusUseCase updateRouteStatusUseCase,
-                           DeliveryPersonRepository deliveryPersonRepository) {
+                           DeliveryPersonRepository deliveryPersonRepository,
+                           CurrentUserResolver currentUserResolver) {
         this.listDeliveryRoutesUseCase = listDeliveryRoutesUseCase;
         this.updateRouteStatusUseCase = updateRouteStatusUseCase;
         this.deliveryPersonRepository = deliveryPersonRepository;
+        this.currentUserResolver = currentUserResolver;
     }
 
     @GetMapping("/routes")
@@ -64,7 +68,8 @@ public class RouteController {
             @PathVariable Long routeId,
             @Valid @RequestBody UpdateRouteStatusRequest request) {
         log.info("PUT /delivery/routes/{}/status - Updating status to: {}", routeId, request.status());
-        RouteResponse response = updateRouteStatusUseCase.execute(routeId, request);
+        RouteResponse response = updateRouteStatusUseCase.execute(
+                currentUserResolver.requireCurrentUserId(), routeId, request);
         return ResponseEntity.ok(ApiResponse.success("Route status updated", response));
     }
 

@@ -6,6 +6,9 @@ import com.flashdrop.delivery.application.port.inbound.ListDeliveryRoutesUseCase
 import com.flashdrop.delivery.application.port.inbound.UpdateRouteStatusUseCase;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
+import com.flashdrop.delivery.infrastructure.security.CurrentUserResolver;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RouteController.class)
+@Import(CurrentUserResolver.class)
 @AutoConfigureMockMvc(addFilters = false)
 class RouteControllerTest {
 
@@ -55,11 +59,12 @@ class RouteControllerTest {
     class UpdateStatus {
 
         @Test
+        @WithMockUser(username = "42", roles = "Repartidor")
         @DisplayName("TC1: PUT /delivery/routes/{id}/status with valid status — returns 200 wrapped in ApiResponse")
         void updateStatus_valid_returns200WithApiResponse() throws Exception {
             Long routeId = 1L;
             RouteResponse updated = makeRouteResponse(routeId, "Entregado");
-            when(updateRouteStatusUseCase.execute(eq(routeId), any(UpdateRouteStatusRequest.class)))
+            when(updateRouteStatusUseCase.execute(eq(42L), eq(routeId), any(UpdateRouteStatusRequest.class)))
                     .thenReturn(updated);
 
             mockMvc.perform(put("/delivery/routes/{routeId}/status", routeId)

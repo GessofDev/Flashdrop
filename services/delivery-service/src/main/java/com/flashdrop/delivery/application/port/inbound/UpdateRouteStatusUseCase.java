@@ -5,5 +5,5 @@ import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 
 public interface UpdateRouteStatusUseCase {
 
-    RouteResponse execute(Long routeId, UpdateRouteStatusRequest request);
+    RouteResponse execute(Long userId, Long routeId, UpdateRouteStatusRequest request);
 }
