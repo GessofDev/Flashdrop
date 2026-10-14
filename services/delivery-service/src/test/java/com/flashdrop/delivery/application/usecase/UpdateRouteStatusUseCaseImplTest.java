@@ -4,6 +4,8 @@ import com.flashdrop.delivery.application.dto.RouteResponse;
 import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
+import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
@@ -20,12 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class UpdateRouteStatusUseCaseImplTest {
@@ -38,9 +42,17 @@ class UpdateRouteStatusUseCaseImplTest {
 
     private UpdateRouteStatusUseCaseImpl useCase;
 
+    @Mock
+    private DeliveryPersonRepository deliveryPersonRepository;
+
     @BeforeEach
     void setUp() {
-        useCase = new UpdateRouteStatusUseCaseImpl(routeRepository, orderServicePort);
+        useCase = new UpdateRouteStatusUseCaseImpl(routeRepository, orderServicePort, deliveryPersonRepository);
+        when(deliveryPersonRepository.findByUserId("42"))
+                .thenReturn(Optional.of(new DeliveryPerson(7L, "42", null, null)));
+        lenient().when(routeRepository.findById(1L)).thenReturn(Optional.of(new DeliveryRoute(
+                1L, 101L, 7L, "Pickup", "Delivery", Distance.of(BigDecimal.ONE),
+                EstimatedTime.of(10), RouteStatus.ASSIGNED, Instant.now())));
     }
 
     @Nested
@@ -60,7 +72,7 @@ class UpdateRouteStatusUseCaseImplTest {
             when(orderServicePort.getOrdersByIds(List.of(101L)))
                     .thenReturn(List.of(new OrderServicePort.OrderInfo(101L, 10L, "Pickup", "Delivery", "ORD-001")));
 
-            RouteResponse result = useCase.execute(routeId, request);
+            RouteResponse result = useCase.execute(42L, routeId, request);
 
             assertThat(result.id()).isEqualTo(routeId);
             assertThat(result.status()).isEqualTo("Entregado");
@@ -72,7 +84,7 @@ class UpdateRouteStatusUseCaseImplTest {
         void invalidStatusString_throwsIllegalArgumentException() {
             UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("NOT_A_REAL_STATUS");
 
-            assertThatThrownBy(() -> useCase.execute(1L, request))
+            assertThatThrownBy(() -> useCase.execute(42L, 1L, request))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid status");
         }
@@ -80,12 +92,11 @@ class UpdateRouteStatusUseCaseImplTest {
         @Test
         @DisplayName("TC3: route not found — throws RouteNotFoundException")
         void routeNotFound_throwsRouteNotFoundException() {
-            when(routeRepository.updateStatus(eq(999L), any()))
-                    .thenThrow(new RouteNotFoundException(999L));
+            when(routeRepository.findById(999L)).thenReturn(Optional.empty());
 
             UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("ENTREGADO");
 
-            assertThatThrownBy(() -> useCase.execute(999L, request))
+            assertThatThrownBy(() -> useCase.execute(42L, 999L, request))
                     .isInstanceOf(RouteNotFoundException.class)
                     .hasMessageContaining("999");
         }

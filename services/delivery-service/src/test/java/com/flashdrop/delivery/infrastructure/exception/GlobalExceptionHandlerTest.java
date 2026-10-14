@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = RouteController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, com.flashdrop.delivery.infrastructure.security.CurrentUserResolver.class})
 class GlobalExceptionHandlerTest {
 
     @Autowired
