@@ -4,7 +4,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
 
 /**
  * Clientes HTTP entre servicios internos de Orders.
@@ -43,7 +48,14 @@ public class InternalServiceClientConfig {
     public RestClient deliveryInternalRestClient(
             @Value("${delivery.service.url}") String baseUrl,
             @Value("${internal.api.key}") String apiKey) {
-        return build(baseUrl, apiKey);
+        // Route synchronization uses PATCH, unsupported by HttpURLConnection.
+        HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(READ_TIMEOUT_MS);
+        return build(baseUrl, apiKey, requestFactory);
     }
 
     private static RestClient build(String baseUrl, String apiKey) {
@@ -51,6 +63,10 @@ public class InternalServiceClientConfig {
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MS);
         requestFactory.setReadTimeout(READ_TIMEOUT_MS);
 
+        return build(baseUrl, apiKey, requestFactory);
+    }
+
+    private static RestClient build(String baseUrl, String apiKey, ClientHttpRequestFactory requestFactory) {
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
