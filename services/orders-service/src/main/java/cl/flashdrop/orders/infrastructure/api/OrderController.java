@@ -13,6 +13,7 @@ import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ApiResponse;
+import cl.flashdrop.orders.infrastructure.api.dto.response.AvailableDeliveryOrderResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.OrderDetailResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.OrderListResponse;
 import jakarta.validation.Valid;
@@ -87,7 +88,7 @@ public class OrderController {
      * conversión al límite que {@link #listOrders}.
      */
     @GetMapping("/available-for-delivery")
-    public ApiResponse<List<OrderListResponse>> listAvailableForDelivery(
+    public ApiResponse<List<AvailableDeliveryOrderResponse>> listAvailableForDelivery(
             @RequestParam("restaurant_id") Long restaurantIdLong,
             @RequestParam(value = "limit", defaultValue = "5") int limit) {
         log.debug("GET /api/orders/available-for-delivery, restaurant_id={}, limit={}", restaurantIdLong, limit);
@@ -96,7 +97,7 @@ public class OrderController {
         }
         List<Order> orders = listAvailableOrdersUseCase.execute(IdConverter.toUuid(restaurantIdLong), limit);
         return ApiResponse.success(orders.stream()
-                .map(this::toListResponse)
+                .map(this::toAvailableDeliveryResponse)
                 .collect(Collectors.toList()));
     }
 
@@ -193,6 +194,34 @@ public class OrderController {
                 .deliveryId(deliveryId)
                 .createdAt(order.getCreatedAt())
                 .build();
+    }
+
+    private AvailableDeliveryOrderResponse toAvailableDeliveryResponse(Order order) {
+        String restaurantName = order.getRestaurantInfo() != null
+                ? order.getRestaurantInfo().getName()
+                : "Restaurante " + IdConverter.toLong(order.getRestaurantId());
+        String restaurantAddress = order.getRestaurantInfo() != null
+                ? order.getRestaurantInfo().getAddress()
+                : "";
+        String pickupAddress = restaurantAddress == null || restaurantAddress.isBlank()
+                ? restaurantName
+                : restaurantName + ", " + restaurantAddress;
+        String clientName = order.getClientInfo() != null ? order.getClientInfo().fullName() : "Cliente";
+
+        return new AvailableDeliveryOrderResponse(
+                IdConverter.toLong(order.getId()),
+                IdConverter.toLong(order.getRestaurantId()),
+                order.code(),
+                order.getStatus().getValue(),
+                restaurantName,
+                pickupAddress,
+                order.getAddress(),
+                clientName,
+                order.getTotal(),
+                order.getRoute() != null && order.getRoute().getDistanceKm() != null
+                        ? order.getRoute().getDistanceKm().doubleValue()
+                        : null,
+                order.getRoute() != null ? order.getRoute().getEstimatedMinutes() : null);
     }
 
     private OrderDetailResponse toDetailResponse(Order order) {
