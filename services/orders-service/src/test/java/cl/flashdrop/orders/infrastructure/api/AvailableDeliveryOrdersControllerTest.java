@@ -110,8 +110,9 @@ class AvailableDeliveryOrdersControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].id").value(IdConverter.toUuid(501L).toString()))
-                .andExpect(jsonPath("$.data[1].id").value(IdConverter.toUuid(502L).toString()))
+                .andExpect(jsonPath("$.data[0].orderId").value(501))
+                .andExpect(jsonPath("$.data[1].orderId").value(502))
+                .andExpect(jsonPath("$.data[0].restaurantId").value(7))
                 .andExpect(jsonPath("$.data[0].status").value("Listo para retiro"));
     }
 
