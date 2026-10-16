@@ -295,8 +295,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            format: uuid
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: ID numérico emitido a clientes o UUID legado.
       requestBody:
         required: true
         content:
