@@ -101,6 +101,18 @@ class OrderControllerStatusAuthzTest {
     }
 
     @Test
+    void repartidor_conIdNumerico_transicionAutorizada_200_yConvierteElId() throws Exception {
+        autenticadoComo("Repartidor");
+
+        mockMvc.perform(put("/api/orders/{id}/status", 501L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Retirado\"}"))
+                .andExpect(status().isOk());
+
+        verify(updateOrderStatusUseCase).execute(ORDER_ID, "Retirado", Set.of(Role.REPARTIDOR), USER_UUID);
+    }
+
+    @Test
     void restaurante_transicionAutorizada_200_yElUseCaseRecibeRolYUsuarioDelToken() throws Exception {
         autenticadoComo("Restaurante");
 
@@ -190,6 +202,19 @@ class OrderControllerStatusAuthzTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+
+        verify(updateOrderStatusUseCase, never()).execute(any(), any(), any(), any());
+    }
+
+    @Test
+    void idNoNumericoNiUuid_400_yNoLlegaAlUseCase() throws Exception {
+        autenticadoComo("Repartidor");
+
+        mockMvc.perform(put("/api/orders/{id}/status", "invalido")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"Retirado\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
 
         verify(updateOrderStatusUseCase, never()).execute(any(), any(), any(), any());
     }
