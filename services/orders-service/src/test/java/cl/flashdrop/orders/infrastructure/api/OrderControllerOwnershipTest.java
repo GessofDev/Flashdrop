@@ -85,6 +85,38 @@ class OrderControllerOwnershipTest {
     }
 
     @Test
+    void vistaRestaurante_conUsuarioMultirole_devuelveSoloPedidosDelLocal() throws Exception {
+        autenticadoComo("Cliente", "Restaurante");
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE))).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isOk());
+
+        verify(listOrdersUseCase).execute(USER_UUID, Set.of(Role.RESTAURANTE));
+    }
+
+    @Test
+    void vistaRestaurante_sinRolRestaurante_rechazaLaSolicitud() throws Exception {
+        autenticadoComo("Cliente");
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(listOrdersUseCase);
+    }
+
+    @Test
+    void vistaInvalida_devuelveBadRequest() throws Exception {
+        autenticadoComo("Cliente");
+
+        mockMvc.perform(get("/api/orders").param("view", "administrador"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+
+        verifyNoInteractions(listOrdersUseCase);
+    }
+
+    @Test
     void misPedidos_conUserIdDeOtro_403_yNoConsultaNada() throws Exception {
         autenticadoComo("Cliente");
 

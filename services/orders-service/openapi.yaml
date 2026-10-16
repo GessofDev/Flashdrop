@@ -69,17 +69,25 @@ paths:
       tags: [Orders]
       summary: Listar pedidos
       description: |
-        Retorna la lista de pedidos.
-        Opcionalmente filtrar por `user_id`.
+        Retorna los pedidos visibles para el usuario autenticado. Un usuario
+        multirrol puede solicitar una vista específica para no mezclar los
+        pedidos hechos como cliente con los pedidos de su restaurante.
       operationId: listOrders
       parameters:
         - name: user_id
           in: query
           required: false
           schema:
+            type: integer
+            format: int64
+          description: Debe coincidir con el usuario autenticado.
+        - name: view
+          in: query
+          required: false
+          schema:
             type: string
-            format: uuid
-          description: Filtrar por ID de usuario
+            enum: [restaurant, client]
+          description: Vista exclusiva para un rol del usuario autenticado.
       responses:
         '200':
           description: Lista de pedidos
