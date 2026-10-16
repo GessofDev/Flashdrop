@@ -9,6 +9,7 @@ import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.Role;
+import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
@@ -68,17 +69,40 @@ public class OrderController {
      * {@code user_id}, si viene, debe coincidir con ella (403 si no) y no cambia el resultado.
      */
     @GetMapping
-    public ApiResponse<List<OrderListResponse>> listOrders(@RequestParam(value = "user_id", required = false) Long userIdLong) {
+    public ApiResponse<List<OrderListResponse>> listOrders(
+            @RequestParam(value = "user_id", required = false) Long userIdLong,
+            @RequestParam(value = "view", required = false) String view) {
         UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
-        log.debug("GET /api/orders, user_id={}", userIdLong);
+        Set<Role> authenticatedRoles = currentUserResolver.requireCurrentRoles();
+        log.debug("GET /api/orders, user_id={}, view={}", userIdLong, view);
         if (userIdLong != null && !authenticatedUserId.equals(IdConverter.toUuid(userIdLong))) {
             throw new AccessDeniedException("No puedes consultar pedidos de otro usuario");
         }
-        List<Order> orders = listOrdersUseCase.execute(authenticatedUserId, currentUserResolver.requireCurrentRoles());
+        List<Order> orders = listOrdersUseCase.execute(
+                authenticatedUserId,
+                rolesForView(authenticatedRoles, view));
         List<OrderListResponse> response = orders.stream()
                 .map(this::toListResponse)
                 .collect(Collectors.toList());
         return ApiResponse.success(response);
+    }
+
+    private static Set<Role> rolesForView(Set<Role> authenticatedRoles, String view) {
+        if (view == null || view.isBlank()) {
+            return authenticatedRoles;
+        }
+        return switch (view.trim().toLowerCase()) {
+            case "restaurant" -> requiredRole(authenticatedRoles, Role.RESTAURANTE);
+            case "client" -> requiredRole(authenticatedRoles, Role.CLIENTE);
+            default -> throw new OrderDomainException("Vista de pedidos invalida");
+        };
+    }
+
+    private static Set<Role> requiredRole(Set<Role> authenticatedRoles, Role role) {
+        if (!authenticatedRoles.contains(role)) {
+            throw new AccessDeniedException("No tienes permiso para esta vista de pedidos");
+        }
+        return Set.of(role);
     }
 
     /**
