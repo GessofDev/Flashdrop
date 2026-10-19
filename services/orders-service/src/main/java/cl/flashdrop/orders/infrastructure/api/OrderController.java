@@ -182,13 +182,30 @@ public class OrderController {
      */
     @PutMapping("/{id}/status")
     public ApiResponse<Void> updateOrderStatus(
-            @PathVariable("id") UUID orderId,
+            @PathVariable("id") String rawOrderId,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
+        UUID orderId = resolveOrderId(rawOrderId);
         log.debug("PUT /api/orders/{}/status, status={}", orderId, request.getStatus());
         Set<Role> currentRoles = currentUserResolver.requireCurrentRoles();
         UUID currentUserId = currentUserResolver.requireCurrentUserId();
         updateOrderStatusUseCase.execute(orderId, request.getStatus(), currentRoles, currentUserId);
         return ApiResponse.success("Estado actualizado");
+    }
+
+    /**
+     * Public clients use the numeric order id emitted by Delivery and Catalog.
+     * UUID remains accepted for backwards compatibility with older clients.
+     */
+    private static UUID resolveOrderId(String rawOrderId) {
+        try {
+            return IdConverter.toUuid(Long.parseLong(rawOrderId));
+        } catch (NumberFormatException ignored) {
+            try {
+                return UUID.fromString(rawOrderId);
+            } catch (IllegalArgumentException ex) {
+                throw new OrderDomainException("Id de pedido invalido");
+            }
+        }
     }
 
     // =========================================================================
