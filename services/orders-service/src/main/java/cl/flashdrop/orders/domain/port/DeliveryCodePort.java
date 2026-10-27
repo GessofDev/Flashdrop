@@ -11,6 +11,9 @@ import cl.flashdrop.orders.domain.model.Order;
  */
 public interface DeliveryCodePort {
 
+    /** Indica si hay clave configurada para emitir códigos del modo SEGURO. */
+    boolean isSecureModeAvailable();
+
     /** Código vigente del pedido (6 dígitos). */
     String currentCodeFor(Order order);
 }

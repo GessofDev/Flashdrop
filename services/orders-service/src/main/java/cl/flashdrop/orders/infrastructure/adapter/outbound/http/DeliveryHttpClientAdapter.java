@@ -72,6 +72,9 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         body.put("distanceKm", route.getDistanceKm());
         body.put("estimatedMinutes", route.getEstimatedMinutes());
         body.put("status", route.getStatus());
+        if (route.getReceptionMode() != null) {
+            body.put("receptionMode", route.getReceptionMode());
+        }
         try {
             deliveryInternalRestClient.post()
                     .uri("/api/internal/routes")

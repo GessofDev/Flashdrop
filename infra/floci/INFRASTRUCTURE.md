@@ -138,7 +138,6 @@ Convención: `<servicio>/db-password`, uno por servicio y creado por su dueño.
 | `delivery/db-password`       | creado  |
 | `catalog/db-password`        | pendiente |
 | `orders/db-password`         | pendiente |
-| `flashdrop/delivery-code-secret` | pendiente |
 
 **`flashdrop/internal-api-key` es UNA SOLA para los cinco servicios.** No crear
 una por servicio: en cuanto alguien rote una y no las otras, todas las llamadas
@@ -149,12 +148,7 @@ Referenciarla por su ARN:
 arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key-REB7PU
 ```
 
-**`flashdrop/delivery-code-secret` solo lo usa orders-service.** Es la clave con la
-que se derivan los códigos de entrega del modo de recepción SEGURO (el código no se
-guarda en la base de datos). Debe existir antes de desplegar la task definition de
-orders, porque la referencia por ARN. No rotarla con pedidos SEGURO en curso: cambiaría
-los códigos que los clientes ya tienen. Sin la clave, orders arranca igual pero rechaza
-crear pedidos SEGURO; el modo NORMAL (código 000000) no la necesita.
+**`DELIVERY_CODE_SECRET` (solo orders-service) va en `gateway/docker/.env`, no en Secrets Manager.** Es la clave con la que se derivan los códigos de entrega del modo de recepción SEGURO (el código no se guarda en la base de datos); `docker-compose.stack.yml` la pasa al contenedor de orders. Debe estar definida antes de desplegar. No rotarla con pedidos SEGURO en curso: cambiaría los códigos que los clientes ya tienen. Sin la clave, orders arranca igual pero rechaza (400) crear pedidos SEGURO; el modo NORMAL (código 000000) no la necesita.
 
 **Migración V3 de orders (código de entrega).** La task definition de orders corre con
 `FLYWAY_ENABLED=false`: la migración `V3__delivery_code.sql` no se aplica sola. Hay que

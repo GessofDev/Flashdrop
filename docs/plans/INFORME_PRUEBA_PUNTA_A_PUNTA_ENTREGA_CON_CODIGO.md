@@ -56,7 +56,7 @@ La base original no se tocó (solo se leyó con `pg_dump`) y el contenedor qued�
 | A13 | El código **viejo** ya no sirve | 422 | ✅ |
 | A14 | Otro repartidor con el código **correcto** | 403 | ✅ |
 | A15 | Cliente o restaurante llamando a `/deliver` | 403 | ✅ |
-| A16 | `PUT /api/orders/4/status` con "Entregado" | 409 | ✅ |
+| A16 | `PUT /api/orders/4/status` con "Entregado" (pedido SEGURO) | 409 | ✅ |
 | A17 | `PUT` de la ruta en Delivery con `ENTREGADO` y con `entregado` | 409 | ✅ ambos |
 | A18 | `PUT` de la ruta por un repartidor que no es el dueño | 403 | ✅ |
 | A19 | Tras esos intentos, el estado no cambió | Orders "Retirado", ruta "En camino" | ✅ |
@@ -120,7 +120,7 @@ Auditoría total: 2 aciertos y 16 fallos. Los 5 errores del modo normal no se re
 
 ## 3. Lo que esto confirma sobre el diseño
 
-1. **El único camino a "Entregado" es el código.** Se intentó por Orders (`PUT /status`) y por Delivery (`PUT` de la ruta): ambos 409.
+1. **El único camino a "Entregado" es el código.** En un pedido SEGURO se intentó por Orders (`PUT /status`) y por Delivery (`PUT` de la ruta): ambos 409. (Esta prueba se hizo antes de la revisión de Nicolás: desde entonces el `PUT /status` de Orders vuelve a entregar en pedidos NORMAL, cubierto por pruebas automáticas.)
 2. **El conteo de intentos aguanta la simultaneidad** con el servidor real, no solo en la prueba automática.
 3. **Orders y Delivery quedan sincronizados**: cuando Orders avisa `ENTREGADO`, Delivery lo guarda como "Entregado". Esto confirma en vivo la normalización que se agregó en Delivery.
 4. **Los pedidos antiguos no se rompen** con la migración.
@@ -205,8 +205,8 @@ Notas: durante la prueba `GET /api/orders/{id}` pedía el **UUID** (`00000000-00
 El detalle completo está en `INFORME_IMPLEMENTACION_ENTREGA_CON_CODIGO.md` (secciones 9 y 11). Lo que más conviene tener presente al probar:
 
 1. **Ids del pedido.** Crear pedido, listado y detalle devuelven el `id` como **UUID**; Delivery y "pedidos disponibles" entregan el **número**. Todos los endpoints de Orders aceptan ambos, así que cada rol puede usar el id que recibió. Unificar las respuestas al número sería un cambio de contrato (app + Sebastián): queda como decisión del equipo.
-2. **App Android del repartidor.** Hoy marca "Entregado" con `PUT /api/delivery/routes/{id}/status`, que ahora responde 409. Debe pasar a `POST /api/orders/{id}/deliver` **antes** de desplegar Delivery.
-3. **Despliegue de Orders.** Aplicar `V3` a mano (Flyway está apagado en FloCI) y crear el secreto `flashdrop/delivery-code-secret` antes de desplegar.
+2. **App Android del repartidor.** Hoy entrega con `PUT /api/orders/{id}/status`, que sigue funcionando en pedidos NORMAL. Para SEGURO debe usar `POST /api/orders/{id}/deliver`, guiándose por `deliveryPinRequired` de `GET /api/delivery/routes`.
+3. **Despliegue de Orders y Delivery juntos.** Aplicar `V3` a mano (Flyway está apagado en FloCI), definir `DELIVERY_CODE_SECRET` en `gateway/docker/.env`; la `V7` de Delivery se aplica sola.
 4. **Delivery no tiene CI** y tiene 5 pruebas que ya fallaban en `main` (usuario semilla "U1" borrado por la migración `V6` y una que espera que falte `INTERNAL_API_KEY`). Se verificó en una copia limpia de `main`: no son de este cambio.
 5. **Pedido bloqueado.** Hoy no hay herramienta de soporte para destrabarlo.
 

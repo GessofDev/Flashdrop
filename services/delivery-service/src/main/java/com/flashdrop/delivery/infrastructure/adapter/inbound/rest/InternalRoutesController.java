@@ -53,6 +53,8 @@ public class InternalRoutesController {
                 null
         );
 
+        route.setReceptionMode(request.receptionMode());
+
         DeliveryRoute saved = routeRepository.save(route);
         return new ResponseEntity<>(
                 ApiResponse.success(toResponse(saved)),
@@ -108,7 +110,9 @@ public class InternalRoutesController {
                 route.getEstimatedMinutes() != null ? route.getEstimatedMinutes().getMinutes() : null,
                 route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt(),
-                null
+                null,
+                route.getReceptionMode(),
+                route.isDeliveryPinRequired()
         );
     }
 

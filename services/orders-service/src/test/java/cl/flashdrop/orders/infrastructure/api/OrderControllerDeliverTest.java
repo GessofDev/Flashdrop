@@ -101,6 +101,7 @@ class OrderControllerDeliverTest {
         deliver("{\"code\":\"111111\"}")
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Codigo incorrecto. Quedan 2 intentos."))
                 .andExpect(jsonPath("$.remainingAttempts").value(2))
                 .andExpect(jsonPath("$.codeRenewed").value(false));
     }

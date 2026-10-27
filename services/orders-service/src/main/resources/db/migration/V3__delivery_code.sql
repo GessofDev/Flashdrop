@@ -13,6 +13,9 @@ ALTER TABLE public.orders
     ADD COLUMN IF NOT EXISTS delivery_code_verified_at timestamptz;
 
 ALTER TABLE public.orders
+    DROP CONSTRAINT IF EXISTS chk_orders_reception_mode;
+
+ALTER TABLE public.orders
     ADD CONSTRAINT chk_orders_reception_mode CHECK (reception_mode IN ('NORMAL', 'SEGURO'));
 
 -- Bitácora de intentos de entrega (aciertos y fallos). Nunca guarda el código ingresado.

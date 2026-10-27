@@ -44,6 +44,11 @@ public class HmacDeliveryCodeAdapter implements DeliveryCodePort {
     }
 
     @Override
+    public boolean isSecureModeAvailable() {
+        return secret.length > 0;
+    }
+
+    @Override
     public String currentCodeFor(Order order) {
         if (!order.isSecureReception()) {
             return Order.DEFAULT_DELIVERY_CODE;

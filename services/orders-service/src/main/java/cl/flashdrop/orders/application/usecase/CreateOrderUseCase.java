@@ -57,6 +57,14 @@ public class CreateOrderUseCase {
     public CreatedOrderResult execute(CreateOrderCommand command) {
         log.info("Creando pedido para userId={}, {} ítems", command.getUserId(), command.getItems().size());
 
+        // 0. El modo SEGURO necesita la clave del código: si falta se rechaza ANTES de guardar
+        // nada, con un 4xx (un 5xx dejaría una ruta huérfana en Delivery y el gateway abre el
+        // circuit breaker de /api/orders tras varios 5xx seguidos).
+        if (command.getReceptionMode() == ReceptionMode.SEGURO && !deliveryCodePort.isSecureModeAvailable()) {
+            throw new OrderDomainException(
+                    "El modo de recepcion SEGURO no esta habilitado por ahora; elige el modo NORMAL");
+        }
+
         // 1. Obtener precios actualizados desde catálogo (nunca del cliente)
         List<UUID> productIds = command.getItems().stream()
                 .map(CreateOrderCommand.ItemRequest::getProductId)
@@ -133,6 +141,10 @@ public class CreateOrderUseCase {
 
         Order saved = orderRepository.save(order);
 
+        // El codigo se deriva del pedido ya persistido; se calcula antes de crear la ruta y
+        // publicar el evento para que un fallo aqui no deje efectos en otros servicios.
+        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
+
         // 8. Crear ruta de entrega
         RestaurantInfo restaurant = catalogPort.findRestaurantById(restaurantId).orElse(null);
         BigDecimal distanceKm = normalizeDistance(command.getDistanceKm());
@@ -147,6 +159,7 @@ public class CreateOrderUseCase {
                 .distanceKm(distanceKm)
                 .estimatedMinutes(estimatedMinutes)
                 .status("Pendiente")
+                .receptionMode(saved.getReceptionMode().name())
                 .build();
 
         deliveryPort.saveRoute(route);
@@ -161,8 +174,6 @@ public class CreateOrderUseCase {
                 .build());
 
         log.info("Pedido creado con id={}, total={}", saved.getId(), total);
-        // El codigo se deriva del pedido ya persistido; solo el modo SEGURO lo devuelve al cliente.
-        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
         return new CreatedOrderResult(saved.getId(), total, saved.getReceptionMode().name(), deliveryCode);
     }
 

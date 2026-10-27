@@ -17,6 +17,11 @@ public class DeliveryRoute {
     private EstimatedTime estimatedMinutes;
     private RouteStatus status;
     private Instant createdAt;
+    /** NORMAL (codigo fijo 000000) o SEGURO (codigo unico del cliente). */
+    private String receptionMode = RECEPTION_MODE_NORMAL;
+
+    public static final String RECEPTION_MODE_NORMAL = "NORMAL";
+    public static final String RECEPTION_MODE_SEGURO = "SEGURO";
 
     public DeliveryRoute() {
     }
@@ -103,6 +108,21 @@ public class DeliveryRoute {
 
     public void setStatus(RouteStatus status) {
         this.status = status;
+    }
+
+    public String getReceptionMode() {
+        return receptionMode;
+    }
+
+    public void setReceptionMode(String receptionMode) {
+        this.receptionMode = receptionMode == null || receptionMode.isBlank()
+                ? RECEPTION_MODE_NORMAL
+                : receptionMode.trim().toUpperCase();
+    }
+
+    /** La app del repartidor debe pedir el codigo solo en pedidos SEGURO. */
+    public boolean isDeliveryPinRequired() {
+        return RECEPTION_MODE_SEGURO.equals(receptionMode);
     }
 
     public Instant getCreatedAt() {

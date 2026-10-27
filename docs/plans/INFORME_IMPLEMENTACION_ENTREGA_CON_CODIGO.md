@@ -158,7 +158,7 @@ Para el repartidor o el restaurante el campo `deliveryCode` simplemente no apare
 
 ### 6.4 Cambiado: actualizar estado de un pedido
 
-`PUT /api/orders/{id}/status` con `"status": "Entregado"` ahora responde **409**. Los demás estados funcionan igual. "Entregado" solo se alcanza con `/deliver`.
+`PUT /api/orders/{id}/status` con `"status": "Entregado"` responde **409 solo en pedidos SEGURO**: ahí "Entregado" se alcanza únicamente con `/deliver`. En pedidos **NORMAL** sigue funcionando (el código es público, `000000`, así que no se pierde seguridad) y la app actual del repartidor no se rompe al desplegar. Los demás estados funcionan igual.
 
 ### 6.5 Cambiado en Delivery
 
@@ -183,7 +183,7 @@ Archivos principales:
 | Orders | `application/usecase/VerifyDeliveryCodeUseCase.java` | La entrega con código |
 | Orders | `infrastructure/adapter/outbound/code/HmacDeliveryCodeAdapter.java` | Calcula el código |
 | Orders | `infrastructure/api/OrderController.java` | Endpoint `/deliver` y campos nuevos |
-| Orders | `application/usecase/UpdateOrderStatusUseCase.java` | Rechaza "Entregado" por `PUT /status` |
+| Orders | `application/usecase/UpdateOrderStatusUseCase.java` | Rechaza "Entregado" por `PUT /status` solo si el pedido es SEGURO |
 | Orders | `application/usecase/GetOrderDetailUseCase.java` | Muestra el código solo al cliente dueño |
 | Orders | `db/migration/V3__delivery_code.sql` | Cambios en la base de datos |
 | Delivery | `UpdateRouteStatusUseCaseImpl.java`, `RouteDeliveryRequiresCodeException.java` | Rechaza "Entregado" por la vía pública |
@@ -199,7 +199,9 @@ Archivos principales:
 |---|---|
 | Orders: modo de recepción, código, `POST /deliver`, intentos, bloqueo, auditoría | ✅ hecho |
 | Orders: migración `V3` (probada en base vacía y sobre datos existentes) | ✅ hecho |
-| Orders: `PUT /status` ya no permite "Entregado"; el cliente ve su código | ✅ hecho |
+| Orders: `PUT /status` no permite "Entregado" en pedidos SEGURO (en NORMAL sigue); el cliente ve su código | ✅ hecho |
+| Orders: sin `DELIVERY_CODE_SECRET`, crear un pedido SEGURO responde 400 antes de guardar nada; el mensaje del 422 incluye los intentos restantes | ✅ hecho |
+| Orders → Delivery: la ruta lleva `receptionMode`; Delivery lo devuelve junto a `deliveryPinRequired` (migración `V7`) | ✅ hecho |
 | Orders: `GET /api/orders/{id}` acepta número o UUID | ✅ hecho (ver 11.1) |
 | Delivery: rechaza "Entregado" por la vía pública y normaliza el estado interno | ✅ hecho |
 | Contrato (`openapi.yaml` de Orders) y configuración (`DELIVERY_CODE_SECRET`) | ✅ hecho |
@@ -218,16 +220,16 @@ Están ordenados por urgencia. Cada uno explica el porqué.
 - **Ya probado:** en local, Flyway aplicó `V3` sobre una copia de datos reales de pruebas (los pedidos viejos quedaron en NORMAL). Falta repetirlo sobre la base de FloCI.
 - **Orden:** primero la migración, después el despliegue de Orders.
 
-### 9.2 Crear el secreto `flashdrop/delivery-code-secret`
-- **Qué:** crear ese secreto en Secrets Manager de FloCI (una clave larga y aleatoria).
-- **Por qué:** es la "llave" con la que se calculan los códigos. La task definition de Orders ya la referencia; si el secreto no existe, **la tarea no arranca**.
-- **Para qué:** que el modo SEGURO pueda generar códigos. Sin la clave, Orders arranca igual (si el secreto existe pero está vacío) y solo rechaza crear pedidos SEGURO; el modo NORMAL funciona.
+### 9.2 Definir `DELIVERY_CODE_SECRET` en `gateway/docker/.env`
+- **Qué:** agregar `DELIVERY_CODE_SECRET=<clave larga y aleatoria>` al `.env` del servidor (la plantilla es `gateway/docker/env.stack.template`). En el servidor la clave va ahí, **no** en Secrets Manager.
+- **Por qué:** es la "llave" con la que se calculan los códigos; `docker-compose.stack.yml` la pasa al contenedor de Orders.
+- **Para qué:** que el modo SEGURO pueda generar códigos. Sin la clave, Orders arranca igual y rechaza con **400** crear pedidos SEGURO (antes de guardar nada); el modo NORMAL funciona.
 - **Ojo:** no cambiar esa clave cuando haya pedidos SEGURO en curso: cambiaría los códigos que los clientes ya tienen.
 
 ### 9.3 Adaptar la app Android del repartidor
-- **Qué:** que para marcar "Entregado" use `POST /api/orders/{id}/deliver` en vez de `PUT /api/delivery/routes/{id}/status`.
-- **Por qué:** el commit `6f9d239` indica que la app Android usa hoy ese `PUT` de Delivery. Cuando se despliegue Delivery, ese botón empezará a recibir **409** y los repartidores no podrán cerrar entregas.
-- **Para qué:** que el flujo siga funcionando. Mientras la app no esté lista, conviene **no desplegar** el cambio de Delivery (o desplegarlo junto con la app).
+- **Qué:** que, en pedidos SEGURO, pida el código y use `POST /api/orders/{id}/deliver`. La app decide si lo pide con `deliveryPinRequired` de `GET /api/delivery/routes` (verdadero solo en SEGURO). En NORMAL puede seguir con `PUT /api/orders/{id}/status`.
+- **Por qué:** la app entrega hoy con `PUT /api/orders/{id}/status`, que sigue funcionando en NORMAL; en SEGURO responde 409. Todos los pedidos son NORMAL hasta que se active el selector, así que desplegar no rompe la app actual.
+- **Para qué:** que la función SEGURO sea usable. Tampoco debe usar `PUT /api/delivery/routes/{id}/status` con `ENTREGADO` (409).
 
 ### 9.4 Adaptar la app del cliente
 - **Qué:** selector de modo al comprar (con aviso "no se puede cambiar"), y mostrar el `deliveryCode` en el detalle del pedido.
@@ -235,11 +237,11 @@ Están ordenados por urgencia. Cada uno explica el porqué.
 - **Para qué:** que la función sea realmente usable. Mientras tanto, todo pedido queda en NORMAL y nada cambia para el cliente.
 
 ### 9.5 Orden recomendado de despliegue
-1. Crear el secreto (9.2) y aplicar la migración (9.1).
-2. Desplegar Orders (con modo NORMAL por defecto no cambia nada visible).
-3. Desplegar la app del repartidor con `/deliver` (9.3).
-4. Desplegar Delivery (cierra la puerta lateral).
-5. **Recién ahí** habilitar el selector de modo SEGURO en la app del cliente (9.4).
+1. Definir la clave en el `.env` (9.2) y aplicar `V3` a mano (9.1).
+2. Desplegar Orders y Delivery **juntos** (la `V7` de Delivery se aplica sola; todos los pedidos son NORMAL, nada cambia para la app actual).
+3. Probar por el gateway: NORMAL por `PUT`, y SEGURO con intentos fallidos, renovación, bloqueo y entrega.
+4. La app del repartidor se adapta (9.3) y la del cliente (9.4).
+5. **Recién ahí** activar el selector de modo SEGURO.
 
 **Por qué este orden:** el modo seguro solo es seguro si Delivery ya no deja marcar "Entregado" por su cuenta. Si se ofrece antes, un repartidor podría saltarse el código.
 
@@ -269,7 +271,7 @@ Pruebas nuevas que escribí (todas pasan):
 | Delivery: `UpdateRouteStatusUseCaseImplTest`, `RouteOwnershipTest` | "Entregado" por la vía pública da 409 y no escribe nada |
 
 Pruebas existentes que tuve que **modificar** (cambió el comportamiento a propósito):
-- `UpdateOrderStatusUseCaseTest`: antes probaba que el repartidor pasara a "Entregado" con `PUT /status`; ahora prueba que eso se rechaza.
+- `UpdateOrderStatusUseCaseTest`: antes probaba que el repartidor pasara a "Entregado" con `PUT /status`; ahora prueba que en un pedido SEGURO eso se rechaza y que en uno NORMAL sigue entregando y sincronizando la ruta.
 - `UpdateRouteStatusUseCaseImplTest` (TC1): antes actualizaba a "Entregado"; ahora usa "En camino".
 - `InternalRoutesControllerTest`: ahora espera el estado normalizado ("Entregado").
 - Varias pruebas de Orders solo se ajustaron para el constructor nuevo o para el id de texto del detalle (no cambia lo que prueban).
@@ -336,7 +338,7 @@ Orders marca el pedido "Entregado" y, si no puede avisar a Delivery, solo deja u
 **Pendientes (otras personas o ambientes):**
 - [ ] Nicolás: repetir y documentar el flujo (idealmente por el gateway) con `INFORME_PRUEBA_PUNTA_A_PUNTA_ENTREGA_CON_CODIGO.md` §4.
 - [ ] Felipe: decidir el commit y el PR una vez que Nicolás valide (en pausa).
-- [ ] Crear el secreto `flashdrop/delivery-code-secret` (9.2).
+- [ ] Definir `DELIVERY_CODE_SECRET` en `gateway/docker/.env` (9.2).
 - [ ] Aplicar `V3__delivery_code.sql` a la base de Orders en FloCI y ensayarla allí (9.1).
 - [ ] Equipo de la app: repartidor usa `/deliver` **antes** de desplegar Delivery (9.3); cliente con selector de modo y código (9.4).
 - [ ] Decidir si se unifican los ids de las respuestas al número (11.1).

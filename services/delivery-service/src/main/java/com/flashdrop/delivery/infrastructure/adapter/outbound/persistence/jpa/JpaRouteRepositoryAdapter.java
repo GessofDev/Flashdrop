@@ -125,7 +125,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
     }
 
     private DeliveryRoute toDomain(DeliveryRouteJpaEntity entity) {
-        return new DeliveryRoute(
+        DeliveryRoute route = new DeliveryRoute(
                 entity.getId(),
                 entity.getOrderId(),
                 entity.getDeliveryPersonId(),
@@ -136,10 +136,12 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
                 RouteStatus.fromDbValue(entity.getStatus()),
                 entity.getCreatedAt()
         );
+        route.setReceptionMode(entity.getReceptionMode());
+        return route;
     }
 
     private DeliveryRouteJpaEntity toEntity(DeliveryRoute route) {
-        return new DeliveryRouteJpaEntity(
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
                 route.getId(),
                 route.getOrderId(),
                 route.getDeliveryPersonId(),
@@ -150,5 +152,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
                 route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt() != null ? route.getCreatedAt() : Instant.now()
         );
+        entity.setReceptionMode(route.getReceptionMode());
+        return entity;
     }
 }

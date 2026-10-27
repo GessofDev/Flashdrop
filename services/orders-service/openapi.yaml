@@ -291,9 +291,10 @@ paths:
         claim (resuelto vía Delivery `GET /api/internal/delivery-persons?userId=`).
 
         `En camino` es un estado legacy: ningún rol puede llevar un pedido a él.
-        `Entregado` es terminal y **no se puede fijar con este endpoint** (responde `409`): solo
-        se alcanza confirmando la entrega con el código del cliente en
-        `POST /api/orders/{id}/deliver`.
+        `Entregado` es terminal. En pedidos `SEGURO` **no se puede fijar con este endpoint**
+        (responde `409`): solo se alcanza confirmando la entrega con el código del cliente en
+        `POST /api/orders/{id}/deliver`. En pedidos `NORMAL` (código público `000000`) sí se
+        puede fijar aquí.
       operationId: updateOrderStatus
       parameters:
         - name: id
@@ -343,8 +344,8 @@ paths:
         '409':
           description: |
             El estado actual del pedido no permite la transición solicitada
-            (ej. `Entregado → Retirado`), o se intentó fijar `Entregado` (requiere el código
-            de verificación: usar `POST /api/orders/{id}/deliver`).
+            (ej. `Entregado → Retirado`), o se intentó fijar `Entregado` en un pedido `SEGURO`
+            (requiere el código de verificación: usar `POST /api/orders/{id}/deliver`).
           content:
             application/json:
               schema:

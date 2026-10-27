@@ -284,6 +284,7 @@ class CreateOrderUseCaseTest {
         stubCatalogAndClient(userId, productId, restaurantId, clientId);
         Order saved = Order.builder().id(orderId).receptionMode(ReceptionMode.SEGURO).build();
         when(orderRepository.save(any(Order.class))).thenReturn(saved);
+        when(deliveryCodePort.isSecureModeAvailable()).thenReturn(true);
         when(deliveryCodePort.currentCodeFor(saved)).thenReturn("482913");
 
         CreatedOrderResult result = createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.SEGURO));
@@ -293,6 +294,19 @@ class CreateOrderUseCaseTest {
         assertEquals(ReceptionMode.SEGURO, captor.getValue().getReceptionMode());
         assertEquals("SEGURO", result.receptionMode());
         assertEquals("482913", result.deliveryCode());
+    }
+
+    /** Sin clave el modo SEGURO se rechaza (400) antes de guardar nada: sin ruta huerfana ni 5xx. */
+    @Test
+    void modoSeguro_sinClave_rechazaAntesDeGuardarNada() {
+        UUID userId = UUID.randomUUID(), productId = UUID.randomUUID();
+        when(deliveryCodePort.isSecureModeAvailable()).thenReturn(false);
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.SEGURO)));
+
+        assertTrue(ex.getMessage().contains("SEGURO"), ex.getMessage());
+        verifyNoInteractions(orderRepository, deliveryPort, eventPublisher);
     }
 
     @Test

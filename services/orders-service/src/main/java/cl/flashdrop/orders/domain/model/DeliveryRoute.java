@@ -37,4 +37,7 @@ public class DeliveryRoute {
 
     /** Estado de la ruta (espejo del estado del pedido) */
     private final String status;
+
+    /** Modo de recepción del pedido (NORMAL o SEGURO); Delivery lo usa para pedir o no el código */
+    private final String receptionMode;
 }

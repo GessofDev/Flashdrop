@@ -84,8 +84,10 @@ public class UpdateOrderStatusUseCase {
             validateDeliveryAssignment(order, currentUserId);
         }
 
-        // ENTREGADO solo se alcanza con el codigo de verificacion (VerifyDeliveryCodeUseCase)
-        if (newStatus == OrderStatus.ENTREGADO) {
+        // En modo SEGURO ENTREGADO solo se alcanza con el codigo de verificacion
+        // (VerifyDeliveryCodeUseCase). En modo NORMAL el codigo es publico (000000), asi que
+        // no se pierde seguridad al seguir aceptando PUT /status: la app actual sigue funcionando.
+        if (newStatus == OrderStatus.ENTREGADO && order.isSecureReception()) {
             throw new OrderDomainException("Transicion de estado no permitida: la entrega se confirma "
                     + "con el codigo de verificacion (POST /api/orders/{id}/deliver)");
         }

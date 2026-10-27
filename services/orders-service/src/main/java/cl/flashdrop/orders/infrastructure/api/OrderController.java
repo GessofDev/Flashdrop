@@ -219,13 +219,20 @@ public class OrderController {
         return switch (result.outcome()) {
             case DELIVERED -> ResponseEntity.ok(ApiResponse.success("Pedido entregado"));
             case WRONG_CODE -> codeError(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
-                    "Codigo incorrecto", result.remainingAttempts(), false);
+                    "Codigo incorrecto. " + attemptsLeft(result.remainingAttempts()),
+                    result.remainingAttempts(), false);
             case CODE_RENEWED -> codeError(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
-                    "Codigo incorrecto. Se agotaron los intentos: se genero un codigo nuevo para el cliente",
+                    "Codigo incorrecto. Se agotaron los intentos: se genero un codigo nuevo para el cliente. "
+                            + attemptsLeft(result.remainingAttempts()),
                     result.remainingAttempts(), true);
             case LOCKED -> codeError(HttpStatus.LOCKED, "LOCKED",
                     "Entrega bloqueada por intentos agotados. Contacta a soporte", 0, false);
         };
+    }
+
+    /** La app solo muestra el texto del message, así que los intentos restantes van dentro de él. */
+    private static String attemptsLeft(int remaining) {
+        return remaining == 1 ? "Queda 1 intento." : "Quedan " + remaining + " intentos.";
     }
 
     private static ResponseEntity<DeliveryCodeErrorResponse> codeError(

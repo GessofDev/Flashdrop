@@ -93,6 +93,81 @@ class InternalRoutesControllerTest {
         }
 
         @Test
+        @DisplayName("receptionMode SEGURO is stored on the route and exposed as deliveryPinRequired")
+        void createRoute_seguro_exposesDeliveryPinRequired() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> {
+                DeliveryRoute r = inv.getArgument(0);
+                r.setId(2L);
+                return r;
+            });
+
+            String body = """
+                {
+                  "orderId": 1002,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente",
+                  "receptionMode": "SEGURO"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.receptionMode").value("SEGURO"))
+                    .andExpect(jsonPath("$.data.deliveryPinRequired").value(true));
+        }
+
+        @Test
+        @DisplayName("without receptionMode the route is NORMAL and does not require the PIN")
+        void createRoute_withoutReceptionMode_defaultsToNormal() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            String body = """
+                {
+                  "orderId": 1003,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.receptionMode").value("NORMAL"))
+                    .andExpect(jsonPath("$.data.deliveryPinRequired").value(false));
+        }
+
+        @Test
+        @DisplayName("returns 400 when receptionMode is not NORMAL or SEGURO")
+        void createRoute_invalidReceptionMode_returns400() throws Exception {
+            String body = """
+                {
+                  "orderId": 1004,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "status": "Pendiente",
+                  "receptionMode": "OTRO"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         @DisplayName("returns 400 when status is missing")
         void createRoute_missingStatus_returns400() throws Exception {
             String body = """
