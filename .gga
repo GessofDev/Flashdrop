@@ -1,0 +1,27 @@
+# Gentleman Guardian Angel — configuración del review de pre-commit.
+#
+# La configuración global (AppData/Roaming/gga/config) apunta a
+# PROVIDER="gemini" y ese CLI no está instalado en esta máquina: el hook
+# abortaba el commit con "Gemini CLI not found". Acá se usa el CLI de Claude,
+# que sí está.
+#
+# Los FILE_PATTERNS globales cubren solo TS/JS/PY/GO. Los servicios de este
+# repo son Java, así que sin *.java el review del hook no revisaba nada.
+#
+# RULES_FILE=AGENTS.md: los estándares del repo (inyección por constructor,
+# records para DTOs, sin inyección por campo, un public class por archivo).
+#
+# TIMEOUT alto a propósito: con el CLI de Claude el review de un changeset
+# de ~450 líneas tarda varios minutos y con 300s moría por timeout.
+
+PROVIDER="claude"
+
+FILE_PATTERNS="*.ts,*.tsx,*.js,*.jsx,*.py,*.go,*.java,*.sql,*.sh,*.yml,*.yaml"
+
+EXCLUDE_PATTERNS="*.test.*,*.spec.*,*.d.ts,dist/*,build/*,node_modules/*"
+
+RULES_FILE="AGENTS.md"
+
+STRICT_MODE="true"
+
+TIMEOUT="900"
