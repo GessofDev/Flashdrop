@@ -7,6 +7,7 @@ import cl.flashdrop.orders.domain.model.PaymentMethod;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.ClientEntity;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataClientRepository;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderDeliveryCodeAttemptRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderItemRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,8 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     @Autowired
     private SpringDataOrderItemRepository orderItemRepository;
     @Autowired
+    private SpringDataOrderDeliveryCodeAttemptRepository deliveryCodeAttemptRepository;
+    @Autowired
     private SpringDataClientRepository clientRepository;
 
     private JpaOrderRepositoryAdapter adapter;
@@ -43,7 +46,7 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        adapter = new JpaOrderRepositoryAdapter(orderRepository, orderItemRepository);
+        adapter = new JpaOrderRepositoryAdapter(orderRepository, orderItemRepository, deliveryCodeAttemptRepository);
 
         // orders.client_id tiene FK real hacia client(id) (V1__init.sql) — hace falta un
         // cliente persistido antes de poder guardar una orden, igual que en producción.

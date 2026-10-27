@@ -59,6 +59,13 @@ public class CreateOrderRequest {
     @JsonAlias("estimated_minutes")
     private Integer estimatedMinutes;
 
+    /**
+     * Modo de recepción: NORMAL o SEGURO (opcional, por defecto NORMAL). No se puede cambiar
+     * una vez creado el pedido.
+     */
+    @JsonAlias("reception_mode")
+    private String receptionMode;
+
     /** Lista de ítems (formato nuevo) */
     private List<ItemRequest> items;
 

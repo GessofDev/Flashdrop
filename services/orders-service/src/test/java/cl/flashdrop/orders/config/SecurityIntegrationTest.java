@@ -6,6 +6,7 @@ import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
+import cl.flashdrop.orders.application.usecase.VerifyDeliveryCodeUseCase;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.CurrentUserResolver;
 import cl.flashdrop.orders.infrastructure.api.DeliveryController;
@@ -91,6 +92,8 @@ class SecurityIntegrationTest {
     private ListOrdersUseCase listOrdersUseCase;
     @MockBean
     private UpdateOrderStatusUseCase updateOrderStatusUseCase;
+    @MockBean
+    private VerifyDeliveryCodeUseCase verifyDeliveryCodeUseCase;
     @MockBean
     private ListAvailableOrdersUseCase listAvailableOrdersUseCase;
     @MockBean

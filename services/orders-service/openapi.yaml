@@ -248,9 +248,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            format: uuid
-          description: ID del pedido
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: ID numérico emitido a clientes o UUID legado (el mismo criterio que `PUT /api/orders/{id}/status`).
       responses:
         '200':
           description: Detalle del pedido
@@ -279,7 +282,7 @@ paths:
         | Rol | Transiciones permitidas |
         |---|---|
         | `Restaurante` | `Nuevo pedido → Preparando`, `Preparando → Listo para retiro`, `Nuevo pedido → Listo para retiro` (atajo) |
-        | `Repartidor` | `Listo para retiro → Retirado`, `Retirado → Entregado`, y para pedidos legacy `En camino → Retirado` / `En camino → Entregado` |
+        | `Repartidor` | `Listo para retiro → Retirado` (y, para pedidos legacy, `En camino → Retirado`) |
         | `Cliente` | ninguna |
 
         El rol `Restaurante` solo puede modificar pedidos de **su** restaurante
@@ -288,7 +291,9 @@ paths:
         claim (resuelto vía Delivery `GET /api/internal/delivery-persons?userId=`).
 
         `En camino` es un estado legacy: ningún rol puede llevar un pedido a él.
-        `Entregado` es terminal.
+        `Entregado` es terminal y **no se puede fijar con este endpoint** (responde `409`): solo
+        se alcanza confirmando la entrega con el código del cliente en
+        `POST /api/orders/{id}/deliver`.
       operationId: updateOrderStatus
       parameters:
         - name: id
@@ -338,11 +343,102 @@ paths:
         '409':
           description: |
             El estado actual del pedido no permite la transición solicitada
-            (ej. `Entregado → Retirado`, `Listo para retiro → Entregado`).
+            (ej. `Entregado → Retirado`), o se intentó fijar `Entregado` (requiere el código
+            de verificación: usar `POST /api/orders/{id}/deliver`).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /api/orders/{id}/deliver:
+    post:
+      tags: [Orders]
+      summary: Confirmar la entrega con el código del cliente
+      description: |
+        Única forma de dejar un pedido `Entregado`. El repartidor escribe el código de 6 dígitos
+        que el cliente le dicta; solo si coincide el pedido queda `Entregado` (y la ruta en
+        delivery-service se sincroniza). El código es de un solo uso: `Entregado` es terminal.
+
+        **Quién**: rol `Repartidor` con el pedido asignado a él, y el pedido en `Retirado`.
+        Un cliente no puede entregarse su propio pedido.
+
+        **Modo `NORMAL`**: el código es siempre `000000` (la app lo completa sola) y los
+        intentos no se cuentan.
+
+        **Modo `SEGURO` — intentos**: 3 intentos por código. Al fallar el tercero el código se
+        anula y se emite uno nuevo (el cliente lo ve en el detalle del pedido; `codeRenewed` =
+        true). Un pedido tiene como máximo 2 códigos: agotados los intentos del segundo, el
+        pedido queda **bloqueado** (`423`) y solo soporte lo resuelve. El repartidor nunca ve el
+        código.
+      operationId: deliverOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: ID numérico emitido a clientes o UUID legado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliverOrderRequest'
+      responses:
+        '200':
+          description: Código correcto; el pedido quedó `Entregado`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse Void'
+        '400':
+          description: Falta el código o no tiene 6 dígitos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: |
+            No es repartidor, el pedido está asignado a otro repartidor, o el repartidor es el
+            propio cliente del pedido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El pedido no está `Retirado` (incluye el ya `Entregado`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: |
+            Código incorrecto. `remainingAttempts` indica cuántos intentos quedan sobre el código
+            vigente; `codeRenewed` = true si se agotaron y se emitió un código nuevo al cliente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryCodeErrorResponse'
+        '423':
+          description: Pedido bloqueado por intentos agotados; requiere soporte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryCodeErrorResponse'
 
   /api/delivery/routes:
     get:
@@ -522,6 +618,19 @@ components:
           type: integer
           description: Tiempo estimado en minutos (opcional)
           example: 20
+        receptionMode:
+          type: string
+          enum: [NORMAL, SEGURO]
+          default: NORMAL
+          description: |
+            Cómo quiere recibir el pedido el cliente. **No se puede cambiar una vez creado el
+            pedido** (la app debe avisarlo).
+
+            - `SEGURO`: se genera un código único; el pedido solo se entrega si el cliente le
+              dicta ese código al repartidor.
+            - `NORMAL` (por defecto): el pedido puede dejarse en recepción o con un tercero. El
+              código es siempre `000000` y la app del repartidor lo completa sola.
+          example: SEGURO
         items:
           type: array
           description: Lista de productos del pedido
@@ -637,6 +746,11 @@ components:
         paymentMethod:
           type: string
           example: Efectivo
+        receptionMode:
+          type: string
+          enum: [NORMAL, SEGURO]
+          description: Modo de recepción elegido al crear el pedido (inmutable).
+          example: SEGURO
         clientName:
           type: string
           example: Juan Pérez
@@ -715,12 +829,26 @@ components:
           nullable: true
           description: Tiempo estimado; es null hasta que exista una ruta calculada.
           example: 20
+        receptionMode:
+          type: string
+          enum: [NORMAL, SEGURO]
+          description: |
+            `SEGURO`: el repartidor debe pedirle el código al cliente. `NORMAL`: la app envía
+            `000000` automáticamente.
+          example: SEGURO
 
     OrderDetailResponse:
       allOf:
         - $ref: '#/components/schemas/OrderListResponse'
         - type: object
           properties:
+            deliveryCode:
+              type: string
+              description: |
+                Código de entrega del pedido. **Solo lo recibe el cliente dueño**, en modo
+                `SEGURO` y mientras el pedido no esté `Entregado`. El repartidor y el restaurante
+                nunca lo reciben (el campo se omite).
+              example: "482913"
             client:
               $ref: '#/components/schemas/ClientDto'
             restaurant:
@@ -826,6 +954,17 @@ components:
           type: number
           format: decimal
           example: 20480
+        receptionMode:
+          type: string
+          enum: [NORMAL, SEGURO]
+          example: SEGURO
+        deliveryCode:
+          type: string
+          description: |
+            Código de entrega de 6 dígitos que el cliente debe dictarle al repartidor. Solo viene
+            en modo `SEGURO`; en `NORMAL` se omite. El cliente puede volver a consultarlo en el
+            detalle del pedido.
+          example: "482913"
 
     ApiResponse OrderList:
       type: object
@@ -943,6 +1082,35 @@ components:
           example: true
         data:
           $ref: '#/components/schemas/SalesSummary'
+
+    DeliverOrderRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: Código de 6 dígitos que dicta el cliente (`000000` en modo NORMAL).
+          example: "482913"
+
+    DeliveryCodeErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 422
+        error:
+          type: string
+          enum: [VALIDATION_ERROR, LOCKED]
+        message:
+          type: string
+          example: Codigo incorrecto
+        remainingAttempts:
+          type: integer
+          example: 2
+        codeRenewed:
+          type: boolean
+          example: false
 
     ErrorResponse:
       type: object

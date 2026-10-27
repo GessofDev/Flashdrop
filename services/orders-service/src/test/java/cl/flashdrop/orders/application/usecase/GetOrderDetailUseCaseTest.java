@@ -4,12 +4,14 @@ import cl.flashdrop.orders.domain.model.ClientInfo;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderItem;
 import cl.flashdrop.orders.domain.model.OrderStatus;
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.ClientPort;
+import cl.flashdrop.orders.domain.port.DeliveryCodePort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
@@ -44,11 +46,13 @@ class GetOrderDetailUseCaseTest {
     private ClientPort clientPort;
     @Mock
     private DeliveryPort deliveryPort;
+    @Mock
+    private DeliveryCodePort deliveryCodePort;
 
     // OrderEnricher is real; injected manually.
     private GetOrderDetailUseCase build() {
         OrderEnricher enricher = new OrderEnricher(catalogPort, clientPort);
-        return new GetOrderDetailUseCase(orderRepository, catalogPort, clientPort, deliveryPort, enricher);
+        return new GetOrderDetailUseCase(orderRepository, catalogPort, clientPort, deliveryPort, enricher, deliveryCodePort);
     }
 
     @Test
@@ -210,5 +214,82 @@ class GetOrderDetailUseCaseTest {
 
         assertThrows(cl.flashdrop.orders.domain.exception.OrderDomainException.class,
                 () -> build().execute(ORDER, Set.of(Role.CLIENTE), USER));
+    }
+
+    // ----------------------- Visibilidad del codigo de entrega -----------------------
+
+    private Order secureOrder(UUID orderId, UUID clientId, UUID restaurantId, OrderStatus status) {
+        Order order = Order.builder().id(orderId).clientId(clientId).restaurantId(restaurantId)
+                .deliveryId(IdConverter.toUuid(7L)).status(status).receptionMode(ReceptionMode.SEGURO).build();
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.empty());
+        when(clientPort.findClientById(clientId)).thenReturn(Optional.empty());
+        return order;
+    }
+
+    @Test
+    void clienteDueno_veSuCodigoEnModoSeguroMientrasNoSeEntrega() {
+        UUID orderId = IdConverter.toUuid(601L), clientId = IdConverter.toUuid(10L);
+        Order order = secureOrder(orderId, clientId, IdConverter.toUuid(7L), OrderStatus.RETIRADO);
+        when(clientPort.findClientIdByUserId(USER)).thenReturn(Optional.of(clientId));
+        when(deliveryCodePort.currentCodeFor(order)).thenReturn("482913");
+
+        Order result = build().execute(orderId, Set.of(Role.CLIENTE), USER);
+
+        assertEquals("482913", result.getDeliveryCode());
+    }
+
+    @Test
+    void repartidor_nuncaVeElCodigo() {
+        UUID orderId = IdConverter.toUuid(602L), clientId = IdConverter.toUuid(10L);
+        UUID deliveryId = IdConverter.toUuid(7L);
+        secureOrder(orderId, clientId, IdConverter.toUuid(8L), OrderStatus.RETIRADO);
+        when(deliveryPort.findDeliveryIdByUserId(USER)).thenReturn(Optional.of(deliveryId));
+
+        Order result = build().execute(orderId, Set.of(Role.REPARTIDOR), USER);
+
+        assertNull(result.getDeliveryCode());
+        verifyNoInteractions(deliveryCodePort);
+    }
+
+    @Test
+    void restaurante_nuncaVeElCodigo() {
+        UUID orderId = IdConverter.toUuid(603L), clientId = IdConverter.toUuid(10L);
+        UUID restaurantId = IdConverter.toUuid(8L);
+        secureOrder(orderId, clientId, restaurantId, OrderStatus.RETIRADO);
+        when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(restaurantId));
+
+        Order result = build().execute(orderId, Set.of(Role.RESTAURANTE), USER);
+
+        assertNull(result.getDeliveryCode());
+        verifyNoInteractions(deliveryCodePort);
+    }
+
+    @Test
+    void unaVezEntregado_elCodigoYaNoSeMuestra() {
+        UUID orderId = IdConverter.toUuid(604L), clientId = IdConverter.toUuid(10L);
+        secureOrder(orderId, clientId, IdConverter.toUuid(8L), OrderStatus.ENTREGADO);
+        when(clientPort.findClientIdByUserId(USER)).thenReturn(Optional.of(clientId));
+
+        Order result = build().execute(orderId, Set.of(Role.CLIENTE), USER);
+
+        assertNull(result.getDeliveryCode());
+        verifyNoInteractions(deliveryCodePort);
+    }
+
+    @Test
+    void modoNormal_noExponeCodigoAlCliente() {
+        UUID orderId = IdConverter.toUuid(605L), clientId = IdConverter.toUuid(10L);
+        Order order = Order.builder().id(orderId).clientId(clientId).restaurantId(IdConverter.toUuid(8L))
+                .status(OrderStatus.RETIRADO).build();
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(catalogPort.findRestaurantById(any())).thenReturn(Optional.empty());
+        when(clientPort.findClientById(clientId)).thenReturn(Optional.empty());
+        when(clientPort.findClientIdByUserId(USER)).thenReturn(Optional.of(clientId));
+
+        Order result = build().execute(orderId, Set.of(Role.CLIENTE), USER);
+
+        assertNull(result.getDeliveryCode());
+        verifyNoInteractions(deliveryCodePort);
     }
 }

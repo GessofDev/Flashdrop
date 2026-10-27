@@ -192,7 +192,7 @@ class InternalRoutesControllerTest {
                     Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
                     RouteStatus.ENTREGADO, Instant.parse("2024-01-01T10:00:00Z")
             );
-            when(routeRepository.updateStatus(1L, "ENTREGADO")).thenReturn(updated);
+            when(routeRepository.updateStatus(1L, "Entregado")).thenReturn(updated);
 
             mockMvc.perform(patch("/api/internal/routes/1/status")
                             .header(INTERNAL_KEY_HEADER, VALID_KEY)
@@ -226,7 +226,7 @@ class InternalRoutesControllerTest {
                     RouteStatus.ENTREGADO, Instant.parse("2024-01-01T10:00:00Z")
             );
             when(routeRepository.findByOrderId(1001L)).thenReturn(java.util.Optional.of(existing));
-            when(routeRepository.updateStatus(42L, "ENTREGADO")).thenReturn(updated);
+            when(routeRepository.updateStatus(42L, "Entregado")).thenReturn(updated);
 
             mockMvc.perform(patch("/api/internal/routes/order/1001/status")
                             .header(INTERNAL_KEY_HEADER, VALID_KEY)

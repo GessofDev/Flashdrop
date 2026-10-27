@@ -65,7 +65,7 @@ public class InternalRoutesController {
             @Valid @RequestBody UpdateRouteStatusRequest request) {
         log.info("PATCH /api/internal/routes/{}/status - Updating status to: {}", routeId, request.status());
 
-        DeliveryRoute updated = routeRepository.updateStatus(routeId, request.status());
+        DeliveryRoute updated = routeRepository.updateStatus(routeId, canonicalStatus(request.status()));
         return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
     }
 
@@ -86,8 +86,16 @@ public class InternalRoutesController {
 
         DeliveryRoute route = routeRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("No route found for orderId=" + orderId));
-        DeliveryRoute updated = routeRepository.updateStatus(route.getId(), request.status());
+        DeliveryRoute updated = routeRepository.updateStatus(route.getId(), canonicalStatus(request.status()));
         return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
+    }
+
+    /**
+     * Stores the status the way the public API does ("Entregado", never "ENTREGADO"), so the
+     * column does not mix formats. Accepts the enum name or the stored value, any casing.
+     */
+    private static String canonicalStatus(String rawStatus) {
+        return RouteStatus.fromAnyValue(rawStatus).getDbValue();
     }
 
     private RouteResponse toResponse(DeliveryRoute route) {

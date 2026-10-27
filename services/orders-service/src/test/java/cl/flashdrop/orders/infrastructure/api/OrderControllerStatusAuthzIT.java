@@ -80,7 +80,7 @@ class OrderControllerStatusAuthzIT {
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
-                listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver(), listAvailableOrdersUseCase);
+                listOrdersUseCase, updateOrderStatusUseCase, null, new CurrentUserResolver(), listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

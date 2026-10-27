@@ -233,12 +233,26 @@ class UpdateOrderStatusUseCaseTest {
 
     @Test
     void repartidorAsignado_puedeCambiarEstado() {
+        givenOrderWithStatus(OrderStatus.LISTO_PARA_RETIRO);
+        givenUserIsDelivery(DELIVERY_ID);
+
+        useCase.execute(ORDER_ID, "Retirado", REPARTIDOR, USER_ID);
+
+        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+    }
+
+    /** ENTREGADO solo se alcanza con el codigo de verificacion (POST /api/orders/{id}/deliver). */
+    @Test
+    void entregado_noSePuedeFijarPorCambioDeEstado_requiereCodigo() {
         givenOrderWithStatus(OrderStatus.RETIRADO);
         givenUserIsDelivery(DELIVERY_ID);
 
-        useCase.execute(ORDER_ID, "Entregado", REPARTIDOR, USER_ID);
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> useCase.execute(ORDER_ID, "Entregado", REPARTIDOR, USER_ID));
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.ENTREGADO);
+        assertTrue(ex.getMessage().toLowerCase().contains("transicion de estado no permitida"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("codigo de verificacion"), ex.getMessage());
+        assertNothingPersisted();
     }
 
     @Test

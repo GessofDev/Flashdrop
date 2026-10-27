@@ -67,7 +67,8 @@ class CreateOrderUseCaseIntegrationTest {
         clientPort = mock(ClientPort.class);
         eventPublisher = mock(EventPublisherPort.class);
 
-        useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort, deliveryAdapter, eventPublisher);
+        useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort, deliveryAdapter, eventPublisher,
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"));
 
         // Inject @Value fields via reflection (not available outside Spring context)
         setField(useCase, "deliveryFee", BigDecimal.valueOf(2500));

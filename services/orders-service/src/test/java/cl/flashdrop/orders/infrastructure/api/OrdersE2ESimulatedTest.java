@@ -107,7 +107,8 @@ class OrdersE2ESimulatedTest {
         EventPublisherPort eventPublisher = mock(EventPublisherPort.class);
 
         CreateOrderUseCase createOrderUseCase = new CreateOrderUseCase(
-                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, eventPublisher);
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, eventPublisher,
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"));
         ReflectionTestUtils.setField(createOrderUseCase, "deliveryFee", BigDecimal.valueOf(2500));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
@@ -121,7 +122,8 @@ class OrdersE2ESimulatedTest {
                 orderRepositoryAdapter, catalogAdapter, clientAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
 
         GetOrderDetailUseCase getOrderDetailUseCase = new GetOrderDetailUseCase(
-                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, new OrderEnricher(catalogAdapter, clientAdapter),
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"));
 
         ClaimDeliveryOrdersUseCase claimDeliveryOrdersUseCase = new ClaimDeliveryOrdersUseCase(
                 orderRepositoryAdapter, deliveryAdapter);
@@ -131,7 +133,7 @@ class OrdersE2ESimulatedTest {
         ListAvailableOrdersUseCase listAvailableOrdersUseCase = new ListAvailableOrdersUseCase(
                 orderRepositoryAdapter, new OrderEnricher(catalogAdapter, clientAdapter));
         orderController = new OrderController(createOrderUseCase, getOrderDetailUseCase, listOrdersUseCase,
-                updateOrderStatusUseCase, currentUserResolver, listAvailableOrdersUseCase);
+                updateOrderStatusUseCase, null, currentUserResolver, listAvailableOrdersUseCase);
         deliveryController = new DeliveryController(claimDeliveryOrdersUseCase, currentUserResolver);
 
         // GAP-04/GAP-03: OrderController.createOrder() y DeliveryController.claimOrders()
@@ -302,7 +304,7 @@ class OrdersE2ESimulatedTest {
         // ====================================================================
         // PASO 3: CONSULTAR DETALLE DEL PEDIDO (GET /api/orders/{id})
         // ====================================================================
-        ApiResponse<OrderDetailResponse> detailResponse = orderController.getOrderDetail(ORDER_UUID);
+        ApiResponse<OrderDetailResponse> detailResponse = orderController.getOrderDetail(ORDER_UUID.toString());
 
         assertNotNull(detailResponse);
         assertTrue(detailResponse.isSuccess());

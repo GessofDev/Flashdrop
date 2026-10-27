@@ -6,6 +6,7 @@ import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
+import com.flashdrop.delivery.domain.exception.RouteDeliveryRequiresCodeException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
@@ -28,6 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -63,10 +66,10 @@ class UpdateRouteStatusUseCaseImplTest {
         @DisplayName("TC1: valid status update — returns updated RouteResponse with code")
         void validStatusUpdate_returnsUpdatedRouteResponse() {
             Long routeId = 1L;
-            UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("ENTREGADO");
+            UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("EN_CAMINO");
             DeliveryRoute updated = new DeliveryRoute(routeId, 101L, "Pickup", "Delivery",
                     Distance.of(new BigDecimal("3.5")), EstimatedTime.of(20),
-                    RouteStatus.ENTREGADO, Instant.now());
+                    RouteStatus.EN_CAMINO, Instant.now());
 
             when(routeRepository.updateStatus(eq(routeId), any())).thenReturn(updated);
             when(orderServicePort.getOrdersByIds(List.of(101L)))
@@ -75,8 +78,19 @@ class UpdateRouteStatusUseCaseImplTest {
             RouteResponse result = useCase.execute(42L, routeId, request);
 
             assertThat(result.id()).isEqualTo(routeId);
-            assertThat(result.status()).isEqualTo("Entregado");
+            assertThat(result.status()).isEqualTo("En camino");
             assertThat(result.code()).isEqualTo("ORD-001");
+        }
+
+        @Test
+        @DisplayName("TC4: ENTREGADO through the public API is rejected — it needs the customer's code")
+        void entregadoThroughPublicApi_isRejectedAndNothingIsPersisted() {
+            UpdateRouteStatusRequest request = new UpdateRouteStatusRequest("Entregado");
+
+            assertThatThrownBy(() -> useCase.execute(42L, 1L, request))
+                    .isInstanceOf(RouteDeliveryRequiresCodeException.class);
+
+            verify(routeRepository, never()).updateStatus(any(), any());
         }
 
         @Test

@@ -6,6 +6,7 @@ import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
+import cl.flashdrop.orders.domain.port.DeliveryCodePort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -38,6 +39,7 @@ public class CreateOrderUseCase {
     private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
+    private final DeliveryCodePort deliveryCodePort;
 
     @Value("${orders.delivery-fee:2500}")
     private BigDecimal deliveryFee;
@@ -125,6 +127,7 @@ public class CreateOrderUseCase {
                 .deliveryFee(deliveryFee)
                 .total(total)
                 .paymentMethod(PaymentMethod.fromValue(command.getPaymentMethod()))
+                .receptionMode(command.getReceptionMode())
                 .items(items)
                 .build();
 
@@ -158,7 +161,9 @@ public class CreateOrderUseCase {
                 .build());
 
         log.info("Pedido creado con id={}, total={}", saved.getId(), total);
-        return new CreatedOrderResult(saved.getId(), total);
+        // El codigo se deriva del pedido ya persistido; solo el modo SEGURO lo devuelve al cliente.
+        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
+        return new CreatedOrderResult(saved.getId(), total, saved.getReceptionMode().name(), deliveryCode);
     }
 
     private BigDecimal normalizeDistance(BigDecimal raw) {

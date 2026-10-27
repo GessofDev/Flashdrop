@@ -7,6 +7,7 @@ import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
 import com.flashdrop.delivery.domain.exception.RouteAccessDeniedException;
+import com.flashdrop.delivery.domain.exception.RouteDeliveryRequiresCodeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RouteAccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleRouteAccessDenied(RouteAccessDeniedException ex) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(RouteDeliveryRequiresCodeException.class)
+    public ResponseEntity<Map<String, Object>> handleRouteDeliveryRequiresCode(
+            RouteDeliveryRequiresCodeException ex) {
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(DeliveryPersonNotFoundException.class)

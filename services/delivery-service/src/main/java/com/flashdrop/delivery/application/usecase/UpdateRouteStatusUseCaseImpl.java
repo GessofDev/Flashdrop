@@ -7,6 +7,7 @@ import com.flashdrop.delivery.application.port.outbound.OrderServicePort;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.domain.exception.RouteAccessDeniedException;
+import com.flashdrop.delivery.domain.exception.RouteDeliveryRequiresCodeException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
@@ -53,6 +54,10 @@ public class UpdateRouteStatusUseCaseImpl implements UpdateRouteStatusUseCase {
         log.info("Updating route {} status to {}", routeId, request.status());
 
         RouteStatus newStatus = RouteStatus.fromAnyValue(request.status());
+        // ENTREGADO only arrives from orders-service once the customer's code is verified.
+        if (newStatus == RouteStatus.ENTREGADO) {
+            throw new RouteDeliveryRequiresCodeException();
+        }
 
         DeliveryRoute updated = routeRepository.updateStatus(routeId, newStatus.getDbValue());
         log.info("Route {} status updated to {}", routeId, newStatus);

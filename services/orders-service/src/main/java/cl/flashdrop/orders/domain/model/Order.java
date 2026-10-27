@@ -45,6 +45,31 @@ public class Order {
     private DeliveryInfo deliveryInfo;
 
     // -------------------------------------------------------
+    // Entrega con código de verificación
+    // -------------------------------------------------------
+
+    /** Código de los pedidos en modo NORMAL: fijo y conocido, la app del repartidor lo completa sola. */
+    public static final String DEFAULT_DELIVERY_CODE = "000000";
+    /** Intentos fallidos permitidos por cada código. */
+    public static final int MAX_CODE_ATTEMPTS = 3;
+    /** Códigos que puede tener un pedido (el original y una renovación) antes de bloquearse. */
+    public static final int MAX_CODE_VERSIONS = 2;
+
+    @Builder.Default
+    private ReceptionMode receptionMode = ReceptionMode.NORMAL;
+    @Builder.Default
+    private int deliveryCodeVersion = 1;
+    @Builder.Default
+    private int deliveryCodeAttempts = 0;
+    private OffsetDateTime deliveryCodeVerifiedAt;
+
+    /**
+     * Código visible para el cliente dueño. Dato de presentación: lo calcula el caso de uso que
+     * consulta el pedido, no se persiste y es {@code null} para cualquier otro rol.
+     */
+    private String deliveryCode;
+
+    // -------------------------------------------------------
     // Computed / Display
     // -------------------------------------------------------
 
@@ -119,6 +144,42 @@ public class Order {
             throw new OrderDomainException("Transicion de estado no permitida: "
                     + this.status.getValue() + " -> " + newStatus.getValue());
         }
+    }
+
+    // -------------------------------------------------------
+    // Código de entrega: reglas de intentos
+    // -------------------------------------------------------
+
+    public boolean isSecureReception() {
+        return receptionMode == ReceptionMode.SEGURO;
+    }
+
+    /** Bloqueado: se agotaron los intentos del último código permitido. Solo soporte lo resuelve. */
+    public boolean isDeliveryCodeLocked() {
+        return isSecureReception()
+                && deliveryCodeVersion >= MAX_CODE_VERSIONS
+                && deliveryCodeAttempts >= MAX_CODE_ATTEMPTS;
+    }
+
+    public int remainingCodeAttempts() {
+        return Math.max(0, MAX_CODE_ATTEMPTS - deliveryCodeAttempts);
+    }
+
+    /**
+     * Registra un intento fallido sobre el código vigente (solo modo SEGURO). Al agotar los
+     * {@link #MAX_CODE_ATTEMPTS} intentos el código se anula y se emite uno nuevo; si ya era el
+     * último permitido ({@link #MAX_CODE_VERSIONS}) el pedido queda bloqueado.
+     *
+     * @return {@code true} si el código fue renovado
+     */
+    public boolean registerFailedCodeAttempt() {
+        deliveryCodeAttempts++;
+        if (deliveryCodeAttempts >= MAX_CODE_ATTEMPTS && deliveryCodeVersion < MAX_CODE_VERSIONS) {
+            deliveryCodeVersion++;
+            deliveryCodeAttempts = 0;
+            return true;
+        }
+        return false;
     }
 
     /**

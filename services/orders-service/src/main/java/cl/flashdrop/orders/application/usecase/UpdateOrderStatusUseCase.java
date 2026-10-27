@@ -84,6 +84,12 @@ public class UpdateOrderStatusUseCase {
             validateDeliveryAssignment(order, currentUserId);
         }
 
+        // ENTREGADO solo se alcanza con el codigo de verificacion (VerifyDeliveryCodeUseCase)
+        if (newStatus == OrderStatus.ENTREGADO) {
+            throw new OrderDomainException("Transicion de estado no permitida: la entrega se confirma "
+                    + "con el codigo de verificacion (POST /api/orders/{id}/deliver)");
+        }
+
         // Validar transición de estado según reglas de dominio
         order.validateStatusTransition(newStatus);
 

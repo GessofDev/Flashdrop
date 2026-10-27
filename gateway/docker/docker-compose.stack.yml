@@ -153,6 +153,9 @@ services:
       # esa instancia. Si va mal, o no se crean las tablas o el arranque falla.
       - FLYWAY_ENABLED=${ORDERS_FLYWAY_ENABLED:?PENDIENTE Felipe - ver GAP-06 en application.properties}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:?falta INTERNAL_API_KEY en .env}
+      # Clave del codigo de entrega (modo de recepcion SEGURO). Opcional: sin ella el modo
+      # SEGURO no esta disponible y el modo NORMAL (codigo 000000) funciona igual.
+      - DELIVERY_CODE_SECRET=${DELIVERY_CODE_SECRET:-}
       - AUTH_SERVICE_URL=http://auth-service:8081
       - CATALOG_SERVICE_URL=http://catalog-service:8082
       - DELIVERY_SERVICE_URL=http://delivery-service:8084

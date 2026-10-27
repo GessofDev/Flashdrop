@@ -2,25 +2,31 @@ package cl.flashdrop.orders.infrastructure.api;
 
 import cl.flashdrop.orders.application.command.CreateOrderCommand;
 import cl.flashdrop.orders.application.dto.CreatedOrderResult;
+import cl.flashdrop.orders.application.dto.DeliveryCodeVerification;
 import cl.flashdrop.orders.application.usecase.CreateOrderUseCase;
 import cl.flashdrop.orders.application.usecase.GetOrderDetailUseCase;
 import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
+import cl.flashdrop.orders.application.usecase.VerifyDeliveryCodeUseCase;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.api.dto.request.CreateOrderRequest;
+import cl.flashdrop.orders.infrastructure.api.dto.request.DeliverOrderRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.request.UpdateOrderStatusRequest;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ApiResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.AvailableDeliveryOrderResponse;
+import cl.flashdrop.orders.infrastructure.api.dto.response.DeliveryCodeErrorResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.OrderDetailResponse;
 import cl.flashdrop.orders.infrastructure.api.dto.response.OrderListResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
@@ -60,6 +66,7 @@ public class OrderController {
     private final GetOrderDetailUseCase getOrderDetailUseCase;
     private final ListOrdersUseCase listOrdersUseCase;
     private final UpdateOrderStatusUseCase updateOrderStatusUseCase;
+    private final VerifyDeliveryCodeUseCase verifyDeliveryCodeUseCase;
     private final CurrentUserResolver currentUserResolver;
     private final ListAvailableOrdersUseCase listAvailableOrdersUseCase;
 
@@ -126,7 +133,8 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable("id") UUID orderId) {
+    public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable("id") String rawOrderId) {
+        UUID orderId = resolveOrderId(rawOrderId);
         log.debug("GET /api/orders/{}", orderId);
         Order order = getOrderDetailUseCase.execute(orderId,
                 currentUserResolver.requireCurrentRoles(), currentUserResolver.requireCurrentUserId());
@@ -166,6 +174,7 @@ public class OrderController {
                 .clientProfileAllowed(currentUserResolver.hasRole(Role.CLIENTE))
                 .address(request.getAddress())
                 .paymentMethod(request.getPaymentMethod())
+                .receptionMode(ReceptionMode.fromRequest(request.getReceptionMode()))
                 .distanceKm(request.getDistanceKm())
                 .estimatedMinutes(request.getEstimatedMinutes())
                 .items(cmdItems)
@@ -190,6 +199,44 @@ public class OrderController {
         UUID currentUserId = currentUserResolver.requireCurrentUserId();
         updateOrderStatusUseCase.execute(orderId, request.getStatus(), currentRoles, currentUserId);
         return ApiResponse.success("Estado actualizado");
+    }
+
+    /**
+     * Confirma la entrega con el código que el cliente le dicta al repartidor. Es la única vía
+     * hacia ENTREGADO. Código correcto: 200. Incorrecto: 422 con los intentos restantes (y
+     * {@code codeRenewed} si el código se anuló y se emitió uno nuevo al cliente). Pedido
+     * bloqueado por intentos agotados: 423.
+     */
+    @PostMapping("/{id}/deliver")
+    public ResponseEntity<?> deliverOrder(
+            @PathVariable("id") String rawOrderId,
+            @Valid @RequestBody DeliverOrderRequest request) {
+        UUID orderId = resolveOrderId(rawOrderId);
+        log.debug("POST /api/orders/{}/deliver", orderId);
+        DeliveryCodeVerification result = verifyDeliveryCodeUseCase.execute(
+                orderId, request.getCode(),
+                currentUserResolver.requireCurrentRoles(), currentUserResolver.requireCurrentUserId());
+        return switch (result.outcome()) {
+            case DELIVERED -> ResponseEntity.ok(ApiResponse.success("Pedido entregado"));
+            case WRONG_CODE -> codeError(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
+                    "Codigo incorrecto", result.remainingAttempts(), false);
+            case CODE_RENEWED -> codeError(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR",
+                    "Codigo incorrecto. Se agotaron los intentos: se genero un codigo nuevo para el cliente",
+                    result.remainingAttempts(), true);
+            case LOCKED -> codeError(HttpStatus.LOCKED, "LOCKED",
+                    "Entrega bloqueada por intentos agotados. Contacta a soporte", 0, false);
+        };
+    }
+
+    private static ResponseEntity<DeliveryCodeErrorResponse> codeError(
+            HttpStatus status, String error, String message, int remainingAttempts, boolean codeRenewed) {
+        return ResponseEntity.status(status).body(DeliveryCodeErrorResponse.builder()
+                .status(status.value())
+                .error(error)
+                .message(message)
+                .remainingAttempts(remainingAttempts)
+                .codeRenewed(codeRenewed)
+                .build());
     }
 
     /**
@@ -233,6 +280,7 @@ public class OrderController {
                 .clientEmail(clientEmail)
                 .restaurantName(restaurantName)
                 .deliveryId(deliveryId)
+                .receptionMode(order.getReceptionMode().name())
                 .createdAt(order.getCreatedAt())
                 .build();
     }
@@ -262,7 +310,8 @@ public class OrderController {
                 order.getRoute() != null && order.getRoute().getDistanceKm() != null
                         ? order.getRoute().getDistanceKm().doubleValue()
                         : null,
-                order.getRoute() != null ? order.getRoute().getEstimatedMinutes() : null);
+                order.getRoute() != null ? order.getRoute().getEstimatedMinutes() : null,
+                order.getReceptionMode().name());
     }
 
     private OrderDetailResponse toDetailResponse(Order order) {
@@ -325,6 +374,8 @@ public class OrderController {
                 .total(order.getTotal())
                 .paymentMethod(order.getPaymentMethod().getValue())
                 .createdAt(order.getCreatedAt())
+                .receptionMode(order.getReceptionMode().name())
+                .deliveryCode(order.getDeliveryCode())
                 .client(client)
                 .restaurant(restaurant)
                 .delivery(delivery)
