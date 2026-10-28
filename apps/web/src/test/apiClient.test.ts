@@ -296,4 +296,38 @@ describe('api client', () => {
 
     expect(fetchMock.calls[0]?.url).toBe('/api/orders/restaurants/1/sales-summary?range=day');
   });
+
+  it('keeps sending a JSON body with the JSON content type', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ success: true, data: null }));
+
+    await request({
+      path: '/api/orders',
+      method: 'POST',
+      body: { address: 'San Martin 123' },
+      responseShape: 'envelope',
+    });
+
+    expect(fetchMock.calls[0]?.headers['content-type']).toBe('application/json');
+    expect(fetchMock.calls[0]?.body).toEqual({ address: 'San Martin 123' });
+  });
+
+  it('sends FormData without setting Content-Type so the browser can add the boundary', async () => {
+    const fetchMock = mockFetch(() =>
+      jsonResponse({ objectKey: 'products/2026/10/image.webp', url: '/catalog/images/image.webp' }, 201),
+    );
+    const form = new FormData();
+    const file = new File(['image-bytes'], 'image.webp', { type: 'image/webp' });
+    form.append('file', file);
+
+    await request({
+      path: '/api/catalog/my/products/image',
+      method: 'POST',
+      body: form,
+      responseShape: 'bare',
+    });
+
+    expect(fetchMock.calls[0]?.headers['content-type']).toBeUndefined();
+    expect(fetchMock.calls[0]?.body).toBe(form);
+    expect((fetchMock.calls[0]?.body as FormData).get('file')).toBe(file);
+  });
 });

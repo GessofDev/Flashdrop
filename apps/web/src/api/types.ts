@@ -129,6 +129,22 @@ export interface CategoryResponse {
   image: string | null;
 }
 
+/**
+ * `catalog-service` — `ProductImageUploadResponse`, the answer of
+ * `POST /api/catalog/my/products/image`.
+ */
+export interface ProductImageUpload {
+  /**
+   * Key of the object in the storage.
+   *
+   * It is the value of the `image` field of a product: the pattern the
+   * backend validates is `products/<year>/<month>/<uuid>.<extension>`.
+   */
+  objectKey: string;
+  /** Public URL of the uploaded image. */
+  url: string;
+}
+
 /** `orders-service` — `CreateOrderRequest`, the body of `POST /api/orders`. */
 export interface CreateOrderRequest {
   /** Delivery address; the backend rejects an empty one. */

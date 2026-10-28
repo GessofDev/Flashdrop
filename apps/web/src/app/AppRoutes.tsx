@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 import { LoginPage } from '@/components/auth';
 import { MarketplacePage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
+import { StoreCatalogPage } from '@/components/store';
 
 import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
@@ -21,12 +22,6 @@ const ROUTE_PLACEHOLDERS = [
     title: 'Monitor de cocina',
     description: 'Tablero de pedidos del restaurante con sus tres columnas.',
     mockup: 'monitor_de_cocina_y_gestor_de_pedidos_mi_tienda',
-  },
-  {
-    path: routePaths.storeCatalog,
-    title: 'Catálogo y menú',
-    description: 'Gestión del catálogo, precios y disponibilidad de la tienda.',
-    mockup: 'gesti_n_de_cat_logo_y_men_mi_tienda',
   },
   {
     path: routePaths.storeDispatchHistory,
@@ -80,6 +75,7 @@ export function AppRoutes() {
         <Route path={routePaths.marketplace} element={<MarketplacePage />} />
         <Route path={routePaths.orders} element={<OrderListPage />} />
         <Route path={routePaths.orderDetail} element={<OrderTrackingPage />} />
+        <Route path={routePaths.storeCatalog} element={<StoreCatalogPage />} />
         {ROUTE_PLACEHOLDERS.map((route) => (
           <Route
             key={route.path}

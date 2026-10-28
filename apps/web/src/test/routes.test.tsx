@@ -14,7 +14,7 @@ const ROUTES: ReadonlyArray<{ path: string; heading: string; role: Role }> = [
   { path: routePaths.marketplace, heading: 'Pide en minutos con FlashDrop Chile', role: 'CLIENTE' },
   { path: routePaths.orders, heading: 'Mis pedidos', role: 'CLIENTE' },
   { path: routePaths.storeKds, heading: 'Monitor de cocina', role: 'RESTAURANTE' },
-  { path: routePaths.storeCatalog, heading: 'Catálogo y menú', role: 'RESTAURANTE' },
+  { path: routePaths.storeCatalog, heading: 'Gestión de Catálogo y Menú', role: 'RESTAURANTE' },
   {
     path: routePaths.storeDispatchHistory,
     heading: 'Historial de despachos',

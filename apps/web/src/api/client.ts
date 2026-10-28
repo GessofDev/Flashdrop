@@ -63,6 +63,34 @@ const MISSING_MESSAGE = 'El backend no devolvió un mensaje de error.';
 /** Message used when the answer does not have the declared shape. */
 const UNEXPECTED_SHAPE_MESSAGE = 'El backend devolvió una respuesta con un formato inesperado.';
 
+/**
+ * Whether the body of the request is a `FormData`.
+ *
+ * A multipart body carries its own boundary, so the client must not write the
+ * `Content-Type` header: the browser writes it with the boundary it
+ * generated, and a hand-written header would break the upload.
+ */
+function isFormData(body: unknown): body is FormData {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+/**
+ * Encode the body of the request.
+ *
+ * A `FormData` travels as it is; every other body travels as JSON.
+ */
+function encodeBody(body: unknown): BodyInit | undefined {
+  if (body === undefined) {
+    return undefined;
+  }
+
+  if (isFormData(body)) {
+    return body;
+  }
+
+  return JSON.stringify(body);
+}
+
 function apiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_BASE_URL;
 
@@ -94,7 +122,7 @@ function buildUrl(path: string, query: QueryParams | undefined): string {
 function buildHeaders(options: RequestOptions): Record<string, string> {
   const headers: Record<string, string> = { Accept: 'application/json' };
 
-  if (options.body !== undefined) {
+  if (options.body !== undefined && !isFormData(options.body)) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -156,7 +184,7 @@ async function send<T>(options: RequestOptions): Promise<T> {
   const url = buildUrl(options.path, options.query);
   const headers = buildHeaders(options);
   const method = options.method ?? 'GET';
-  const payload = options.body === undefined ? undefined : JSON.stringify(options.body);
+  const payload = encodeBody(options.body);
 
   const controller = new AbortController();
   let timedOut = false;

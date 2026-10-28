@@ -10,6 +10,8 @@ export { resolveApiErrorOutcome } from './errorPolicy';
 export type { ApiErrorOutcome } from './errorPolicy';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
+export { storeCatalogApi } from './storeCatalog';
+export type { OwnerProductPayload } from './storeCatalog';
 export type {
   ApiEnvelope,
   AuthResult,
@@ -25,6 +27,7 @@ export type {
   OrderListItem,
   OrderRestaurant,
   OrderRoute,
+  ProductImageUpload,
   ProductResponse,
   QueryParams,
   QueryValue,
