@@ -134,8 +134,8 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 |---|---|---|---|---|---|
 | T1 | Bootstrap `apps/web`: Vite + React 19 + TS estricto + Tailwind v4, tokens del design system, router, context de sesión | S2, S4 | delegated (worker) | done | `75a64fb` — 29 tests verdes, build/tsc/lint OK |
 | T2 | Cliente HTTP + manejo de errores: 401/403/409 con mensajes literales del backend, refresh de token, wrapper tipado de JSON | S7 | delegated (worker) | done | `2b77571` — 81 tests verdes (52 nuevos), build/tsc/lint OK |
-| T3 | Shell canónico de 5 zonas + selector de 3 roles con navegación por rol y guard de sesión | S5 | inline | pending | `feat(web): add canonical shell with role switcher` |
-| T4 | Login y registro: tabs, RUT/email, ClaveÚnica, módulo de destino preferente, panel de marca | S3, S5 | inline | pending | `feat(web): add unified login with role destination` |
+| T3 | Shell canónico de 5 zonas + selector de 3 roles con navegación por rol y guard de sesión | S5 | delegated (worker) | done | `33ee2d5` — 9 tests de shell/guard |
+| T4 | Login y registro: tabs, RUT/email, ClaveÚnica, módulo de destino preferente, panel de marca | S3, S5 | delegated (worker) | done | `33ee2d5` — 10 tests de login; 102 tests en total |
 | T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | inline | pending | `feat(web): add customer marketplace` |
 | T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | inline | pending | `feat(web): add cart and declarative checkout` |
 | T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | inline | pending | `feat(web): add order list and live tracking` |
@@ -157,7 +157,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 |---|---|---|---|---|
 | 1 | PR 1 | T1 — bootstrap + design tokens | `75a64fb` | 1.451 |
 | 2 | PR 2 | T2 — cliente HTTP tipado + taxonomía de errores | `2b77571` | 2.080 |
-| 3 | PR 3 | T3 + T4 — shell canónico + login | — | ~600 |
+| 3 | PR 3 | T3 + T4 — shell canónico + login | `33ee2d5` | 1.896 |
 | 4 | PR 4 | T5 + T6 — marketplace + checkout | — | ~700 |
 | 5 | PR 5 | T7 — pedidos + seguimiento | — | ~350 |
 | 6 | PR 6 | T8 + T9 — catálogo de tienda + KDS | — | ~900 |
@@ -198,3 +198,14 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 **L11 (2026-10-28)** — **Corrección de S7.** La agrupación por status que yo había escrito era incorrecta; el worker la contrastó con los handlers y el orquestador lo verificó en el código. Realidad: `orders-service` mapea `OrderDomainException` **por texto** (`GlobalExceptionHandler.java:38-52`): `"no encontrado"`→404, `"perfil de repartidor"`→403, `"ya tienes"/"ya fueron tomados"/"alguien tomo"/"transicion de estado no permitida"`→409, resto→**400**. `AccessDeniedException`→403 en `orders-service` (`:90`) y →**401** en `delivery-service` (`GlobalExceptionHandler.java:145`). Consecuencia: `"Estado no valido: "`, `"El pedido debe contener productos de un mismo local"`, `"El pedido debe contener al menos un producto"`, `"Debe enviar al menos un campo para actualizar"` y `"No route found for orderId="` son **400**, no 409. Se reescribió **solo S7** con la tabla real. T2 queda done: su evidencia se midió contra la tabla corregida.
 
 **L12 (2026-10-28)** — **Forma de respuesta no uniforme** (verificada): `orders-service` y `delivery-service` envuelven en `{success, message, data}`; `auth-service` y `catalog-service` devuelven el **DTO desnudo** (`AuthController.java:49` → `AuthResult`; `CategoryController.java:24` → `List<CategoryResponse>`; `MyStoreProductController.java:64` → `List<ProductResponse>`). El cliente declara la forma por endpoint. Queda anotado en S7 y aplica a T5, T8, T11 y T12 cuando tipen sus DTOs.
+
+**L13 (2026-10-28)** — T3 y T4 cerrados y commiteados (`33ee2d5`). Evidencia: RED (21 tests rojos en 3 suites) → GREEN (102 tests en total, exit 0); `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0; check de mutación (switcher sin `navigate`, `roleOwningPath` siempre `null`, destino fijo a Cliente → 5 tests rojos). Verificado por el orquestador: 102/102, build/tsc/lint verdes, cero hex literales en `src/components` y `src/app`.
+
+**L14 (2026-10-28)** — **Hallazgo de T4: el login con RUT no puede funcionar contra el backend actual.** La columna `login` de `credentials` guarda el **email** (`RegisterUserService` → `credentials.save(..., email)`), así que la UI normaliza el RUT a `16.482.915-K` y lo envía, pero `auth-service` responderá 401 **"Credenciales inválidas"** hasta que Soporte RUT exista. Se mantiene el campo RUT porque la maqueta y el PRD lo piden, y se registra como limitación conocida: **arreglarlo es backend** y queda fuera del alcance de este feature (S1). El backend sigue siendo la fuente de verdad.
+
+**L15 (2026-10-28)** — Otras decisiones de T3/T4, registradas para que los siguientes slices no las re-litiguen:
+- **Rutas nuevas**: el borrador apuntaba "Historial Despachos" y "Analíticas & Ventas" a `/tienda/analiticas` y los 3 ítems de Repartidor a `/repartidor`. Se agregaron `/tienda/despachos`, `/repartidor/pedidos` y `/repartidor/historial` para que cada ítem de navegación tenga destino propio.
+- **"Recordar mi sesión"**: la preferencia vive en `localStorage` (`flashdrop.rememberSession.v1`); los tokens **no** salen de `sessionStorage` y mueren con la pestaña. Se sacó "por 30 días" del label porque no es cierto.
+- **ClaveÚnica / Google / Apple**: sin backend, quedan inactivos. Un botón que promete un flujo inexistente es una mentira en la UI.
+- **El switcher ofrece los 3 roles** aunque la cuenta no los tenga, como en la maqueta: el backend responde 403 → vista de rol incorrecto (S7).
+- **Copy de maqueta eliminado a propósito** (S17): estrellas, cards flotantes de restaurante con precio/ETA, columna "Métodos de Pago", datos de ruta/latencia/batería, botón SOS 133, "MFA Activado". Se conservaron la propuesta de valor y los datos de confianza ("24 min", "98.4%", "3 Regiones Activas", TLS 1.3, Ley 19.628).
