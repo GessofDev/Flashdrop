@@ -1,6 +1,11 @@
 import { Route, Routes } from 'react-router-dom';
 
 import { LoginPage } from '@/components/auth';
+import {
+  CourierAvailablePage,
+  CourierConsolePage,
+  CourierHistoryPage,
+} from '@/components/courier';
 import { KitchenBoardPage } from '@/components/kitchen';
 import { MarketplacePage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
@@ -31,24 +36,6 @@ const ROUTE_PLACEHOLDERS = [
     mockup: 'anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0',
   },
   {
-    path: routePaths.courier,
-    title: 'Consola del repartidor',
-    description: 'Ruta activa del repartidor y estado de la operación.',
-    mockup: 'consola_del_repartidor_flashdrop_courier',
-  },
-  {
-    path: routePaths.courierAvailable,
-    title: 'Pedidos disponibles',
-    description: 'Cola de pedidos disponibles para el reparto, en orden de llegada.',
-    mockup: 'consola_del_repartidor_flashdrop_courier',
-  },
-  {
-    path: routePaths.courierHistory,
-    title: 'Historial de entregas',
-    description: 'Entregas ya realizadas por el repartidor.',
-    mockup: 'consola_del_repartidor_flashdrop_courier',
-  },
-  {
     path: routePaths.profile,
     title: 'Perfil',
     description: 'Identidad, roles y dispositivos conectados del usuario.',
@@ -72,6 +59,9 @@ export function AppRoutes() {
         <Route path={routePaths.orderDetail} element={<OrderTrackingPage />} />
         <Route path={routePaths.storeCatalog} element={<StoreCatalogPage />} />
         <Route path={routePaths.storeKds} element={<KitchenBoardPage />} />
+        <Route path={routePaths.courier} element={<CourierConsolePage />} />
+        <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
+        <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />
         {ROUTE_PLACEHOLDERS.map((route) => (
           <Route
             key={route.path}

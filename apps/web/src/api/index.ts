@@ -8,6 +8,18 @@ export { DEFAULT_TIMEOUT_MS, request } from './client';
 export type { HttpMethod, RequestOptions, ResponseShape, SessionMode } from './client';
 export { resolveApiErrorOutcome } from './errorPolicy';
 export type { ApiErrorOutcome } from './errorPolicy';
+export {
+  COURIER_VEHICLES,
+  courierApi,
+  MAX_CLAIM_ORDERS,
+  MISSING_COURIER_PROFILE_MESSAGE,
+} from './delivery';
+export type {
+  AvailableDeliveryOrder,
+  CourierVehicle,
+  DeliveryPerson,
+  DeliveryRoute,
+} from './delivery';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
 export { storeCatalogApi } from './storeCatalog';
