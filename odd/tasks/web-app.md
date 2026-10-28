@@ -21,7 +21,7 @@ Checks: `git diff --name-only main...HEAD` no contiene `services/` ni `gateway/`
 
 Quote del usuario: **"Vite + React 19 + TS + Tailwind v4"**.
 Requisito: `apps/web` es un proyecto pnpm con Vite, React 19, TypeScript estricto, Tailwind CSS v4 y React Router. `"strict": true` sin `any` salvo en fronteras JSON con wrapper tipado.
-Checks: `pnpm --filter web build` verde; `pnpm --filter web test` verde; `tsc --noEmit` sin errores.
+Checks: `cd apps/web && pnpm build` verde; `cd apps/web && pnpm test` verde; `cd apps/web && pnpm exec tsc --noEmit` sin errores. (El proyecto es pnpm autónomo, sin workspace raíz: `pnpm --filter web` no aplica.)
 
 ### S3 — Las maquetas seleccionadas son la fuente de verdad
 
@@ -50,9 +50,24 @@ Checks: test del stepper del cliente — 5 pasos, sin "En camino" como estado de
 
 ### S7 — Autorización y errores: mensajes literales del backend
 
-Messages exactos que la UI debe mostrar sin traducir ni inventar: **"No autenticado"**, **"No tienes permiso para esta vista de pedidos"**, **"No puedes consultar este pedido"**, **"Solo los repartidores pueden ver pedidos disponibles"**, **"Solo los restaurantes pueden consultar sus ventas"**, **"No puedes consultar las ventas de otro restaurante"**, **"Pedido no encontrado"**, **"Estado no valido: "**, **"El pedido debe contener productos de un mismo local"**, **"El pedido debe contener al menos un producto"**, **"Rango invalido: "** + `. Valores validos: day, week, month`, **"El Content-Type no coincide con el contenido de la imagen"**, **"Debe enviar al menos un campo para actualizar"**, **"No route found for orderId="**, **"El usuario no tiene perfil de repartidor"**.
-Requisito: 401 → redirige a login; 403 → vista de rol incorrecto; 409 → mensaje del backend con acción de reintento donde aplique.
-Checks: test por cada código con el mensaje exacto; el mensaje mostrado es el del backend, no uno propio.
+**Forma de respuesta: los cuatro servicios NO comparten envelope.**
+- `orders-service` y `delivery-service`: `{ success, message, data }` (`ApiResponse<T>`).
+- `auth-service` y `catalog-service`: **DTO desnudo**, sin envelope (`AuthController.java:49` devuelve `AuthResult`; `CategoryController.java:24` devuelve `List<CategoryResponse>`; `MyStoreProductController.java:64` devuelve `List<ProductResponse>`).
+
+Requisito: el cliente declara la forma **por endpoint**; no asume envelope. El cuerpo de error siempre trae `message` (más `status`/`error`; `timestamp` en delivery; `code`/`trace_id` en auth) y el cliente lo muestra **sin traducir ni inventar otro**.
+
+**Status real por mensaje** (verificado en los handlers, no inferido):
+
+| Status | Mensajes literales |
+|---|---|
+| 400 | **"Estado no valido: "**, **"El pedido debe contener productos de un mismo local"**, **"El pedido debe contener al menos un producto"**, **"Debe enviar al menos un campo para actualizar"**, **"No route found for orderId="**, **"Rango invalido: "** + `. Valores validos: day, week, month`, **"El Content-Type no coincide con el contenido de la imagen"** |
+| 401 | **"No autenticado"** — solo en `delivery-service` (`GlobalExceptionHandler.java:145`); en `orders-service` el mismo `AccessDeniedException` se traduce a **403** (`GlobalExceptionHandler.java:90`) |
+| 403 | **"No tienes permiso para esta vista de pedidos"**, **"No puedes consultar este pedido"**, **"Solo los repartidores pueden ver pedidos disponibles"**, **"Solo los restaurantes pueden consultar sus ventas"**, **"No puedes consultar las ventas de otro restaurante"**, **"El usuario no tiene perfil de repartidor"** |
+| 404 | **"Pedido no encontrado"** |
+| 409 | solo los de dominio cuyo texto matchea `"ya tienes"`, `"ya fueron tomados"`, `"alguien tomo"`, `"transicion de estado no permitida"` (`orders-service/.../GlobalExceptionHandler.java:38-52`) |
+
+Requisito: 401 → redirige a login; 403 → vista de rol incorrecta; 409 → mensaje del backend con acción de reintento donde aplique.
+Checks: test por cada status con el mensaje exacto; el mensaje mostrado es el del backend, no uno propio.
 
 ### S8 — Cliente: marketplace y catálogo público
 
@@ -117,8 +132,8 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 
 | ID | Task | Specs | Route | Status | Commit / Evidencia |
 |---|---|---|---|---|---|
-| T1 | Bootstrap `apps/web`: Vite + React 19 + TS estricto + Tailwind v4, tokens del design system, router, cliente HTTP tipado, context de sesión | S2, S4 | inline | pending | `feat(web): bootstrap web app with design tokens` |
-| T2 | Cliente HTTP + manejo de errores: 401/403/409 con mensajes literales del backend, refresh de token, wrapper tipado de JSON | S7 | inline | pending | `feat(web): add typed api client with backend error messages` |
+| T1 | Bootstrap `apps/web`: Vite + React 19 + TS estricto + Tailwind v4, tokens del design system, router, context de sesión | S2, S4 | delegated (worker) | done | `75a64fb` — 29 tests verdes, build/tsc/lint OK |
+| T2 | Cliente HTTP + manejo de errores: 401/403/409 con mensajes literales del backend, refresh de token, wrapper tipado de JSON | S7 | delegated (worker) | done | `2b77571` — 81 tests verdes (52 nuevos), build/tsc/lint OK |
 | T3 | Shell canónico de 5 zonas + selector de 3 roles con navegación por rol y guard de sesión | S5 | inline | pending | `feat(web): add canonical shell with role switcher` |
 | T4 | Login y registro: tabs, RUT/email, ClaveÚnica, módulo de destino preferente, panel de marca | S3, S5 | inline | pending | `feat(web): add unified login with role destination` |
 | T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | inline | pending | `feat(web): add customer marketplace` |
@@ -134,7 +149,22 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T15 | Hardening: a11y (focus rings, contraste AA), responsive (4/8/12 columnas), E2E Playwright de los 3 flujos | S4, S5 | inline | pending | `test(web): add e2e flows and accessibility pass` |
 
 **Orden:** T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9/T10/T11 (independientes entre sí, superficies disjuntas) → T12 → T13 → T14 → T15.
-**Forecast de líneas authored:** ~3.500–4.500 (excluye generados). Supera el umbral de ~400 → la estrategia `ask-on-risk` debe abrir el menú de delivery cuando se acumule el primer slice.
+**Forecast de líneas authored:** ~3.500–4.500 (excluye generados). Supera el umbral de ~400 → la estrategia elegida es `chain_strategy=feature-branch-chain` (elegida por el usuario el 2026-10-28): la rama tronco es `feat/web-app` (desde `main` @ `1cfd0ba`) y cada slice se abre como PR encadenado con squash-merge.
+
+**Slice boundaries** (rama `feat/web-app`):
+
+| Slice | PR | Contenido | Commit | Líneas authored |
+|---|---|---|---|---|
+| 1 | PR 1 | T1 — bootstrap + design tokens | `75a64fb` | 1.451 |
+| 2 | PR 2 | T2 — cliente HTTP tipado + taxonomía de errores | `2b77571` | 2.080 |
+| 3 | PR 3 | T3 + T4 — shell canónico + login | — | ~600 |
+| 4 | PR 4 | T5 + T6 — marketplace + checkout | — | ~700 |
+| 5 | PR 5 | T7 — pedidos + seguimiento | — | ~350 |
+| 6 | PR 6 | T8 + T9 — catálogo de tienda + KDS | — | ~900 |
+| 7 | PR 7 | T10 + T11 — repartidor + analíticas | — | ~700 |
+| 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | — | ~500 |
+
+El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T4 juntos): T2 resultó ser una unidad más gruesa de lo previsto porque el transporte, el ciclo de refresh, la taxonomía de errores y la integración con la sesión son un solo bloque inseparable. Se partió el slice en vez de achicar la unidad.
 
 ---
 
@@ -158,3 +188,13 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 - Plan `docs/plans/2026-09-22-flashdrop-delivery-and-store-features-design.md`: D-1 mapa solo frontend (geocodificación cliente, sin coordenadas); D-5 `vehicle` no editable; D-6 `restaurantId` derivado del JWT.
 
 **L7 (2026-10-28)** — Próximo paso: T1 (bootstrap) con TDD de los tokens antes de cualquier pantalla. Estrategia de entrega `ask-on-risk`: al superar ~400 líneas authored acumuladas se abre el menú de delivery (feature-branch-chain / stacked-to-main / single-pr).
+
+**L8 (2026-10-28)** — T1 cerrado y commiteado. Evidencia: RED (4 suites sin implementación, exit 1) → GREEN (29 tests, exit 0); `pnpm build` exit 0; `tsc --noEmit` exit 0; `pnpm lint` exit 0; check de mutación (bajar el `--color-primary` a `#FF5A1F` y quitar el anillo de foco) rompe los tests, así que muerden. Commit `75a64fb` en `feat/web-app` (rama creada desde `main` @ `1cfd0ba`; la rama previa de trabajo `feat/auth-role-assignment` quedó intacta). Slice 1 = 1.451 líneas authored. El cliente HTTP quedó para T2 (S7), como ya advertía el handoff. El usuario eligió `chain_strategy=feature-branch-chain`: la rama tronco es `feat/web-app` y cada slice se abre como PR encadenado con squash-merge; los boundaries quedan en la tabla de slices.
+
+**L9 (2026-10-28)** — Desviación registrada en S2: el check `pnpm --filter web build` no es ejecutable porque `apps/web` es un proyecto pnpm autónomo y el repo no tiene workspace raíz (crearlo está fuera del alcance autorizado). Se corrigió el check a `cd apps/web && pnpm build`. Nota operativa: `apps/web/pnpm-workspace.yaml` lo genera pnpm 11 (excepción de release-age para `react-router-dom@7.18.5`); se commitea para que los installs sean reproducibles. Las maquetas de `references/stitch_flashdrop_ui_design_specs/` siguen **sin trackear** (preexistente, decisión del usuario pendiente): un clone nuevo no las tiene, así que S3 queda referencia local hasta que se trackeen.
+
+**L10 (2026-10-28)** — T2 cerrado y commiteado (`2b77571`). Evidencia: RED (3 suites sin implementación + 3 tests de sesión rojos) → GREEN (81 tests, exit 0; los 29 de T1 intactos); `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0; check de mutación (reemplazar el mensaje del backend por uno genérico → 23 tests rojos; quitar el reintento post-refresh → 2 rojos). Verificado por el orquestador: 81/81 tests, build y tsc verdes en ejecución propia.
+
+**L11 (2026-10-28)** — **Corrección de S7.** La agrupación por status que yo había escrito era incorrecta; el worker la contrastó con los handlers y el orquestador lo verificó en el código. Realidad: `orders-service` mapea `OrderDomainException` **por texto** (`GlobalExceptionHandler.java:38-52`): `"no encontrado"`→404, `"perfil de repartidor"`→403, `"ya tienes"/"ya fueron tomados"/"alguien tomo"/"transicion de estado no permitida"`→409, resto→**400**. `AccessDeniedException`→403 en `orders-service` (`:90`) y →**401** en `delivery-service` (`GlobalExceptionHandler.java:145`). Consecuencia: `"Estado no valido: "`, `"El pedido debe contener productos de un mismo local"`, `"El pedido debe contener al menos un producto"`, `"Debe enviar al menos un campo para actualizar"` y `"No route found for orderId="` son **400**, no 409. Se reescribió **solo S7** con la tabla real. T2 queda done: su evidencia se midió contra la tabla corregida.
+
+**L12 (2026-10-28)** — **Forma de respuesta no uniforme** (verificada): `orders-service` y `delivery-service` envuelven en `{success, message, data}`; `auth-service` y `catalog-service` devuelven el **DTO desnudo** (`AuthController.java:49` → `AuthResult`; `CategoryController.java:24` → `List<CategoryResponse>`; `MyStoreProductController.java:64` → `List<ProductResponse>`). El cliente declara la forma por endpoint. Queda anotado en S7 y aplica a T5, T8, T11 y T12 cuando tipen sus DTOs.
