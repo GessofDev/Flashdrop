@@ -84,6 +84,7 @@ export function SessionProvider({ children, initialSession = null }: SessionProv
     sessionStore.set({
       session: {
         userId: String(result.userId),
+        name: result.name,
         email: result.email,
         roles,
         activeRole,

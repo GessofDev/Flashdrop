@@ -7,6 +7,14 @@ export interface ApiErrorNoticeProps {
   error: ApiError;
   /** Action of the retry, offered when the error is a conflict. */
   onRetry?: () => void;
+  /**
+   * Show the message of a 401 instead of hiding it.
+   *
+   * The login form needs it: there a 401 is the answer of the form — wrong
+   * credentials — and not an expired session, so the message of the backend
+   * has to reach the user instead of a redirect.
+   */
+  showUnauthorized?: boolean;
 }
 
 /**
@@ -17,10 +25,10 @@ export interface ApiErrorNoticeProps {
  * forbidden error only informs, and a 401 renders nothing because the app is
  * being redirected to the login route.
  */
-export function ApiErrorNotice({ error, onRetry }: ApiErrorNoticeProps) {
+export function ApiErrorNotice({ error, onRetry, showUnauthorized = false }: ApiErrorNoticeProps) {
   const outcome = resolveApiErrorOutcome(error);
 
-  if (outcome.kind === 'redirect-to-login') {
+  if (outcome.kind === 'redirect-to-login' && !showUnauthorized) {
     return null;
   }
 
@@ -29,7 +37,7 @@ export function ApiErrorNotice({ error, onRetry }: ApiErrorNoticeProps) {
       role="alert"
       className="rounded-container border border-border bg-surface p-4 text-sm text-foreground"
     >
-      <p className="text-destructive">{outcome.message}</p>
+      <p className="text-destructive">{error.message}</p>
       {outcome.kind === 'conflict' && onRetry !== undefined ? (
         <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
           Reintentar

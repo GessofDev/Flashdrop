@@ -1,5 +1,6 @@
 import type { TokenPair } from '@/api/types';
 
+import { isRememberSessionEnabled } from './rememberSession';
 import { isRole } from './types';
 import type { Role, Session } from './types';
 
@@ -45,6 +46,10 @@ function isSession(value: unknown): value is Session {
     return false;
   }
 
+  if (typeof value.name !== 'string') {
+    return false;
+  }
+
   if (!Array.isArray(value.roles) || !value.roles.every((role) => isRole(role))) {
     return false;
   }
@@ -58,6 +63,13 @@ function isSession(value: unknown): value is Session {
 
 function readStorage(): SessionState {
   if (typeof window === 'undefined') {
+    return EMPTY_STATE;
+  }
+
+  // The user can ask the app not to restore the session on a reload of the
+  // tab. The tokens stay in `sessionStorage` either way: this preference only
+  // decides whether they are read back.
+  if (!isRememberSessionEnabled()) {
     return EMPTY_STATE;
   }
 
@@ -192,6 +204,21 @@ export const sessionStore = {
   reset(): void {
     cachedState = null;
     writeStorage(EMPTY_STATE);
+
+    for (const listener of listeners) {
+      listener();
+    }
+  },
+
+  /**
+   * Forget the in-memory state and read it from the storage again.
+   *
+   * It models a reload of the page: the state of the tab is the one that was
+   * persisted, and nothing else.
+   */
+  reload(): void {
+    cachedState = null;
+    currentState();
 
     for (const listener of listeners) {
       listener();

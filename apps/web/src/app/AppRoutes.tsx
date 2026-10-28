@@ -1,5 +1,8 @@
 import { Route, Routes } from 'react-router-dom';
 
+import { LoginPage } from '@/components/auth';
+
+import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
 import { routePaths } from './routePaths';
 
@@ -36,6 +39,12 @@ const ROUTE_PLACEHOLDERS = [
     mockup: 'gesti_n_de_cat_logo_y_men_mi_tienda',
   },
   {
+    path: routePaths.storeDispatchHistory,
+    title: 'Historial de despachos',
+    description: 'Pedidos despachados por la tienda, con su estado final.',
+    mockup: 'anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0',
+  },
+  {
     path: routePaths.storeAnalytics,
     title: 'Analíticas de ventas',
     description: 'Indicadores de ventas de la tienda y productos más vendidos.',
@@ -44,7 +53,19 @@ const ROUTE_PLACEHOLDERS = [
   {
     path: routePaths.courier,
     title: 'Consola del repartidor',
-    description: 'Pedidos disponibles, rutas activas e historial de entregas.',
+    description: 'Ruta activa del repartidor y estado de la operación.',
+    mockup: 'consola_del_repartidor_flashdrop_courier',
+  },
+  {
+    path: routePaths.courierAvailable,
+    title: 'Pedidos disponibles',
+    description: 'Cola de pedidos disponibles para el reparto, en orden de llegada.',
+    mockup: 'consola_del_repartidor_flashdrop_courier',
+  },
+  {
+    path: routePaths.courierHistory,
+    title: 'Historial de entregas',
+    description: 'Entregas ya realizadas por el repartidor.',
     mockup: 'consola_del_repartidor_flashdrop_courier',
   },
   {
@@ -53,40 +74,43 @@ const ROUTE_PLACEHOLDERS = [
     description: 'Identidad, roles y dispositivos conectados del usuario.',
     mockup: 'perfil_multi_rol_y_centro_de_cuentas_flashdrop_v2.0_1',
   },
-  {
-    path: routePaths.login,
-    title: 'Iniciar sesión',
-    description: 'Acceso unificado con RUT o email y destino por rol.',
-    mockup: 'iniciar_sesi_n_portal_unificado_flashdrop',
-  },
 ] as const;
 
+/**
+ * Routes of the app.
+ *
+ * The login route is public; every other screen lives inside the protected
+ * layout, which holds the guard and the canonical shell.
+ */
 export function AppRoutes() {
   return (
     <Routes>
-      {ROUTE_PLACEHOLDERS.map((route) => (
+      <Route path={routePaths.login} element={<LoginPage />} />
+      <Route element={<ProtectedLayout />}>
+        {ROUTE_PLACEHOLDERS.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              <RoutePlaceholder
+                title={route.title}
+                description={route.description}
+                mockup={route.mockup}
+              />
+            }
+          />
+        ))}
         <Route
-          key={route.path}
-          path={route.path}
+          path="*"
           element={
             <RoutePlaceholder
-              title={route.title}
-              description={route.description}
-              mockup={route.mockup}
+              title="Página no encontrada"
+              description="La ruta solicitada no existe en la aplicación."
+              mockup="flashdrop_shell_can_nica_gu_a_de_navegaci_n_por_rol"
             />
           }
         />
-      ))}
-      <Route
-        path="*"
-        element={
-          <RoutePlaceholder
-            title="Página no encontrada"
-            description="La ruta solicitada no existe en la aplicación."
-            mockup="flashdrop_shell_can_nica_gu_a_de_navegaci_n_por_rol"
-          />
-        }
-      />
+      </Route>
     </Routes>
   );
 }

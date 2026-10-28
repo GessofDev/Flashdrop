@@ -3,6 +3,8 @@ import type {
   AuthResult,
   LoginRequest,
   RefreshRequest,
+  RegisterRequest,
+  RegisterUserResult,
   TokenClaims,
   TokenPair,
   UpdateProfileRequest,
@@ -16,6 +18,17 @@ import type {
  * answers with the bare DTO, so every call declares `responseShape: 'bare'`.
  */
 export const authApi = {
+  /** `POST /auth/register` — creates an account and answers with its id. */
+  register(user: RegisterRequest): Promise<RegisterUserResult> {
+    return request<RegisterUserResult>({
+      path: '/auth/register',
+      method: 'POST',
+      body: user,
+      responseShape: 'bare',
+      session: 'public',
+    });
+  },
+
   /** `POST /auth/login` — answers an `AuthResult` with the token pair. */
   login(credentials: LoginRequest): Promise<AuthResult> {
     return request<AuthResult>({

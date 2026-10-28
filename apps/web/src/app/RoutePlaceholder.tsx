@@ -17,7 +17,7 @@ export interface RoutePlaceholderProps {
  */
 export function RoutePlaceholder({ title, description, mockup }: RoutePlaceholderProps) {
   return (
-    <main className="mx-auto w-full max-w-app px-4 py-8 md:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-app px-4 py-8 md:px-6 lg:px-8">
       <Card className="flex flex-col gap-2">
         <p className="label-code text-xs text-foreground-muted">FlashDrop</p>
         <h1 className="font-display text-2xl font-bold text-foreground">{title}</h1>
@@ -26,6 +26,6 @@ export function RoutePlaceholder({ title, description, mockup }: RoutePlaceholde
           Maqueta de origen: <span className="nums-tabular">{mockup}</span>
         </p>
       </Card>
-    </main>
+    </div>
   );
 }

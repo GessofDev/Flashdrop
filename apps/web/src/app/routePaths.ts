@@ -4,9 +4,9 @@
  * The three roles of the product map to three route groups:
  *  - customer: `/` (marketplace) and `/pedidos`
  *  - store:    `/tienda/*`
- *  - courier:  `/repartidor`
+ *  - courier:  `/repartidor/*`
  *
- * The shell with the role switcher (task T3) will own the navigation; these
+ * The shell with the role switcher (task T3) owns the navigation; these
  * constants are the single place where the paths are declared.
  */
 export const routePaths = {
@@ -14,8 +14,11 @@ export const routePaths = {
   orders: '/pedidos',
   storeKds: '/tienda/kds',
   storeCatalog: '/tienda/catalogo',
+  storeDispatchHistory: '/tienda/despachos',
   storeAnalytics: '/tienda/analiticas',
   courier: '/repartidor',
+  courierAvailable: '/repartidor/pedidos',
+  courierHistory: '/repartidor/historial',
   profile: '/perfil',
   login: '/login',
 } as const;

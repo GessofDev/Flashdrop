@@ -17,6 +17,8 @@ export type Role = (typeof ROLES)[number];
  */
 export interface Session {
   userId: string;
+  /** Display name of the user, shown by the identity zone of the shell. */
+  name: string;
   email: string;
   roles: Role[];
   activeRole: Role;

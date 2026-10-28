@@ -44,10 +44,25 @@ export interface AuthResult {
   expiresInSeconds: number;
 }
 
-/** `auth-service` — `LoginRequest`. The `login` field carries the email. */
+/** `auth-service` — `LoginRequest`. The `login` field carries the identifier. */
 export interface LoginRequest {
   login: string;
   password: string;
+}
+
+/** `auth-service` — `RegisterRequest`, the body of `POST /auth/register`. */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  rut?: string | null;
+  name?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+}
+
+/** `auth-service` — `RegisterUserResult`, the answer of `POST /auth/register`. */
+export interface RegisterUserResult {
+  userId: number;
 }
 
 /** `auth-service` — `RefreshRequest`. */

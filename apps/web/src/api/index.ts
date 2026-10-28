@@ -12,6 +12,8 @@ export type {
   QueryParams,
   QueryValue,
   RefreshRequest,
+  RegisterRequest,
+  RegisterUserResult,
   TokenClaims,
   TokenPair,
   UpdateProfileRequest,
