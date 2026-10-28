@@ -38,7 +38,7 @@ export const ROLE_NAVIGATION: Record<Role, readonly NavigationItem[]> = {
     { label: 'Analíticas & Ventas', path: routePaths.storeAnalytics },
   ],
   REPARTIDOR: [
-    { label: 'Ruta Activa & GPS', path: routePaths.courier },
+    { label: 'Ruta Activa', path: routePaths.courier },
     { label: 'Pedidos Disponibles (FIFO)', path: routePaths.courierAvailable },
     { label: 'Historial de Entregas', path: routePaths.courierHistory },
   ],

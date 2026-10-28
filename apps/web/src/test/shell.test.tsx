@@ -67,7 +67,7 @@ describe('canonical shell', () => {
     renderApp('/repartidor');
 
     expect(screen.getByRole('button', { name: 'Repartidor' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('link', { name: 'Ruta Activa & GPS' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ruta Activa' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Pedidos Disponibles (FIFO)' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Historial de Entregas' })).toBeInTheDocument();
   });
