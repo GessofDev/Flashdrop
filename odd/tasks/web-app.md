@@ -140,7 +140,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T4 | Login y registro: tabs, RUT/email, ClaveÚnica, módulo de destino preferente, panel de marca | S3, S5 | delegated (worker) | done | `33ee2d5` — 10 tests de login; 102 tests en total |
 | T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | delegated (worker) | done | `0f4868e` — 8 tests de marketplace |
 | T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | delegated (worker) | done | `0f4868e` — 8 tests de carrito + 1 de código no inventado |
-| T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | inline | pending | `feat(web): add order list and live tracking` |
+| T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | delegated (worker) | done | `0b7861c` — 19 tests de pedidos |
 | T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | inline | pending | `feat(web): add store catalog management` |
 | T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated | pending | `feat(web): add kitchen display board` |
 | T10 | Consola repartidor: disponibles FIFO, claim atómico, rutas activas, historial | S13 | delegated | pending | `feat(web): add courier console` |
@@ -161,7 +161,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | 2 | PR 2 | T2 — cliente HTTP tipado + taxonomía de errores | `2b77571` | 2.080 |
 | 3 | PR 3 | T3 + T4 — shell canónico + login | `33ee2d5` | 1.896 |
 | 4 | PR 4 | T5 + T6 — marketplace + checkout | `0f4868e` | 2.062 |
-| 5 | PR 5 | T7 — pedidos + seguimiento | — | ~350 |
+| 5 | PR 5 | T7 — pedidos + seguimiento | `0b7861c` | 1.632 |
 | 6 | PR 6 | T8 + T9 — catálogo de tienda + KDS | — | ~900 |
 | 7 | PR 7 | T10 + T11 — repartidor + analíticas | — | ~700 |
 | 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | — | ~500 |
@@ -219,3 +219,13 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 - El worker añadió **validación de forma** en la capa de API (`asList` en `src/api/catalog.ts`): si el catálogo devuelve algo que no es lista, la UI muestra aviso en vez de romper. No estaba en el encargo; se acepta porque sin eso el marketplace crashea con respuestas no-lista.
 - El hero de la maqueta conserva su estructura pero sin el bloque de cupón (`#FLASH30`), y sus números son **datos reales del catálogo** (locales, platos, categorías) en vez de los "108 locales" de maqueta.
 - Se quitó de la maqueta todo lo que no tiene backend: estrellas, ETA por restaurante, costo de envío, "envío gratis", cupón, WebPay/Transbank, FPS, FlashHour, banner de pedido en camino (es T7) y modal de personalización.
+
+**L18 (2026-10-28)** — T7 cerrado y commiteado (`0b7861c`). Evidencia: RED (17 tests, las pantallas no existían) → GREEN (19 tests de pedidos; suite completa **138/138**, los 119 previos intactos); `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0; check de mutación (agregar "En camino" como 6º paso → 3 tests rojos; `roleOwningPath` con match exacto → 1 rojo; total calculado en cliente → 1 rojo). Verificado por el orquestador: 138/138, build/tsc/lint verdes.
+
+**L19 (2026-10-28)** — **Hallazgo de T7: `route` y `delivery` llegan siempre `null`.** `OrderEnricher.enrich()` hace `order.setDeliveryInfo(null)` y `order.setRoute(null)` (`services/orders-service/.../OrderEnricher.java:52-53`), con el comentario de que se mantienen null hasta que exista el endpoint. Consecuencia: contra el backend actual **el mapa y la tarjeta del repartidor nunca se muestran**; la UI degrada sin inventar nada y hay test para las dos formas (con y sin ruta). Queda anotado para cuando exista ese endpoint: la pantalla ya está lista y solo necesita los datos. Además, `OrderDetailResponse.RouteDto` **no tiene `id`** (el brief lo decía): el DTO se tipó según el repo.
+
+**L20 (2026-10-28)** — Decisiones de T7:
+- **Guard de rol endurecido**: `roleOwningPath` es dueño también de las rutas que **continúan** una de sus entradas (`/pedidos/:id` → CLIENTE). Antes, un rol RESTAURANTE podía abrir el tracking de un pedido. Hay test.
+- `GET /api/orders` se llama con `view=client` y **nunca** con `user_id` (la identidad sale del JWT). Hay test que lo fija.
+- `Skeleton` se movió a `src/components/ui/` porque lo usan dos pantallas; quedó un re-export en `src/components/marketplace/Skeleton.tsx` que se puede borrar en T13/T14.
+- **Pendiente para T14**: el shell conserva **"Ruta Activa & GPS"** y el panel de marca **"98.4% entregas a tiempo"** (preexistentes de T3/T4). El guard de S17 tiene que decidir si se quedan o se sacan: son copy de maqueta, no datos del backend.
