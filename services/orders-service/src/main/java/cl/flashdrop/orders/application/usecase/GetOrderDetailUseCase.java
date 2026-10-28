@@ -8,6 +8,7 @@ import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
+import cl.flashdrop.orders.domain.port.DeliveryCodePort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class GetOrderDetailUseCase {
     private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final OrderEnricher enricher;
+    private final DeliveryCodePort deliveryCodePort;
 
     @Transactional(readOnly = true)
     public Order execute(UUID orderId, Set<Role> currentRoles, UUID currentUserId) {
@@ -48,8 +50,19 @@ public class GetOrderDetailUseCase {
             throw new ForbiddenOperationException("No puedes consultar este pedido");
         }
         enricher.enrich(order);
+        // El codigo lo ve SOLO el cliente dueño, en modo SEGURO y hasta que se entrega. Ni el
+        // repartidor ni el restaurante lo ven jamas.
+        if (order.isSecureReception() && order.getStatus() != OrderStatus.ENTREGADO
+                && isOwnerClient(order, currentRoles, currentUserId)) {
+            order.setDeliveryCode(deliveryCodePort.currentCodeFor(order));
+        }
         log.debug("Detalle de pedido {} enriquecido", orderId);
         return order;
+    }
+
+    private boolean isOwnerClient(Order order, Set<Role> roles, UUID userId) {
+        return roles.contains(Role.CLIENTE)
+                && clientPort.findClientIdByUserId(userId).filter(c -> c.equals(order.getClientId())).isPresent();
     }
 
     private boolean canView(Order order, Set<Role> roles, UUID userId) {

@@ -10,6 +10,7 @@ import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.ClientEntity;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataClientRepository;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderDeliveryCodeAttemptRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderItemRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +48,8 @@ class SalesSummaryIntegrationTest extends PostgresIntegrationTestSupport {
     @Autowired
     private SpringDataOrderItemRepository orderItemRepository;
     @Autowired
+    private SpringDataOrderDeliveryCodeAttemptRepository deliveryCodeAttemptRepository;
+    @Autowired
     private SpringDataClientRepository clientRepository;
 
     private JpaOrderRepositoryAdapter adapter;
@@ -64,7 +67,7 @@ class SalesSummaryIntegrationTest extends PostgresIntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
-        adapter = new JpaOrderRepositoryAdapter(orderRepository, orderItemRepository);
+        adapter = new JpaOrderRepositoryAdapter(orderRepository, orderItemRepository, deliveryCodeAttemptRepository);
         ClientEntity client = clientRepository.save(ClientEntity.builder()
                 .userId(System.nanoTime())
                 .createdAt(OffsetDateTime.now())

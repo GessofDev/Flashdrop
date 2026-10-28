@@ -47,6 +47,24 @@ public interface OrderRepositoryPort {
     void updateStatus(UUID orderId, OrderStatus status);
 
     /**
+     * Busca un pedido bloqueando su fila hasta el fin de la transaccion en curso. Se usa al
+     * verificar el codigo de entrega para que intentos simultaneos se procesen de a uno.
+     */
+    Optional<Order> findByIdForUpdate(UUID id);
+
+    /**
+     * Persiste el estado del codigo de entrega del pedido (version, intentos fallidos y
+     * fecha de verificacion). No toca ningun otro campo.
+     */
+    void updateDeliveryCodeState(Order order);
+
+    /**
+     * Registra un intento de entrega con codigo en la bitacora de auditoria. Nunca recibe
+     * ni guarda el codigo ingresado.
+     */
+    void recordDeliveryCodeAttempt(UUID orderId, UUID deliveryId, int codeVersion, boolean success);
+
+    /**
      * Asigna el repartidor a m\u00FAltiples pedidos a la vez. NO modifica el estado de los
      * pedidos: cada uno conserva el suyo (PR-orders-claim, spec FR-3).
      *

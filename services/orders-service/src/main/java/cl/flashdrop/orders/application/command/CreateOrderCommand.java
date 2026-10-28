@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.application.command;
 
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -38,6 +39,10 @@ public class CreateOrderCommand {
 
     /** Tiempo estimado en minutos (opcional, se usa el valor por defecto si es null) */
     private final Integer estimatedMinutes;
+
+    /** Modo de recepción elegido por el cliente (NORMAL si no lo informó) */
+    @Builder.Default
+    private final ReceptionMode receptionMode = ReceptionMode.NORMAL;
 
     /** Lista de ítems del pedido */
     private final List<ItemRequest> items;

@@ -64,7 +64,9 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
                 route.getEstimatedMinutes().getMinutes(),
                 route.getStatus() != null ? route.getStatus().getDbValue() : null,
                 route.getCreatedAt(),
-                code
+                code,
+                route.getReceptionMode(),
+                route.isDeliveryPinRequired()
         );
     }
 }

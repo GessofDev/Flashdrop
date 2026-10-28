@@ -106,6 +106,21 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    public Optional<Order> findByIdForUpdate(UUID id) {
+        throw new UnsupportedOperationException("Entrega con codigo no soportada en el perfil supabase");
+    }
+
+    @Override
+    public void updateDeliveryCodeState(Order order) {
+        throw new UnsupportedOperationException("Entrega con codigo no soportada en el perfil supabase");
+    }
+
+    @Override
+    public void recordDeliveryCodeAttempt(UUID orderId, UUID deliveryId, int codeVersion, boolean success) {
+        throw new UnsupportedOperationException("Entrega con codigo no soportada en el perfil supabase");
+    }
+
+    @Override
     public void updateStatus(UUID orderId, OrderStatus status) {
         long rawId = IdConverter.toLong(orderId);
         Map<String, Object> body = new LinkedHashMap<>();

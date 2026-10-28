@@ -40,6 +40,9 @@ public class DeliveryRouteJpaEntity {
     @Column(name = "created_at")
     private Instant createdAt;
 
+    @Column(name = "reception_mode", nullable = false)
+    private String receptionMode = "NORMAL";
+
     public DeliveryRouteJpaEntity() {
     }
 
@@ -132,6 +135,14 @@ public class DeliveryRouteJpaEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getReceptionMode() {
+        return receptionMode;
+    }
+
+    public void setReceptionMode(String receptionMode) {
+        this.receptionMode = receptionMode;
     }
 
     public Instant getCreatedAt() {

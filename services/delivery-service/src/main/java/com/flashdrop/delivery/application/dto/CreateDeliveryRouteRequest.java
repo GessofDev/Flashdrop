@@ -15,6 +15,13 @@ public record CreateDeliveryRouteRequest(
                 regexp = "(?i)PENDIENTE|ASSIGNED|RETIRAR_PEDIDO|EN_CAMINO|ENTREGADO",
                 message = "status must be one of PENDIENTE, ASSIGNED, RETIRAR_PEDIDO, EN_CAMINO, ENTREGADO (case-insensitive)"
         )
-        String status
+        String status,
+        @Pattern(regexp = "(?i)NORMAL|SEGURO", message = "receptionMode must be NORMAL or SEGURO")
+        String receptionMode
 ) {
+
+    public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
+                                      Double distanceKm, Integer estimatedMinutes, String status) {
+        this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, null);
+    }
 }

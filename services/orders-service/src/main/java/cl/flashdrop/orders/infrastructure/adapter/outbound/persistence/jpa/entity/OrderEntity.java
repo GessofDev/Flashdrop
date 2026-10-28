@@ -48,4 +48,19 @@ public class OrderEntity {
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
+
+    @Builder.Default
+    @Column(name = "reception_mode", nullable = false)
+    private String receptionMode = "NORMAL";
+
+    @Builder.Default
+    @Column(name = "delivery_code_version", nullable = false)
+    private int deliveryCodeVersion = 1;
+
+    @Builder.Default
+    @Column(name = "delivery_code_attempts", nullable = false)
+    private int deliveryCodeAttempts = 0;
+
+    @Column(name = "delivery_code_verified_at")
+    private OffsetDateTime deliveryCodeVerifiedAt;
 }

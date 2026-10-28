@@ -27,5 +27,6 @@ public class OrderListResponse {
     private final String clientEmail;
     private final String restaurantName;
     private final UUID deliveryId;
+    private final String receptionMode;
     private final OffsetDateTime createdAt;
 }

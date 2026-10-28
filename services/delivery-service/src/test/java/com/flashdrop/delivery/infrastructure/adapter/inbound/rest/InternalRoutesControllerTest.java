@@ -93,6 +93,81 @@ class InternalRoutesControllerTest {
         }
 
         @Test
+        @DisplayName("receptionMode SEGURO is stored on the route and exposed as deliveryPinRequired")
+        void createRoute_seguro_exposesDeliveryPinRequired() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> {
+                DeliveryRoute r = inv.getArgument(0);
+                r.setId(2L);
+                return r;
+            });
+
+            String body = """
+                {
+                  "orderId": 1002,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente",
+                  "receptionMode": "SEGURO"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.receptionMode").value("SEGURO"))
+                    .andExpect(jsonPath("$.data.deliveryPinRequired").value(true));
+        }
+
+        @Test
+        @DisplayName("without receptionMode the route is NORMAL and does not require the PIN")
+        void createRoute_withoutReceptionMode_defaultsToNormal() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            String body = """
+                {
+                  "orderId": 1003,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.receptionMode").value("NORMAL"))
+                    .andExpect(jsonPath("$.data.deliveryPinRequired").value(false));
+        }
+
+        @Test
+        @DisplayName("returns 400 when receptionMode is not NORMAL or SEGURO")
+        void createRoute_invalidReceptionMode_returns400() throws Exception {
+            String body = """
+                {
+                  "orderId": 1004,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "status": "Pendiente",
+                  "receptionMode": "OTRO"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         @DisplayName("returns 400 when status is missing")
         void createRoute_missingStatus_returns400() throws Exception {
             String body = """
@@ -192,7 +267,7 @@ class InternalRoutesControllerTest {
                     Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
                     RouteStatus.ENTREGADO, Instant.parse("2024-01-01T10:00:00Z")
             );
-            when(routeRepository.updateStatus(1L, "ENTREGADO")).thenReturn(updated);
+            when(routeRepository.updateStatus(1L, "Entregado")).thenReturn(updated);
 
             mockMvc.perform(patch("/api/internal/routes/1/status")
                             .header(INTERNAL_KEY_HEADER, VALID_KEY)
@@ -226,7 +301,7 @@ class InternalRoutesControllerTest {
                     RouteStatus.ENTREGADO, Instant.parse("2024-01-01T10:00:00Z")
             );
             when(routeRepository.findByOrderId(1001L)).thenReturn(java.util.Optional.of(existing));
-            when(routeRepository.updateStatus(42L, "ENTREGADO")).thenReturn(updated);
+            when(routeRepository.updateStatus(42L, "Entregado")).thenReturn(updated);
 
             mockMvc.perform(patch("/api/internal/routes/order/1001/status")
                             .header(INTERNAL_KEY_HEADER, VALID_KEY)

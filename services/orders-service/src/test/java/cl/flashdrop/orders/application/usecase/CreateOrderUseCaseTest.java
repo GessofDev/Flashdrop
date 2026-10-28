@@ -5,9 +5,11 @@ import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.ProductInfo;
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
+import cl.flashdrop.orders.domain.port.DeliveryCodePort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -42,6 +44,8 @@ class CreateOrderUseCaseTest {
     private DeliveryPort deliveryPort;
     @Mock
     private EventPublisherPort eventPublisher;
+    @Mock
+    private DeliveryCodePort deliveryCodePort;
 
     @InjectMocks
     private CreateOrderUseCase createOrderUseCase;
@@ -254,5 +258,75 @@ class CreateOrderUseCaseTest {
         createOrderUseCase.execute(commandFor(userId, productId, true));
 
         verify(clientPort, never()).findOrCreateClientIdByUserId(any());
+    }
+
+    // ------------------- Modo de recepcion / codigo de entrega -------------------
+
+    private void stubCatalogAndClient(UUID userId, UUID productId, UUID restaurantId, UUID clientId) {
+        ProductInfo product = ProductInfo.builder().id(productId).restaurantId(restaurantId)
+                .price(BigDecimal.valueOf(1000)).name("Burger").available(true).build();
+        when(catalogPort.findProductsByIds(List.of(productId))).thenReturn(List.of(product));
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.empty());
+    }
+
+    private CreateOrderCommand commandWithMode(UUID userId, UUID productId, ReceptionMode mode) {
+        return CreateOrderCommand.builder().userId(userId).address("Av. Providencia 1200")
+                .paymentMethod("Tarjeta").receptionMode(mode)
+                .items(List.of(CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()))
+                .build();
+    }
+
+    @Test
+    void modoSeguro_persisteElModoYDevuelveElCodigoAlCliente() {
+        UUID userId = UUID.randomUUID(), productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID(), clientId = UUID.randomUUID(), orderId = UUID.randomUUID();
+        stubCatalogAndClient(userId, productId, restaurantId, clientId);
+        Order saved = Order.builder().id(orderId).receptionMode(ReceptionMode.SEGURO).build();
+        when(orderRepository.save(any(Order.class))).thenReturn(saved);
+        when(deliveryCodePort.isSecureModeAvailable()).thenReturn(true);
+        when(deliveryCodePort.currentCodeFor(saved)).thenReturn("482913");
+
+        CreatedOrderResult result = createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.SEGURO));
+
+        org.mockito.ArgumentCaptor<Order> captor = org.mockito.ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        assertEquals(ReceptionMode.SEGURO, captor.getValue().getReceptionMode());
+        assertEquals("SEGURO", result.receptionMode());
+        assertEquals("482913", result.deliveryCode());
+    }
+
+    /** Sin clave el modo SEGURO se rechaza (400) antes de guardar nada: sin ruta huerfana ni 5xx. */
+    @Test
+    void modoSeguro_sinClave_rechazaAntesDeGuardarNada() {
+        UUID userId = UUID.randomUUID(), productId = UUID.randomUUID();
+        when(deliveryCodePort.isSecureModeAvailable()).thenReturn(false);
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.SEGURO)));
+
+        assertTrue(ex.getMessage().contains("SEGURO"), ex.getMessage());
+        verifyNoInteractions(orderRepository, deliveryPort, eventPublisher);
+    }
+
+    @Test
+    void modoNormal_noDevuelveCodigoAlCliente() {
+        UUID userId = UUID.randomUUID(), productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID(), clientId = UUID.randomUUID(), orderId = UUID.randomUUID();
+        stubCatalogAndClient(userId, productId, restaurantId, clientId);
+        when(orderRepository.save(any(Order.class))).thenReturn(Order.builder().id(orderId).build());
+
+        CreatedOrderResult result = createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.NORMAL));
+
+        assertEquals("NORMAL", result.receptionMode());
+        assertNull(result.deliveryCode());
+        verifyNoInteractions(deliveryCodePort);
+    }
+
+    @Test
+    void sinModoInformado_seAsumeNormal() {
+        CreateOrderCommand command = CreateOrderCommand.builder().userId(UUID.randomUUID()).build();
+
+        assertEquals(ReceptionMode.NORMAL, command.getReceptionMode());
     }
 }

@@ -68,7 +68,7 @@ class AvailableDeliveryOrdersControllerTest {
     @BeforeEach
     void setUp() {
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
-                listOrdersUseCase, updateOrderStatusUseCase, new CurrentUserResolver(),
+                listOrdersUseCase, updateOrderStatusUseCase, null, new CurrentUserResolver(),
                 listAvailableOrdersUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())

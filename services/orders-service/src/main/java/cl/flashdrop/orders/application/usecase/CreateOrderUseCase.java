@@ -6,6 +6,7 @@ import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
+import cl.flashdrop.orders.domain.port.DeliveryCodePort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -38,6 +39,7 @@ public class CreateOrderUseCase {
     private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
+    private final DeliveryCodePort deliveryCodePort;
 
     @Value("${orders.delivery-fee:2500}")
     private BigDecimal deliveryFee;
@@ -54,6 +56,14 @@ public class CreateOrderUseCase {
     @Transactional
     public CreatedOrderResult execute(CreateOrderCommand command) {
         log.info("Creando pedido para userId={}, {} ítems", command.getUserId(), command.getItems().size());
+
+        // 0. El modo SEGURO necesita la clave del código: si falta se rechaza ANTES de guardar
+        // nada, con un 4xx (un 5xx dejaría una ruta huérfana en Delivery y el gateway abre el
+        // circuit breaker de /api/orders tras varios 5xx seguidos).
+        if (command.getReceptionMode() == ReceptionMode.SEGURO && !deliveryCodePort.isSecureModeAvailable()) {
+            throw new OrderDomainException(
+                    "El modo de recepcion SEGURO no esta habilitado por ahora; elige el modo NORMAL");
+        }
 
         // 1. Obtener precios actualizados desde catálogo (nunca del cliente)
         List<UUID> productIds = command.getItems().stream()
@@ -125,10 +135,15 @@ public class CreateOrderUseCase {
                 .deliveryFee(deliveryFee)
                 .total(total)
                 .paymentMethod(PaymentMethod.fromValue(command.getPaymentMethod()))
+                .receptionMode(command.getReceptionMode())
                 .items(items)
                 .build();
 
         Order saved = orderRepository.save(order);
+
+        // El codigo se deriva del pedido ya persistido; se calcula antes de crear la ruta y
+        // publicar el evento para que un fallo aqui no deje efectos en otros servicios.
+        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
 
         // 8. Crear ruta de entrega
         RestaurantInfo restaurant = catalogPort.findRestaurantById(restaurantId).orElse(null);
@@ -144,6 +159,7 @@ public class CreateOrderUseCase {
                 .distanceKm(distanceKm)
                 .estimatedMinutes(estimatedMinutes)
                 .status("Pendiente")
+                .receptionMode(saved.getReceptionMode().name())
                 .build();
 
         deliveryPort.saveRoute(route);
@@ -158,7 +174,7 @@ public class CreateOrderUseCase {
                 .build());
 
         log.info("Pedido creado con id={}, total={}", saved.getId(), total);
-        return new CreatedOrderResult(saved.getId(), total);
+        return new CreatedOrderResult(saved.getId(), total, saved.getReceptionMode().name(), deliveryCode);
     }
 
     private BigDecimal normalizeDistance(BigDecimal raw) {

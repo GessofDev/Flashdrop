@@ -20,6 +20,7 @@ public record AvailableDeliveryOrderResponse(
         String clientName,
         BigDecimal total,
         Double distanceKm,
-        Integer estimatedMinutes
+        Integer estimatedMinutes,
+        String receptionMode
 ) {
 }

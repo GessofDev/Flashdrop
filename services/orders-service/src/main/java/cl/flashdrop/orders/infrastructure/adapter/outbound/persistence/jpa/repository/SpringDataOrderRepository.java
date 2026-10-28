@@ -3,14 +3,17 @@ package cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repo
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.OrderEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Long> {
@@ -18,6 +21,14 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     List<OrderEntity> findByRestaurantId(Long restaurantId);
     List<OrderEntity> findByDeliveryId(Long deliveryId);
     List<OrderEntity> findByIdIn(Collection<Long> ids);
+
+    /**
+     * Lee el pedido con bloqueo de fila ({@code SELECT ... FOR UPDATE}): serializa los intentos
+     * de código simultáneos sobre el mismo pedido para que nunca se superen los permitidos.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM OrderEntity o WHERE o.id = :id")
+    Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * Asignación atómica: asigna el repartidor SOLO a los pedidos que siguen sin repartidor,

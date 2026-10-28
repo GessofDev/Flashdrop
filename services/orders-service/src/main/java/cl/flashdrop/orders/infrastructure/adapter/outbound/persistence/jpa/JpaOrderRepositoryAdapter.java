@@ -4,10 +4,13 @@ import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderItem;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.PaymentMethod;
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.OrderDeliveryCodeAttemptEntity;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.OrderEntity;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entity.OrderItemEntity;
+import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderDeliveryCodeAttemptRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderItemRepository;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataOrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     private final SpringDataOrderRepository orderRepository;
     private final SpringDataOrderItemRepository orderItemRepository;
+    private final SpringDataOrderDeliveryCodeAttemptRepository deliveryCodeAttemptRepository;
 
     @Override
     @Transactional
@@ -46,6 +50,10 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .total(order.getTotal())
                 .paymentMethod(order.getPaymentMethod().getValue())
                 .createdAt(order.getCreatedAt() != null ? order.getCreatedAt() : OffsetDateTime.now())
+                .receptionMode(order.getReceptionMode().name())
+                .deliveryCodeVersion(order.getDeliveryCodeVersion())
+                .deliveryCodeAttempts(order.getDeliveryCodeAttempts())
+                .deliveryCodeVerifiedAt(order.getDeliveryCodeVerifiedAt())
                 .build();
 
         OrderEntity savedOrder = orderRepository.save(orderEntity);
@@ -113,6 +121,39 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
             entity.setStatus(status.getValue());
             orderRepository.save(entity);
         });
+    }
+
+    @Override
+    @Transactional
+    public Optional<Order> findByIdForUpdate(UUID id) {
+        if (id == null) return Optional.empty();
+        long rawId = IdConverter.toLong(id);
+        return orderRepository.findByIdForUpdate(rawId)
+                .map(entity -> mapToOrder(entity, orderItemRepository.findByOrderId(rawId)));
+    }
+
+    @Override
+    @Transactional
+    public void updateDeliveryCodeState(Order order) {
+        if (order == null || order.getId() == null) return;
+        orderRepository.findById(IdConverter.toLong(order.getId())).ifPresent(entity -> {
+            entity.setDeliveryCodeVersion(order.getDeliveryCodeVersion());
+            entity.setDeliveryCodeAttempts(order.getDeliveryCodeAttempts());
+            entity.setDeliveryCodeVerifiedAt(order.getDeliveryCodeVerifiedAt());
+            orderRepository.save(entity);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void recordDeliveryCodeAttempt(UUID orderId, UUID deliveryId, int codeVersion, boolean success) {
+        deliveryCodeAttemptRepository.save(OrderDeliveryCodeAttemptEntity.builder()
+                .orderId(IdConverter.toLong(orderId))
+                .deliveryId(deliveryId != null ? IdConverter.toLong(deliveryId) : null)
+                .codeVersion(codeVersion)
+                .success(success)
+                .attemptedAt(OffsetDateTime.now())
+                .build());
     }
 
     @Override
@@ -216,6 +257,10 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .total(entity.getTotal())
                 .paymentMethod(PaymentMethod.fromValue(entity.getPaymentMethod()))
                 .createdAt(entity.getCreatedAt())
+                .receptionMode(ReceptionMode.valueOf(entity.getReceptionMode()))
+                .deliveryCodeVersion(entity.getDeliveryCodeVersion())
+                .deliveryCodeAttempts(entity.getDeliveryCodeAttempts())
+                .deliveryCodeVerifiedAt(entity.getDeliveryCodeVerifiedAt())
                 .items(items)
                 .build();
     }

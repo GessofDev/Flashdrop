@@ -114,6 +114,20 @@ class RouteOwnershipTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/delivery", "/api/delivery"})
+    void update_ownerMarkingEntregado_returns409WithoutWriting(String prefix) throws Exception {
+        authenticate("4");
+        when(people.findByUserId("4")).thenReturn(Optional.of(new DeliveryPerson(3L, "4", null, null)));
+        when(routes.findById(15L)).thenReturn(Optional.of(stored.get()));
+
+        mvc.perform(put(prefix + "/routes/15/status").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ENTREGADO\"}"))
+                .andExpect(status().isConflict());
+
+        assertUnchanged();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/delivery", "/api/delivery"})
     void update_noAuthentication_returns401BeforeLookup(String prefix) throws Exception {
         mvc.perform(put(prefix + "/routes/15/status").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"EN_CAMINO\"}"))

@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.infrastructure.api.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -24,6 +25,12 @@ public class OrderDetailResponse {
     private final BigDecimal total;
     private final String paymentMethod;
     private final OffsetDateTime createdAt;
+
+    /** NORMAL o SEGURO; no se puede cambiar una vez creado el pedido. */
+    private final String receptionMode;
+    /** Solo lo ve el cliente dueño, en modo SEGURO y mientras el pedido no esté entregado. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final String deliveryCode;
 
     private final ClientDto client;
     private final RestaurantDto restaurant;

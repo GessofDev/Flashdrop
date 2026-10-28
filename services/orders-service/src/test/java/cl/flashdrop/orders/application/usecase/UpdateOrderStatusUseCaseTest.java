@@ -4,6 +4,7 @@ import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
+import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
@@ -74,8 +75,12 @@ class UpdateOrderStatusUseCaseTest {
     }
 
     private void givenOrder(OrderStatus status, UUID assignedDeliveryId) {
+        givenOrder(status, assignedDeliveryId, ReceptionMode.NORMAL);
+    }
+
+    private void givenOrder(OrderStatus status, UUID assignedDeliveryId, ReceptionMode mode) {
         Order order = Order.builder().id(ORDER_ID).restaurantId(RESTAURANT_ID)
-                .deliveryId(assignedDeliveryId).status(status).build();
+                .deliveryId(assignedDeliveryId).status(status).receptionMode(mode).build();
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
     }
 
@@ -233,12 +238,38 @@ class UpdateOrderStatusUseCaseTest {
 
     @Test
     void repartidorAsignado_puedeCambiarEstado() {
-        givenOrderWithStatus(OrderStatus.RETIRADO);
+        givenOrderWithStatus(OrderStatus.LISTO_PARA_RETIRO);
+        givenUserIsDelivery(DELIVERY_ID);
+
+        useCase.execute(ORDER_ID, "Retirado", REPARTIDOR, USER_ID);
+
+        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+    }
+
+    /** Modo NORMAL: el codigo es publico (000000), asi que PUT /status sigue entregando. */
+    @Test
+    void pedidoNormal_entregadoPorCambioDeEstado_seEntregaYSincronizaLaRuta() {
+        givenOrder(OrderStatus.RETIRADO, DELIVERY_ID, ReceptionMode.NORMAL);
         givenUserIsDelivery(DELIVERY_ID);
 
         useCase.execute(ORDER_ID, "Entregado", REPARTIDOR, USER_ID);
 
         verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.ENTREGADO);
+        verify(deliveryPort).updateRouteStatusByOrder(ORDER_ID, "Entregado");
+    }
+
+    /** Modo SEGURO: ENTREGADO solo se alcanza con el codigo (POST /api/orders/{id}/deliver). */
+    @Test
+    void pedidoSeguro_entregado_noSePuedeFijarPorCambioDeEstado_requiereCodigo() {
+        givenOrder(OrderStatus.RETIRADO, DELIVERY_ID, ReceptionMode.SEGURO);
+        givenUserIsDelivery(DELIVERY_ID);
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> useCase.execute(ORDER_ID, "Entregado", REPARTIDOR, USER_ID));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("transicion de estado no permitida"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("codigo de verificacion"), ex.getMessage());
+        assertNothingPersisted();
     }
 
     @Test
