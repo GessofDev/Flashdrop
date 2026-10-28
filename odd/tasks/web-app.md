@@ -152,7 +152,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | delegated (worker) | done | `0f4868e` — 8 tests de carrito + 1 de código no inventado |
 | T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | delegated (worker) | done | `0b7861c` — 19 tests de pedidos |
 | T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | delegated (worker) | done | `7ac5c2a` — 15 tests de catálogo |
-| T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated | pending | `feat(web): add kitchen display board` |
+| T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated (worker) | done | `40e4e52` — 24 tests de KDS |
 | T10 | Consola repartidor: disponibles FIFO, claim atómico, rutas activas, historial | S13 | delegated | pending | `feat(web): add courier console` |
 | T11 | Analíticas recortadas: 4 KPIs de `sales-summary` + top productos | S14 | delegated | pending | `feat(web): add store sales analytics` |
 | T12 | Perfil multi-rol: identidad, 3 tarjetas de rol, dispositivos, `vehicle` read-only | S15 | inline | pending | `feat(web): add multi-role profile` |
@@ -173,7 +173,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | 4 | PR 4 | T5 + T6 — marketplace + checkout | `0f4868e` | 2.062 |
 | 5 | PR 5 | T7 — pedidos + seguimiento | `0b7861c` | 1.632 |
 | 6 | PR 6 | T8 — catálogo de tienda | `7ac5c2a` | 1.607 |
-| 7 | PR 7 | T10 + T11 — repartidor + analíticas | — | ~700 |
+| 7 | PR 7 | T9 — KDS | `40e4e52` | 1.997 |
 | 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | — | ~500 |
 
 El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T4 juntos): T2 resultó ser una unidad más gruesa de lo previsto porque el transporte, el ciclo de refresh, la taxonomía de errores y la integración con la sesión son un solo bloque inseparable. Se partió el slice en vez de achicar la unidad.
@@ -253,3 +253,12 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 **L24 (2026-10-28)** — Otras decisiones de T8:
 - Se quitó de la maqueta lo que no tiene backend: columna "Ventas 7D", columna "Margen", badges "Top #1"/"Favorito" (el DTO no tiene tags ni ranking), "Pausar Menú" (no hay endpoint bulk), "Exportar CSV", banner "Catálogo v2.4 Activo / REST ID", paginación (el endpoint no pagina) y el footer de telemetría ("Impresora POS Conectada" — POS está prohibido por S17).
 - Tres aserciones del test RED se acotaron a la fila (`within(row)`) porque el fixture tiene varios "Disponible" y "Agotado": la aserción quedó **más precisa**, no más débil.
+
+**L25 (2026-10-28)** — T9 cerrado y commiteado (`40e4e52`). Evidencia: RED (módulo inexistente) → GREEN (23 tests de KDS; suite completa 178/178); `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0; check de mutación (quitar el check de rol y mandar el PUT en mayúsculas → 5 tests rojos; apuntar la columna EN COCINA a "Nuevo pedido" y timer fijo → 5 rojos). **Corrección del orquestador**: el board **no tenía forma de recargar** (solo releía la lista tras cambiar un estado), así que un pedido nuevo de un cliente nunca llegaba a la pantalla y el chime no tenía nada que anunciar. Se agregó el botón **"Actualizar"** con su test. Verificado por el orquestador: 179/179, build/tsc/lint verdes.
+
+**L26 (2026-10-28)** — Decisiones de T9:
+- **Carga de los ítems por tarjeta, con caché por board**: `OrderListResponse` no trae platos, así que la tarjeta lee `GET /api/orders/{id}` una vez y el drawer reutiliza esa respuesta (0 requests extra, con test). Se descartó el bajo demanda puro porque obligaría a abrir cada pedido para saber qué cocinar.
+- **El backend permite `NUEVO_PEDIDO → LISTO_PARA_RETIRO` y la UI no lo expone**: la tabla de transiciones de la UI es el camino lineal (Aceptar → Preparando → Listo para retiro). Queda anotado por si la cocina lo necesita.
+- **El board no hace polling**: descubre pedidos nuevos cuando relee la lista (al cargar o al pulsar "Actualizar"). Detección en vivo exigiría un refresh periódico; quedó como decisión del orquestador no hacerlo por ahora.
+- Los pedidos con estado fuera de las tres columnas ("Retirado", "Entregado", el legacy "En camino") **no aparecen** en el board: no hay columna que los contenga.
+- Se quitó de la maqueta lo que no tiene backend: "Prep Promedio", "En Meta Tiempo"/SLA, filtros "Flash Delivery"/"Retiro Local", "Pausar Cocina", badge "Urgente", "Chef asignado", "ENTREGA A REPARTIDOR" (el restaurante no puede fijar Retirado/Entregado), "ESTANTE"/PIN, bloque de courier con ETA, y "ALERTA ALÉRGENOS & NOTAS" (**orders-service no tiene campo de notas ni alérgenos**: la única nota real es la descripción del ítem, que sí se muestra).
