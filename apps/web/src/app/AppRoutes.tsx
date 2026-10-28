@@ -9,6 +9,7 @@ import {
 import { KitchenBoardPage } from '@/components/kitchen';
 import { MarketplacePage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
+import { ProfilePage } from '@/components/profile';
 import { StoreAnalyticsPage, StoreCatalogPage } from '@/components/store';
 
 import { ProtectedLayout } from './ProtectedLayout';
@@ -28,12 +29,6 @@ const ROUTE_PLACEHOLDERS = [
     title: 'Historial de despachos',
     description: 'Pedidos despachados por la tienda, con su estado final.',
     mockup: 'anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0',
-  },
-  {
-    path: routePaths.profile,
-    title: 'Perfil',
-    description: 'Identidad, roles y dispositivos conectados del usuario.',
-    mockup: 'perfil_multi_rol_y_centro_de_cuentas_flashdrop_v2.0_1',
   },
 ] as const;
 
@@ -57,6 +52,7 @@ export function AppRoutes() {
         <Route path={routePaths.courier} element={<CourierConsolePage />} />
         <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
         <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />
+        <Route path={routePaths.profile} element={<ProfilePage />} />
         {ROUTE_PLACEHOLDERS.map((route) => (
           <Route
             key={route.path}
