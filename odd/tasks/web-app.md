@@ -90,9 +90,19 @@ Checks: no hay componente de chat, ni campo de PIN, ni lectura de coordenadas; t
 
 ### S11 — Mi Tienda: catálogo, disponibilidad e imágenes
 
-Endpoints: `GET /api/catalog/my/products`, `POST /api/catalog/my/products`, `PUT /api/catalog/my/products/{productId}`, `PATCH /api/catalog/my/products/{productId}`, upload multipart de imagen, `GET /catalog/categories`.
-Requisito: la tabla de `gesti_n_de_cat_logo_y_men_mi_tienda` (SKU, tags, precio, ventas, toggle de disponibilidad inline, acciones editar/duplicar/eliminar). El toggle llama al backend y **no** es optimista sin rollback: el estado visual lo define la respuesta. `restaurantId` se deriva del JWT, no del body.
-Checks: test del toggle — la UI refleja la respuesta del PATCH (incluido 4xx sin cambio visual); test de subida de imagen con Content-Type incorrecto → muestra **"El Content-Type no coincide con el contenido de la imagen"**; test de update vacío → **"Debe enviar al menos un campo para actualizar"**.
+Endpoints: `GET /api/catalog/my/products`, `POST /api/catalog/my/products`, `PUT /api/catalog/my/products/{productId}`, `DELETE /api/catalog/my/products/{productId}`, `POST /api/catalog/my/products/image` (multipart), `GET /catalog/categories`.
+
+Requisito: la tabla de `gesti_n_de_cat_logo_y_men_mi_tienda` (SKU, tags, precio, toggle de disponibilidad inline, acciones editar/duplicar/eliminar) y los filtros por categoría y por estado.
+
+**No existe PATCH**: el toggle de disponibilidad es un **PUT con el producto completo** — `OwnerUpdateProductRequest` exige `categoryId`, `name`, `price` y `available` (`@NotNull`). El estado visual lo define la respuesta del backend: nada de toggle optimista sin rollback. `restaurantId` se deriva del JWT, no del body.
+
+**La imagen es de dos pasos**: `POST /api/catalog/my/products/image` con la parte `file` responde 201 `{ objectKey, url }`, y el campo `image` del producto es el **objectKey** (patrón `^products/\d{4}/(0[1-9]|1[0-2])/[uuid].(jpg|jpeg|png|webp)$`).
+
+**Sin ventas ni margen por producto**: `sales-summary` no expone series por producto, así que la columna de ventas 7d y el margen de la maqueta **no se pueden llenar**. Esa columna queda vacía hasta que exista el dato (T13/T14 lo resuelven contra el fixture canónico).
+
+Checks: test del toggle — la UI refleja la respuesta del PUT (incluido 4xx sin cambio visual) y envía el producto completo; test de subida de imagen con Content-Type incorrecto → muestra **"El Content-Type no coincide con el contenido de la imagen"**; test de ownership — el `restaurantId` nunca viaja en el body; test del update vacío → muestra el mensaje literal que responda el backend.
+
+**Nota sobre el update vacío**: el literal **"Debe enviar al menos un campo para actualizar"** pertenece al PUT público `PUT /catalog/products/{id}` (`UpdateProductUseCase`, `UpdateProductUseCase.java:32`). El PUT del dueño (`PUT /api/catalog/my/products/{id}`) exige el producto completo y un body vacío responde los mensajes de validación de Spring (`categoryId: must not be null`). La UI muestra lo que llegue, sin traducirlo.
 
 ### S12 — Monitor de cocina (KDS)
 
@@ -141,7 +151,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | delegated (worker) | done | `0f4868e` — 8 tests de marketplace |
 | T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | delegated (worker) | done | `0f4868e` — 8 tests de carrito + 1 de código no inventado |
 | T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | delegated (worker) | done | `0b7861c` — 19 tests de pedidos |
-| T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | inline | pending | `feat(web): add store catalog management` |
+| T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | delegated (worker) | done | `7ac5c2a` — 15 tests de catálogo |
 | T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated | pending | `feat(web): add kitchen display board` |
 | T10 | Consola repartidor: disponibles FIFO, claim atómico, rutas activas, historial | S13 | delegated | pending | `feat(web): add courier console` |
 | T11 | Analíticas recortadas: 4 KPIs de `sales-summary` + top productos | S14 | delegated | pending | `feat(web): add store sales analytics` |
@@ -162,7 +172,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | 3 | PR 3 | T3 + T4 — shell canónico + login | `33ee2d5` | 1.896 |
 | 4 | PR 4 | T5 + T6 — marketplace + checkout | `0f4868e` | 2.062 |
 | 5 | PR 5 | T7 — pedidos + seguimiento | `0b7861c` | 1.632 |
-| 6 | PR 6 | T8 + T9 — catálogo de tienda + KDS | — | ~900 |
+| 6 | PR 6 | T8 — catálogo de tienda | `7ac5c2a` | 1.607 |
 | 7 | PR 7 | T10 + T11 — repartidor + analíticas | — | ~700 |
 | 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | — | ~500 |
 
@@ -229,3 +239,17 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 - `GET /api/orders` se llama con `view=client` y **nunca** con `user_id` (la identidad sale del JWT). Hay test que lo fija.
 - `Skeleton` se movió a `src/components/ui/` porque lo usan dos pantallas; quedó un re-export en `src/components/marketplace/Skeleton.tsx` que se puede borrar en T13/T14.
 - **Pendiente para T14**: el shell conserva **"Ruta Activa & GPS"** y el panel de marca **"98.4% entregas a tiempo"** (preexistentes de T3/T4). El guard de S17 tiene que decidir si se quedan o se sacan: son copy de maqueta, no datos del backend.
+
+**L21 (2026-10-28)** — T8 cerrado y commiteado (`7ac5c2a`). El primer worker **falló a mitad** y dejó los tests RED de T8 escritos (437 líneas en `storeCatalog.test.tsx` + el test de `FormData` en `apiClient.test.ts`); un segundo worker los tomó como especificación e implementó la aplicación. Evidencia: RED (15 tests rojos) → GREEN (**155/155**); `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0; check de mutación (toggle optimista, `available` viejo en el body, URL en vez de objectKey → 3 tests rojos). Verificado por el orquestador: 155/155, build/tsc/lint verdes.
+
+**L22 (2026-10-28)** — **Correcciones de spec en S11** (verificadas contra el código):
+- **No existe `PATCH`**: el toggle es un **PUT de reemplazo completo** (`OwnerUpdateProductRequest` con `categoryId`, `name`, `price` y `available` todos `@NotNull`). La spec decía PATCH.
+- **La imagen es de dos pasos**: `POST /api/catalog/my/products/image` (parte `file`) → `{ objectKey, url }`, y el `image` del producto es el **objectKey**.
+- **Sin ventas ni margen por producto**: no hay endpoint que los dé; las columnas de la maqueta quedan vacías.
+- El literal **"Debe enviar al menos un campo para actualizar"** es del PUT **público**, no del del dueño: un body vacío en el PUT del dueño responde la validación de Spring.
+
+**L23 (2026-10-28)** — **Asimetría de `image` en el backend**: el GET resuelve y devuelve la **URL pública** (`ProductImageUrlResolver`), pero el PUT exige el **objectKey** (`@Pattern`). La implementación manda `image` solo cuando se subió un archivo en la sesión y nunca reenvía la URL de la respuesta al backend (reventaría el `@Pattern`). Si alguien agrega "editar imagen" sin subir archivo nuevo, hay que convertir URL→objectKey.
+
+**L24 (2026-10-28)** — Otras decisiones de T8:
+- Se quitó de la maqueta lo que no tiene backend: columna "Ventas 7D", columna "Margen", badges "Top #1"/"Favorito" (el DTO no tiene tags ni ranking), "Pausar Menú" (no hay endpoint bulk), "Exportar CSV", banner "Catálogo v2.4 Activo / REST ID", paginación (el endpoint no pagina) y el footer de telemetría ("Impresora POS Conectada" — POS está prohibido por S17).
+- Tres aserciones del test RED se acotaron a la fila (`within(row)`) porque el fixture tiene varios "Disponible" y "Agotado": la aserción quedó **más precisa**, no más débil.
