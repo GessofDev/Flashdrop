@@ -81,6 +81,8 @@ Endpoint: `POST /api/orders` con `address`, `payment_method`, `distance_km`, `es
 Requisito: el checkout es **declarativo** (método de pago declarado por el cliente, sin pasarela real). El total se calcula en cliente desde los productos del carrito y se contrasta con el `total` que devuelve el backend.
 Checks: test del POST — 2 locales distintos → la UI muestra **"El pedido debe contener productos de un mismo local"**; carrito vacío → **"El pedido debe contener al menos un producto"**; el `total` renderizado tras crear el pedido es el que devuelve el backend, no el cálculo local.
 
+Nota de implementación (verificada): el caso del carrito vacío lo **valida el cliente antes de la request**. Un `items: []` cae en la rama legacy de un solo producto del controller (`OrderController.java:146-158`) y el backend respondería **"Uno o mas productos no existen"**, no el literal de dominio. La UI valida antes y muestra el literal del dominio —**"El pedido debe contener al menos un producto"** (`Order.validateSingleRestaurant`, `Order.java:70`)—, que es el mensaje canónico de esa condición. El caso de dos locales sí va al backend.
+
 ### S10 — Seguimiento del pedido
 
 Requisito: pantalla `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0`: stepper de 5 pasos, bitácora de trazabilidad, resumen del pedido con `subtotal` / `deliveryFee` / `total`, y **"Garantía Térmica y de Tiempo"**. El chat queda como botón, no como panel abierto sobre el mapa. El mapa es **estático**: el backend expone `pickupAddress` y `deliveryAddress` (plan D-1: geocodificación client-side), no hay coordenadas ni telemetría.
@@ -136,8 +138,8 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T2 | Cliente HTTP + manejo de errores: 401/403/409 con mensajes literales del backend, refresh de token, wrapper tipado de JSON | S7 | delegated (worker) | done | `2b77571` — 81 tests verdes (52 nuevos), build/tsc/lint OK |
 | T3 | Shell canónico de 5 zonas + selector de 3 roles con navegación por rol y guard de sesión | S5 | delegated (worker) | done | `33ee2d5` — 9 tests de shell/guard |
 | T4 | Login y registro: tabs, RUT/email, ClaveÚnica, módulo de destino preferente, panel de marca | S3, S5 | delegated (worker) | done | `33ee2d5` — 10 tests de login; 102 tests en total |
-| T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | inline | pending | `feat(web): add customer marketplace` |
-| T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | inline | pending | `feat(web): add cart and declarative checkout` |
+| T5 | Marketplace: hero, chips de categoría, grid de restaurantes, platos populares, sin features sin backend | S8 | delegated (worker) | done | `0f4868e` — 8 tests de marketplace |
+| T6 | Carrito y checkout: estado local, `POST /api/orders`, contraste del total con el backend | S9 | delegated (worker) | done | `0f4868e` — 8 tests de carrito + 1 de código no inventado |
 | T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | inline | pending | `feat(web): add order list and live tracking` |
 | T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | inline | pending | `feat(web): add store catalog management` |
 | T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated | pending | `feat(web): add kitchen display board` |
@@ -158,7 +160,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | 1 | PR 1 | T1 — bootstrap + design tokens | `75a64fb` | 1.451 |
 | 2 | PR 2 | T2 — cliente HTTP tipado + taxonomía de errores | `2b77571` | 2.080 |
 | 3 | PR 3 | T3 + T4 — shell canónico + login | `33ee2d5` | 1.896 |
-| 4 | PR 4 | T5 + T6 — marketplace + checkout | — | ~700 |
+| 4 | PR 4 | T5 + T6 — marketplace + checkout | `0f4868e` | 2.062 |
 | 5 | PR 5 | T7 — pedidos + seguimiento | — | ~350 |
 | 6 | PR 6 | T8 + T9 — catálogo de tienda + KDS | — | ~900 |
 | 7 | PR 7 | T10 + T11 — repartidor + analíticas | — | ~700 |
@@ -209,3 +211,11 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 - **ClaveÚnica / Google / Apple**: sin backend, quedan inactivos. Un botón que promete un flujo inexistente es una mentira en la UI.
 - **El switcher ofrece los 3 roles** aunque la cuenta no los tenga, como en la maqueta: el backend responde 403 → vista de rol incorrecto (S7).
 - **Copy de maqueta eliminado a propósito** (S17): estrellas, cards flotantes de restaurante con precio/ETA, columna "Métodos de Pago", datos de ruta/latencia/batería, botón SOS 133, "MFA Activado". Se conservaron la propuesta de valor y los datos de confianza ("24 min", "98.4%", "3 Regiones Activas", TLS 1.3, Ley 19.628).
+
+**L16 (2026-10-28)** — T5 y T6 cerrados y commiteados (`0f4868e`). Evidencia del worker: RED (2 suites con 1 fallo cada una tras la primera implementación + 3 fallos de la suite completa porque el marketplace ahora carga datos al montar) → GREEN (118 tests); check de mutación (total→0 y "★ 4.9" → 3 tests rojos). **Corrección del orquestador**: el worker había reimplementado en cliente el formato de `Order.code()` (`orderCode.ts`, `FD-%02d` sobre el least significant bits del UUID). Eso es lógica de negocio duplicada y podía divergir del backend. Se borró el módulo y la confirmación ahora lee el **código real** con `GET /api/orders/{id}` (`OrderDetailResponse.code`); si ese GET falla, muestra el id del pedido y el mensaje literal del backend, **sin inventar un código**. Test agregado para ese caso. Verificado por el orquestador: 119 tests verdes, build/tsc/lint exit 0, cero referencias a `deriveOrderCode`.
+
+**L17 (2026-10-28)** — Ajustes de S9 y de la implementación de T5/T6:
+- El caso del **carrito vacío** lo valida el cliente antes de la request (ver la nota en S9): un `items: []` cae en la rama legacy de un solo producto del controller y el backend respondería otro literal. Se aclaró la spec en vez de dejar el test manda sobre ella.
+- El worker añadió **validación de forma** en la capa de API (`asList` en `src/api/catalog.ts`): si el catálogo devuelve algo que no es lista, la UI muestra aviso en vez de romper. No estaba en el encargo; se acepta porque sin eso el marketplace crashea con respuestas no-lista.
+- El hero de la maqueta conserva su estructura pero sin el bloque de cupón (`#FLASH30`), y sus números son **datos reales del catálogo** (locales, platos, categorías) en vez de los "108 locales" de maqueta.
+- Se quitó de la maqueta todo lo que no tiene backend: estrellas, ETA por restaurante, costo de envío, "envío gratis", cupón, WebPay/Transbank, FPS, FlashHour, banner de pedido en camino (es T7) y modal de personalización.
