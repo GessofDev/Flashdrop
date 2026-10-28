@@ -54,3 +54,34 @@ export function formatOrderDate(value: string): string {
     timeZone: 'America/Santiago',
   }).format(instant);
 }
+
+/**
+ * Hour of the backend, in the Chilean time zone.
+ *
+ * The card of the kitchen shows the hour the order arrived next to the time
+ * it has been waiting. The format is fixed to `America/Santiago`, so the text
+ * does not depend on the machine that renders it.
+ *
+ * A value that is not a date is shown as it arrives: the client never hides
+ * what the backend sent.
+ */
+export function formatOrderTime(value: string): string {
+  const trimmed = value.trim();
+
+  if (trimmed.length === 0) {
+    return MISSING_VALUE;
+  }
+
+  const instant = new Date(trimmed);
+
+  if (Number.isNaN(instant.getTime())) {
+    return trimmed;
+  }
+
+  return new Intl.DateTimeFormat('es-CL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Santiago',
+  }).format(instant);
+}

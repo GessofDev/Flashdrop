@@ -90,4 +90,25 @@ export const ordersApi = {
       responseShape: 'envelope',
     });
   },
+
+  /**
+   * `PUT /api/orders/{id}/status` — moves the order to another status.
+   *
+   * The value of the body is the **label** of the status of the backend
+   * (`Preparando`, `Listo para retiro`), not the name of the enum: that is
+   * what `OrderStatus.fromValue` reads. The endpoint answers without data, so
+   * the caller reads the new state from the listing.
+   *
+   * The backend owns the rules of the change: the role that may set the
+   * status, the ownership of the order and the transition from the current
+   * status. The client only sends the status it means.
+   */
+  updateOrderStatus(orderId: string, status: string): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/status`,
+      method: 'PUT',
+      body: { status },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
 };
