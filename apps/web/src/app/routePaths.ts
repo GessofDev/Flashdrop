@@ -12,6 +12,7 @@
 export const routePaths = {
   marketplace: '/',
   orders: '/pedidos',
+  orderDetail: '/pedidos/:id',
   storeKds: '/tienda/kds',
   storeCatalog: '/tienda/catalogo',
   storeDispatchHistory: '/tienda/despachos',
@@ -32,3 +33,13 @@ export type RoutePath = (typeof routePaths)[keyof typeof routePaths];
  * other routes instead of being repeated as a literal.
  */
 export const LOGIN_PATH = routePaths.login;
+
+/**
+ * Route of the tracking of one order.
+ *
+ * The list links every order to its tracking, so the path is built here
+ * instead of being written in the components.
+ */
+export function orderDetailPath(orderId: string): string {
+  return `${routePaths.orders}/${encodeURIComponent(orderId)}`;
+}

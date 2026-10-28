@@ -9,6 +9,7 @@ export type { HttpMethod, RequestOptions, ResponseShape, SessionMode } from './c
 export { resolveApiErrorOutcome } from './errorPolicy';
 export type { ApiErrorOutcome } from './errorPolicy';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
+export type { OrderListView } from './orders';
 export type {
   ApiEnvelope,
   AuthResult,
@@ -16,8 +17,14 @@ export type {
   CreateOrderRequest,
   CreatedOrderResult,
   LoginRequest,
+  OrderClient,
+  OrderDelivery,
   OrderDetail,
+  OrderItem,
   OrderItemRequest,
+  OrderListItem,
+  OrderRestaurant,
+  OrderRoute,
   ProductResponse,
   QueryParams,
   QueryValue,

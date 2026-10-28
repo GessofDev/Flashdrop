@@ -1,5 +1,11 @@
+import { asList } from './asList';
 import { request } from './client';
-import type { CreateOrderRequest, CreatedOrderResult, OrderDetail } from './types';
+import type {
+  CreateOrderRequest,
+  CreatedOrderResult,
+  OrderDetail,
+  OrderListItem,
+} from './types';
 
 /**
  * Payment methods accepted by `orders-service`.
@@ -8,6 +14,15 @@ import type { CreateOrderRequest, CreatedOrderResult, OrderDetail } from './type
  * one of them, because the app does not integrate a payment gateway.
  */
 export const PAYMENT_METHODS = ['Efectivo', 'Tarjeta', 'Transferencia'] as const;
+
+/**
+ * View the backend filters the listing by.
+ *
+ * The parameter is optional in the endpoint: without it the backend uses
+ * every role of the token. The screens of the app always state the view they
+ * mean, so the listing never mixes the orders of two roles.
+ */
+export type OrderListView = 'client' | 'restaurant';
 
 /**
  * Literal message of `orders-service` for an order without products.
@@ -27,6 +42,22 @@ export const EMPTY_ORDER_MESSAGE = 'El pedido debe contener al menos un producto
  * of the answer.
  */
 export const ordersApi = {
+  /**
+   * `GET /api/orders` — the orders of the signed in user.
+   *
+   * The identity always comes from the token, so the call never sends the
+   * user id: the backend rejects the request with a 403 when the id of the
+   * query does not match the one of the token.
+   */
+  listOrders(view: OrderListView = 'client'): Promise<OrderListItem[]> {
+    return request<unknown>({
+      path: '/api/orders',
+      method: 'GET',
+      responseShape: 'envelope',
+      query: { view },
+    }).then((answer) => asList<OrderListItem>(answer));
+  },
+
   /**
    * `POST /api/orders` — creates the order of the customer.
    *
@@ -48,6 +79,9 @@ export const ordersApi = {
    * The create endpoint answers with the id and the total only, so the code
    * the customer reads comes from here: the format of the code belongs to the
    * backend and the client must not reimplement it.
+   *
+   * The detail also carries the client, the restaurant, the courier, the
+   * route and the dishes of the order — the blocks the backend can resolve.
    */
   getOrder(orderId: string): Promise<OrderDetail> {
     return request<OrderDetail>({

@@ -121,7 +121,8 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | Path | Role | Screen | Origin mockup |
 |---|---|---|---|
 | `/` | Cliente | Marketplace | `marketplace_y_cat_logo_de_clientes_flashdrop_v2.0` |
-| `/pedidos` | Cliente | Pedidos y seguimiento | `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0` |
+| `/pedidos` | Cliente | Mis pedidos | `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0` |
+| `/pedidos/:id` | Cliente | Seguimiento del pedido | `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0` |
 | `/tienda/kds` | Mi Tienda | Monitor de cocina | `monitor_de_cocina_y_gestor_de_pedidos_mi_tienda` |
 | `/tienda/catalogo` | Mi Tienda | Catálogo y menú | `gesti_n_de_cat_logo_y_men_mi_tienda` |
 | `/tienda/despachos` | Mi Tienda | Historial de despachos | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
@@ -133,7 +134,8 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | `/login` | Todos | Inicio de sesión | `iniciar_sesi_n_portal_unificado_flashdrop` |
 
 Every route but `/login` renders a placeholder that states its origin mockup.
-The screens land in later tasks.
+The marketplace (T5) and the orders of the customer (T7) already have their
+screens; the other screens land in later tasks.
 
 ## Canonical shell (T3)
 
@@ -205,6 +207,7 @@ src/
 ├── api/            # typed transport: request(), ApiError, DTOs, auth calls
 ├── app/            # router, route paths, role routes, guard and placeholders
 ├── components/     # ui/ primitives, errors/ notice, shell/ and auth/ screens
+├── lib/            # formatters and the readers of the order and route status
 ├── session/        # session store, roles, provider and session events
 ├── styles/         # index.css (entry) and theme.css (the only token file)
 └── test/           # Vitest suites and setup

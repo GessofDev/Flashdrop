@@ -157,11 +157,50 @@ export interface CreatedOrderResult {
 }
 
 /**
+ * `orders-service` — `OrderListResponse`, the answer of `GET /api/orders`.
+ *
+ * It is the abbreviated DTO of the listing: the identity of the order, the
+ * restaurant, the status and the money. The client and the delivery fields
+ * are there for the other roles of the list, so the customer screen uses only
+ * the ones it needs.
+ */
+export interface OrderListItem {
+  /** Id of the order. */
+  id: string;
+  /** Human code of the order, e.g. `FD-42`. The backend owns its format. */
+  code: string;
+  /** Status of the order, as the label of the `OrderStatus` of the backend. */
+  status: string;
+  /** Delivery address of the order. */
+  address: string;
+  /** Sum of the dishes, in CLP. */
+  subtotal: number;
+  /** Price of the dispatch, in CLP. */
+  deliveryFee: number;
+  /** Total charged by the backend, in CLP. */
+  total: number;
+  /** Payment method declared by the customer. */
+  paymentMethod: string;
+  /** Name of the customer of the order. */
+  clientName: string;
+  /** Phone of the customer of the order. */
+  clientPhone: string;
+  /** Email of the customer of the order. */
+  clientEmail: string;
+  /** Name of the restaurant the order belongs to. */
+  restaurantName: string;
+  /** Id of the courier, when the order already has one. */
+  deliveryId: string | null;
+  /** Instant the order was created, as an ISO-8601 offset date time. */
+  createdAt: string;
+}
+
+/**
  * `orders-service` — `OrderDetailResponse`, the answer of `GET /api/orders/{id}`.
  *
- * The client only needs the identity and the money of the order; the rest of
- * the response (items, client, restaurant, delivery and route) belongs to the
- * screens that show the order.
+ * The `client`, `restaurant`, `delivery` and `route` blocks are nullable: the
+ * backend only fills them when it can resolve the data, so the UI shows them
+ * only when they arrive.
  */
 export interface OrderDetail {
   /** Id of the order. */
@@ -170,7 +209,76 @@ export interface OrderDetail {
   code: string;
   /** Status of the order, as the label of the `OrderStatus` of the backend. */
   status: string;
+  /** Delivery address of the order. */
+  address: string;
+  /** Sum of the dishes, in CLP. */
+  subtotal: number;
+  /** Price of the dispatch, in CLP. */
+  deliveryFee: number;
   /** Total charged by the backend, in CLP. */
+  total: number;
+  /** Payment method declared by the customer. */
+  paymentMethod: string;
+  /** Instant the order was created, as an ISO-8601 offset date time. */
+  createdAt: string;
+  /** Customer of the order. */
+  client: OrderClient | null;
+  /** Restaurant the order belongs to. */
+  restaurant: OrderRestaurant | null;
+  /** Courier that carries the order. */
+  delivery: OrderDelivery | null;
+  /** Route of the delivery. */
+  route: OrderRoute | null;
+  /** Dishes of the order. */
+  items: OrderItem[];
+}
+
+/** `orders-service` — `OrderDetailResponse.ClientDto`. */
+export interface OrderClient {
+  name: string;
+  email: string | null;
+  phone: string | null;
+}
+
+/** `orders-service` — `OrderDetailResponse.RestaurantDto`. */
+export interface OrderRestaurant {
+  name: string;
+  address: string | null;
+}
+
+/** `orders-service` — `OrderDetailResponse.DeliveryDto`. */
+export interface OrderDelivery {
+  name: string;
+  phone: string | null;
+  vehicle: string | null;
+}
+
+/**
+ * `orders-service` — `OrderDetailResponse.RouteDto`.
+ *
+ * The route carries the two addresses and the status of the delivery. It
+ * carries no coordinates: the backend does not expose the position of the
+ * courier, so the map of the app can only be a schematic one.
+ */
+export interface OrderRoute {
+  pickupAddress: string;
+  deliveryAddress: string;
+  distanceKm: number | null;
+  estimatedMinutes: number | null;
+  /** Status of the route, as the `RouteStatus` of `delivery-service`. */
+  status: string;
+}
+
+/** `orders-service` — `OrderDetailResponse.ItemDto`. */
+export interface OrderItem {
+  id: string;
+  name: string;
+  description: string | null;
+  image: string | null;
+  quantity: number;
+  /** Price of one unit, in CLP. */
+  unitPrice: number;
+  /** Price of the line, in CLP. */
   total: number;
 }
 

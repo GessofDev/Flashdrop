@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 
 import { LoginPage } from '@/components/auth';
 import { MarketplacePage } from '@/components/marketplace';
+import { OrderListPage, OrderTrackingPage } from '@/components/orders';
 
 import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
@@ -10,17 +11,11 @@ import { routePaths } from './routePaths';
 /**
  * Placeholder per route, with the mockup each screen will be built from.
  *
- * The marketplace already has its screen (task T5); the other screens land in
- * the tasks that follow, so this file only wires the navigation skeleton for
- * them.
+ * The marketplace and the orders of the customer already have their screen
+ * (tasks T5 and T7); the other screens land in the tasks that follow, so this
+ * file only wires the navigation skeleton for them.
  */
 const ROUTE_PLACEHOLDERS = [
-  {
-    path: routePaths.orders,
-    title: 'Mis pedidos',
-    description: 'Pedidos del cliente y seguimiento de su estado.',
-    mockup: 'seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0',
-  },
   {
     path: routePaths.storeKds,
     title: 'Monitor de cocina',
@@ -83,6 +78,8 @@ export function AppRoutes() {
       <Route path={routePaths.login} element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path={routePaths.marketplace} element={<MarketplacePage />} />
+        <Route path={routePaths.orders} element={<OrderListPage />} />
+        <Route path={routePaths.orderDetail} element={<OrderTrackingPage />} />
         {ROUTE_PLACEHOLDERS.map((route) => (
           <Route
             key={route.path}

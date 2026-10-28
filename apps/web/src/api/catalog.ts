@@ -1,4 +1,4 @@
-import { ApiError } from './ApiError';
+import { asList } from './asList';
 import { request } from './client';
 import type { CategoryResponse, ProductResponse, RestaurantResponse } from './types';
 
@@ -11,25 +11,6 @@ import type { CategoryResponse, ProductResponse, RestaurantResponse } from './ty
 export interface ProductQuery {
   categoryId?: number;
   restaurantId?: number;
-}
-
-/**
- * Read the answer of the catalog as a list.
- *
- * The service answers with a bare DTO; when the answer is not the list the
- * endpoint promises, the client raises the error it raises for any other
- * unexpected shape, so the UI shows a notice instead of breaking.
- */
-function asList<T>(answer: unknown): T[] {
-  if (!Array.isArray(answer)) {
-    throw new ApiError('El backend devolvió una respuesta con un formato inesperado.', {
-      status: 200,
-      kind: 'unknown',
-      body: answer,
-    });
-  }
-
-  return answer as T[];
 }
 
 /**

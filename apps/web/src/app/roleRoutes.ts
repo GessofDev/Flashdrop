@@ -49,11 +49,17 @@ export const ROLE_NAVIGATION: Record<Role, readonly NavigationItem[]> = {
  * (the profile) or does not exist.
  *
  * The navigation is the source of truth: a path that belongs to a role is a
- * path of its navigation.
+ * path of its navigation. A path that continues one of them belongs to the
+ * same role — the tracking of an order (`/pedidos/:id`) is a screen of the
+ * customer, like the list it comes from.
  */
 export function roleOwningPath(pathname: string): Role | null {
   for (const role of ROLES) {
-    if (ROLE_NAVIGATION[role].some((item) => item.path === pathname)) {
+    const owns = ROLE_NAVIGATION[role].some(
+      (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
+    );
+
+    if (owns) {
       return role;
     }
   }

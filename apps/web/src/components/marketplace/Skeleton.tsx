@@ -1,28 +1,10 @@
-export interface SkeletonProps {
-  /** What is loading; it names the region for the assistive technology. */
-  label: string;
-  /** Number of the placeholder blocks. */
-  blocks?: number;
-  /** Height of the placeholders. */
-  height?: string;
-}
-
 /**
- * Placeholder of a section that is still loading.
+ * The placeholder of a loading section now lives in the design system
+ * (`src/components/ui/Skeleton.tsx`), because the marketplace and the orders
+ * of the customer use it.
  *
- * It keeps the layout of the section it replaces, so the page does not jump
- * when the answer arrives, and it announces what is loading.
+ * This re-export keeps the public API of the marketplace untouched until the
+ * cleanup task removes it.
  */
-export function Skeleton({ label, blocks = 3, height = 'h-40' }: SkeletonProps) {
-  return (
-    <div role="status" aria-label={label} aria-busy="true" className="flex flex-col gap-4">
-      {Array.from({ length: blocks }, (_, index) => (
-        <div
-          key={index}
-          aria-hidden="true"
-          className={`animate-pulse rounded-container bg-surface-hover ${height}`}
-        />
-      ))}
-    </div>
-  );
-}
+export { Skeleton } from '@/components/ui/Skeleton';
+export type { SkeletonProps } from '@/components/ui/Skeleton';
