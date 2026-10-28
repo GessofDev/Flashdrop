@@ -1,14 +1,20 @@
 package com.flashdrop.auth.infrastructure.adapter.inbound.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flashdrop.auth.application.dto.AssignUserRolesCommand;
+import com.flashdrop.auth.application.dto.AssignUserRolesResult;
 import com.flashdrop.auth.application.dto.InternalRoleResponse;
 import com.flashdrop.auth.application.dto.InternalUserResponse;
+import com.flashdrop.auth.application.port.inbound.AssignUserRolesUseCase;
 import com.flashdrop.auth.application.port.inbound.GetInternalUserUseCase;
+import com.flashdrop.auth.domain.exception.InvalidRoleException;
 import com.flashdrop.auth.domain.exception.UserNotFoundException;
 import com.flashdrop.auth.infrastructure.config.InternalApiKeyFilter;
 import com.flashdrop.auth.infrastructure.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -16,9 +22,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,12 +38,13 @@ class InternalUserControllerTest {
     private static final String API_KEY = "test-internal-key";
 
     private final GetInternalUserUseCase useCase = mock(GetInternalUserUseCase.class);
+    private final AssignUserRolesUseCase assignUseCase = mock(AssignUserRolesUseCase.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        var controller = new InternalUserController(useCase);
+        var controller = new InternalUserController(useCase, assignUseCase);
         var filter = new InternalApiKeyFilter(API_KEY, objectMapper);
         mvc = standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -177,6 +187,78 @@ class InternalUserControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(content().json("""
                         {"status":403,"error":"FORBIDDEN","message":"Invalid internal API key"}
+                        """, true));
+    }
+
+    // ------------------------------------------------------------- PUT roles
+
+    @Test
+    void putRolesDevuelve200ConElContratoExacto() throws Exception {
+        when(assignUseCase.assign(any())).thenReturn(new AssignUserRolesResult(4L, List.of(
+                new InternalRoleResponse(3L, "Repartidor"),
+                new InternalRoleResponse(1L, "Cliente"))));
+
+        mvc.perform(put("/api/internal/users/4/roles")
+                        .header("X-Internal-Api-Key", API_KEY)
+                        .header("X-Forwarded-For", "203.0.113.9, 10.0.0.1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"Repartidor\",\"Cliente\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(4))
+                .andExpect(jsonPath("$.roles.length()").value(2))
+                .andExpect(jsonPath("$.roles[0].name").value("Repartidor"))
+                .andExpect(jsonPath("$.roles[1].id").value(1));
+
+        // El cuerpo viaja tal cual: el reemplazo de conjunto lo define el caso de uso.
+        ArgumentCaptor<AssignUserRolesCommand> comando = ArgumentCaptor.forClass(AssignUserRolesCommand.class);
+        verify(assignUseCase).assign(comando.capture());
+        assertEquals(4L, comando.getValue().userId());
+        assertEquals(List.of("Repartidor", "Cliente"), comando.getValue().roleNames());
+        // El origen de la peticion viaja al caso de uso para la auditoria.
+        assertEquals("203.0.113.9", comando.getValue().clientIp());
+    }
+
+    @Test
+    void putRolesSinApiKeyRetorna403() throws Exception {
+        mvc.perform(put("/api/internal/users/4/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"Repartidor\"]}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().json("""
+                        {"status":403,"error":"FORBIDDEN","message":"Invalid internal API key"}
+                        """, true));
+    }
+
+    @Test
+    void putRolesConRolDesconocidoRetorna400EnElFormatoInterno() throws Exception {
+        when(assignUseCase.assign(any()))
+                .thenThrow(new InvalidRoleException("Rol desconocido: Chef"));
+
+        mvc.perform(put("/api/internal/users/4/roles")
+                        .header("X-Internal-Api-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"Chef\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().json("""
+                        {"status":400,"error":"BAD_REQUEST","message":"Rol desconocido: Chef"}
+                        """, true))
+                // Los endpoints internos NO usan el ApiError de observabilidad.
+                .andExpect(jsonPath("$.code").doesNotExist())
+                .andExpect(jsonPath("$.traceId").doesNotExist());
+    }
+
+    @Test
+    void putRolesDeUsuarioInexistenteRetorna404Estructurado() throws Exception {
+        when(assignUseCase.assign(any()))
+                .thenThrow(new UserNotFoundException("User not found with id: 99"));
+
+        mvc.perform(put("/api/internal/users/99/roles")
+                        .header("X-Internal-Api-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"Cliente\"]}"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().json("""
+                        {"status":404,"error":"NOT_FOUND","message":"User not found with id: 99"}
                         """, true));
     }
 }

@@ -63,4 +63,10 @@ public class UseCaseConfiguration {
     GetInternalUserUseCase getInternalUserUseCase(UserRepository users) {
         return new GetInternalUserService(users);
     }
+
+    @Bean
+    AssignUserRolesUseCase assignUserRolesUseCase(UserRepository users, RoleRepository roles,
+                                                  AuditLogger audit) {
+        return new AssignUserRolesService(users, roles, audit);
+    }
 }
