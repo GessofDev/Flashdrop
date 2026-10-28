@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 
 import { AppRoutes } from '@/app/AppRoutes';
 import { SessionRedirectBridge } from '@/app/SessionRedirectBridge';
+import { CartProvider } from '@/cart';
 import { SessionProvider, sessionStore } from '@/session';
 import type { Role, Session } from '@/session';
 
@@ -50,15 +51,17 @@ function LocationProbe() {
   return <p data-testid="location">{location.pathname}</p>;
 }
 
-/** Render the whole app — session, router, bridge and routes — at a path. */
+/** Render the whole app — session, cart, router, bridge and routes — at a path. */
 export function renderApp(path = '/'): RenderResult {
   return render(
     <SessionProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <SessionRedirectBridge />
-        <LocationProbe />
-        <AppRoutes />
-      </MemoryRouter>
+      <CartProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <SessionRedirectBridge />
+          <LocationProbe />
+          <AppRoutes />
+        </MemoryRouter>
+      </CartProvider>
     </SessionProvider>,
   );
 }

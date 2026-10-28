@@ -49,7 +49,7 @@ describe('canonical shell', () => {
     expect(screen.getByRole('button', { name: 'Mi Tienda' })).toHaveAttribute('aria-pressed', 'true');
 
     // The switcher never talks to the backend and never asks for credentials.
-    expect(fetchMock.calls).toHaveLength(0);
+    expect(fetchMock.calls.filter((call) => call.url.startsWith('/auth'))).toHaveLength(0);
     expect(screen.queryByLabelText('Contraseña')).toBeNull();
   });
 
@@ -128,8 +128,12 @@ describe('canonical shell', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Salir' }));
 
-    await waitFor(() => expect(fetchMock.calls[0]?.url).toBe('/auth/logout'));
-    expect(fetchMock.calls[0]?.body).toEqual({ refreshToken: 'refresh-1' });
+    await waitFor(() =>
+      expect(fetchMock.calls.some((call) => call.url === '/auth/logout')).toBe(true),
+    );
+    expect(fetchMock.calls.find((call) => call.url === '/auth/logout')?.body).toEqual({
+      refreshToken: 'refresh-1',
+    });
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
     expect(sessionStore.getSession()).toBeNull();

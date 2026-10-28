@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AppRoutes } from '@/app/AppRoutes';
 import { routePaths } from '@/app/routePaths';
+import { CartProvider } from '@/cart';
 import { SessionProvider, sessionStore } from '@/session';
 import type { Role } from '@/session';
 
 import { signIn } from './support/renderApp';
 
 const ROUTES: ReadonlyArray<{ path: string; heading: string; role: Role }> = [
-  { path: routePaths.marketplace, heading: 'Marketplace', role: 'CLIENTE' },
+  { path: routePaths.marketplace, heading: 'Pide en minutos con FlashDrop Chile', role: 'CLIENTE' },
   { path: routePaths.orders, heading: 'Mis pedidos', role: 'CLIENTE' },
   { path: routePaths.storeKds, heading: 'Monitor de cocina', role: 'RESTAURANTE' },
   { path: routePaths.storeCatalog, heading: 'Catálogo y menú', role: 'RESTAURANTE' },
@@ -33,9 +34,11 @@ const ROUTES: ReadonlyArray<{ path: string; heading: string; role: Role }> = [
 function renderRoutes(path: string) {
   return render(
     <SessionProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
-      </MemoryRouter>
+      <CartProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <AppRoutes />
+        </MemoryRouter>
+      </CartProvider>
     </SessionProvider>,
   );
 }
