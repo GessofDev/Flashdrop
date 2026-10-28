@@ -1,0 +1,17 @@
+/*
+ * Style entry point.
+ *
+ * `tailwindcss` is imported first so the Tailwind layers exist, then the
+ * design system tokens, which extend the default theme.
+ *
+ * The scan set is narrowed on purpose: the repository root `.gitignore` does
+ * not exclude `dist/`, so automatic content detection would otherwise read
+ * build output and documentation. Only the application sources may define
+ * utility classes, which keeps the generated stylesheet reproducible.
+ */
+@import "tailwindcss";
+@source not "../../dist";
+@source not "../../README.md";
+@source not "../../pnpm-lock.yaml";
+@source not "../../pnpm-workspace.yaml";
+@import "./theme.css";
