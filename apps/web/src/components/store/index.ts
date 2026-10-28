@@ -4,4 +4,5 @@ export { CatalogTable } from './CatalogTable';
 export type { CatalogTableProps } from './CatalogTable';
 export { ProductFormDialog } from './ProductFormDialog';
 export type { ProductFormDialogProps } from './ProductFormDialog';
+export { StoreAnalyticsPage } from './StoreAnalyticsPage';
 export { StoreCatalogPage } from './StoreCatalogPage';

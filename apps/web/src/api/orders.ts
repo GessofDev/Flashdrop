@@ -5,6 +5,8 @@ import type {
   CreatedOrderResult,
   OrderDetail,
   OrderListItem,
+  SalesRange,
+  SalesSummaryResponse,
 } from './types';
 
 /**
@@ -110,5 +112,24 @@ export const ordersApi = {
       body: { status },
       responseShape: 'envelope',
     }).then(() => undefined);
+  },
+
+  /**
+   * `GET /api/orders/restaurants/{id}/sales-summary?range=day|week|month`
+   *
+   * Sales summary of the store (spec S14). The backend restricts this to the
+   * restaurant owner (403 if role is not RESTAURANTE or if the caller does not
+   * own the restaurant).
+   */
+  getSalesSummary(
+    restaurantId: number,
+    range: SalesRange | string = 'week',
+  ): Promise<SalesSummaryResponse> {
+    return request<SalesSummaryResponse>({
+      path: `/api/orders/restaurants/${restaurantId}/sales-summary`,
+      method: 'GET',
+      responseShape: 'envelope',
+      query: { range },
+    });
   },
 };

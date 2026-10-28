@@ -298,6 +298,30 @@ export interface OrderItem {
   total: number;
 }
 
+/** Range accepted by `GET /api/orders/restaurants/{id}/sales-summary`. */
+export const SALES_RANGES = ['day', 'week', 'month'] as const;
+export type SalesRange = (typeof SALES_RANGES)[number];
+
+/** `orders-service` — `SalesSummaryResponse.TopProductDto`. */
+export interface TopProductSummary {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenue: number;
+}
+
+/** `orders-service` — `SalesSummaryResponse`. */
+export interface SalesSummaryResponse {
+  restaurantId: number;
+  range: string;
+  from: string;
+  to: string;
+  totalOrders: number;
+  totalRevenue: number;
+  averageTicket: number;
+  topProducts: TopProductSummary[];
+}
+
 /** Value accepted in a query string. */
 export type QueryValue = string | number | boolean | null | undefined;
 

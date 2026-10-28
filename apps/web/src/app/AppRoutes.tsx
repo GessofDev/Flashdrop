@@ -9,7 +9,7 @@ import {
 import { KitchenBoardPage } from '@/components/kitchen';
 import { MarketplacePage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
-import { StoreCatalogPage } from '@/components/store';
+import { StoreAnalyticsPage, StoreCatalogPage } from '@/components/store';
 
 import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
@@ -27,12 +27,6 @@ const ROUTE_PLACEHOLDERS = [
     path: routePaths.storeDispatchHistory,
     title: 'Historial de despachos',
     description: 'Pedidos despachados por la tienda, con su estado final.',
-    mockup: 'anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0',
-  },
-  {
-    path: routePaths.storeAnalytics,
-    title: 'Analíticas de ventas',
-    description: 'Indicadores de ventas de la tienda y productos más vendidos.',
     mockup: 'anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0',
   },
   {
@@ -59,6 +53,7 @@ export function AppRoutes() {
         <Route path={routePaths.orderDetail} element={<OrderTrackingPage />} />
         <Route path={routePaths.storeCatalog} element={<StoreCatalogPage />} />
         <Route path={routePaths.storeKds} element={<KitchenBoardPage />} />
+        <Route path={routePaths.storeAnalytics} element={<StoreAnalyticsPage />} />
         <Route path={routePaths.courier} element={<CourierConsolePage />} />
         <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
         <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />

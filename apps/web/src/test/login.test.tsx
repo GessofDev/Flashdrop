@@ -123,7 +123,9 @@ describe('unified login', () => {
     await typeEmail();
     await submit();
 
-    await waitFor(() => expect(fetchMock.calls).toHaveLength(1));
+    await waitFor(() =>
+      expect(fetchMock.calls.some((call) => call.url === '/auth/login')).toBe(true),
+    );
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe(home));
     expect(sessionStore.getSession()?.activeRole).toBe(
       destination === 'Cliente' ? 'CLIENTE' : destination === 'Mi Tienda' ? 'RESTAURANTE' : 'REPARTIDOR',

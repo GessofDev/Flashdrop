@@ -24,6 +24,7 @@ export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
 export { storeCatalogApi } from './storeCatalog';
 export type { OwnerProductPayload } from './storeCatalog';
+export { SALES_RANGES } from './types';
 export type {
   ApiEnvelope,
   AuthResult,
@@ -47,8 +48,11 @@ export type {
   RegisterRequest,
   RegisterUserResult,
   RestaurantResponse,
+  SalesRange,
+  SalesSummaryResponse,
   TokenClaims,
   TokenPair,
+  TopProductSummary,
   UpdateProfileRequest,
   UserProfile,
 } from './types';
