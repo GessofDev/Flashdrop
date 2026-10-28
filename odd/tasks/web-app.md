@@ -153,7 +153,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T7 | Mis pedidos + seguimiento: stepper de 5 pasos, bitácora, resumen, mapa estático | S6, S10 | delegated (worker) | done | `0b7861c` — 19 tests de pedidos |
 | T8 | Mi Tienda: tabla de catálogo, CRUD de producto, upload de imagen, toggle de disponibilidad con rollback | S11, S16 | delegated (worker) | done | `7ac5c2a` — 15 tests de catálogo |
 | T9 | KDS: 3 columnas, timers, chime, atajos, drawer de detalle, transiciones por rol | S6, S12 | delegated (worker) | done | `40e4e52` — 24 tests de KDS |
-| T10 | Consola repartidor: disponibles FIFO, claim atómico, rutas activas, historial | S13 | delegated | pending | `feat(web): add courier console` |
+| T10 | Consola repartidor: disponibles FIFO, claim atómico, rutas activas, historial | S13 | delegated | done | `030d864` — 12 tests de repartidor; 191 en total |
 | T11 | Analíticas recortadas: 4 KPIs de `sales-summary` + top productos | S14 | delegated | pending | `feat(web): add store sales analytics` |
 | T12 | Perfil multi-rol: identidad, 3 tarjetas de rol, dispositivos, `vehicle` read-only | S15 | inline | pending | `feat(web): add multi-role profile` |
 | T13 | Fixture canónico único + datos de desarrollo derivados de él | S16 | inline | pending | `test(web): add canonical flashdrop fixture` |
@@ -262,3 +262,6 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 - **El board no hace polling**: descubre pedidos nuevos cuando relee la lista (al cargar o al pulsar "Actualizar"). Detección en vivo exigiría un refresh periódico; quedó como decisión del orquestador no hacerlo por ahora.
 - Los pedidos con estado fuera de las tres columnas ("Retirado", "Entregado", el legacy "En camino") **no aparecen** en el board: no hay columna que los contenga.
 - Se quitó de la maqueta lo que no tiene backend: "Prep Promedio", "En Meta Tiempo"/SLA, filtros "Flash Delivery"/"Retiro Local", "Pausar Cocina", badge "Urgente", "Chef asignado", "ENTREGA A REPARTIDOR" (el restaurante no puede fijar Retirado/Entregado), "ESTANTE"/PIN, bloque de courier con ETA, y "ALERTA ALÉRGENOS & NOTAS" (**orders-service no tiene campo de notas ni alérgenos**: la única nota real es la descripción del ítem, que sí se muestra).
+
+**L27 (2026-10-28)** — T10 cerrado y commiteado (`030d864`). Evidencia: 12 tests de consola de repartidor en `courier.test.tsx`, suite completa en **191/191** tests verdes; `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0 (0 errores, 0 warnings). Corrección del orquestador: se sincronizó el estado de carga entre el catálogo de restaurantes y la cola de órdenes en `CourierAvailablePage` eliminando el parpadeo de estado vacío, y se eliminó la variable no utilizada `COURIER_VEHICLES` en `CourierProfileForm`. Se omitieron según S13/S17 todos los elementos sin backend (GPS en vivo, PIN, chat, propinas).
+
