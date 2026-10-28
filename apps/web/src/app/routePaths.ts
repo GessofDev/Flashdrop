@@ -21,3 +21,11 @@ export const routePaths = {
 } as const;
 
 export type RoutePath = (typeof routePaths)[keyof typeof routePaths];
+
+/**
+ * Route the app sends the user to when the session is gone.
+ *
+ * The API layer redirects here, so the path is declared once next to the
+ * other routes instead of being repeated as a literal.
+ */
+export const LOGIN_PATH = routePaths.login;

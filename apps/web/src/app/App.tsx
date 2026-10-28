@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session';
 
 import { AppRoutes } from './AppRoutes';
+import { SessionRedirectBridge } from './SessionRedirectBridge';
 
 /**
  * Application root: session context plus the router skeleton.
@@ -14,6 +15,7 @@ export function App() {
   return (
     <SessionProvider>
       <BrowserRouter>
+        <SessionRedirectBridge />
         <AppRoutes />
       </BrowserRouter>
     </SessionProvider>

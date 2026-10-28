@@ -12,8 +12,8 @@ export type Role = (typeof ROLES)[number];
 /**
  * Minimal session shape.
  *
- * The authentication flow (login, refresh, logout) belongs to the API client
- * task, so this is intentionally a plain data carrier with no side effects.
+ * The identity of the signed in user. The tokens live next to it in the
+ * session store (`src/session/tokenStore.ts`), never inside this record.
  */
 export interface Session {
   userId: string;
@@ -22,4 +22,9 @@ export interface Session {
   activeRole: Role;
   /** Set only when the active role owns a store. */
   restaurantId: string | null;
+}
+
+/** Narrow an unknown value to a {@link Role}. */
+export function isRole(value: unknown): value is Role {
+  return typeof value === 'string' && (ROLES as readonly string[]).includes(value);
 }
