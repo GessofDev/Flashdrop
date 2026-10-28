@@ -1,6 +1,5 @@
 package com.flashdrop.auth.integration;
 
-import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -83,14 +82,12 @@ class AuthRoleAssignmentIT {
         assertEquals(List.of("Repartidor"), rolesEnBase(id));
 
         // El token ya viaja con los roles nuevos.
-        var login = mvc.perform(post("/auth/login").contentType("application/json")
+        mvc.perform(post("/auth/login").contentType("application/json")
                         .content("""
                                 {"login":"flujo@flashdrop.cl","password":"Segura1234"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0]").value("Repartidor"))
-                .andReturn().getResponse().getContentAsString();
-        assertTrue(JsonPath.read(login, "$.roles").toString().contains("Repartidor"));
+                .andExpect(jsonPath("$.roles[0]").value("Repartidor"));
     }
 
     /** Un rol desconocido se rechaza con 400 y no toca el conjunto guardado. */

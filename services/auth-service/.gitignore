@@ -1,6 +1,7 @@
 # Compilados
 build/
 .gradle/
+bin/
 *.class
 *.jar
 

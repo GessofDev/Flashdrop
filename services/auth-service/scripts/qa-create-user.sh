@@ -10,7 +10,7 @@
 #
 # Roles validos: Cliente, Restaurante, Repartidor
 #
-# Para dejar a un usuario SIN roles, usá el endpoint directo:
+# Para dejar a un usuario SIN roles, usa el endpoint directo:
 #   curl -X PUT "$BASE/api/internal/users/<id>/roles" \
 #     -H "X-Internal-Api-Key: $INTERNAL_API_KEY" -d '{"roles":[]}'
 #
@@ -45,9 +45,29 @@ trap 'rm -f "$BODY_FILE"' EXIT
 # Escapa un valor para poder meterlo dentro de un string JSON: sin esto una
 # contrasena con comilla, barra invertida, tabulador o salto de linea produce
 # un cuerpo invalido y el error que ve QA es "El registro fallo" sin causa.
+# Solo awk, para que funcione igual con sed de BSD (macOS) y de GNU.
 json_string() {
-  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' -e 's/\r/\\r/g' \
-    | awk 'BEGIN { ORS = "" } { if (NR > 1) printf "\\n"; print }'
+  printf '%s' "$1" | awk '
+    BEGIN {
+      ORS = ""
+      # JSON exige escapar todo caracter de control (0x00-0x1F). El tabulador
+      # y el retorno de carro tienen escapes cortos; el resto va como \uXXXX.
+      for (i = 1; i < 32; i++) ctrl[sprintf("%c", i)] = sprintf("\\u%04x", i)
+    }
+    {
+      gsub(/\\/, "\\\\");
+      gsub(/"/, "\\\"");
+      gsub(/\t/, "\\t");
+      gsub(/\r/, "\\r");
+      if (NR > 1) printf "\\n";
+      out = "";
+      s = $0;
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1);
+        out = out (c in ctrl ? ctrl[c] : c);
+      }
+      print out;
+    }'
 }
 
 # Ejecuta la peticion: deja el cuerpo en $BODY_FILE y devuelve el status HTTP.
@@ -119,9 +139,10 @@ fi
 # no tres requests mas adelante.
 PAYLOAD=$(printf '%s' "$ACCESS" | cut -d. -f2)
 PAD=$(( 4 - ${#PAYLOAD} % 4 ))
-if [ "$PAD" -ne 4 ]; then
-  PAYLOAD="$PAYLOAD$(printf '=%.0s' $(seq 1 "$PAD"))"
-fi
+while [ "$PAD" -ne 4 ] && [ "$PAD" -gt 0 ]; do
+  PAYLOAD="${PAYLOAD}="
+  PAD=$((PAD - 1))
+done
 CLAIMS=$(printf '%s' "$PAYLOAD" | tr '_-' '/+' | base64 -d 2>/dev/null)
 
 if [ -z "$CLAIMS" ]; then
@@ -131,13 +152,15 @@ if [ -z "$CLAIMS" ]; then
   exit 1
 fi
 
-# La comparacion no distingue mayusculas: el servicio resuelve "repartidor" al
-# nombre canonico "Repartidor" y devuelve ese en el claim. Comparar en crudo
-# daria un fallo falso cuando QA pide el rol en minuscula.
-CLAIMS_LOWER=$(printf '%s' "$CLAIMS" | tr '[:upper:]' '[:lower:]')
+# La comparacion mira solo el claim 'roles', no el JSON entero, y no
+# distingue mayusculas: el servicio resuelve "repartidor" al nombre canonico
+# "Repartidor" y devuelve ese en el claim. Comparar en crudo daria un fallo
+# falso cuando QA pide el rol en minuscula.
+CLAIMS_ROLES=$(printf '%s' "$CLAIMS" | sed -n 's/.*"roles":\[\([^]]*\)\].*/\1/p')
+CLAIMS_ROLES_LOWER=$(printf '%s' "$CLAIMS_ROLES" | tr '[:upper:]' '[:lower:]')
 for rol in "${ROLES[@]}"; do
   ROL_LOWER=$(printf '%s' "$rol" | tr '[:upper:]' '[:lower:]')
-  case "$CLAIMS_LOWER" in
+  case "$CLAIMS_ROLES_LOWER" in
     *"\"$ROL_LOWER\""*) ;;
     *)
       echo "El token NO trae el rol $rol. Claims: $CLAIMS" >&2
