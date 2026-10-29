@@ -23,10 +23,10 @@ jobs:
         with:
           version: 9
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: 'apps/web/pnpm-lock.yaml'
 
@@ -67,6 +67,9 @@ jobs:
             set -e
             mkdir -p ~/flashdrop-dist
             tar -xzf ~/dist.tar.gz -C ~/flashdrop-dist
-            export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1
-            aws --endpoint-url http://127.0.0.1:4566 s3 sync ~/flashdrop-dist s3://flashdrop-web --delete
+            export AWS_ACCESS_KEY_ID=test
+            export AWS_SECRET_ACCESS_KEY=test
+            export AWS_DEFAULT_REGION=us-east-1
+            aws --endpoint-url http://127.0.0.1:4566 s3 sync \
+              ~/flashdrop-dist s3://flashdrop-web --delete
             rm -f ~/dist.tar.gz
