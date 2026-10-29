@@ -49,3 +49,6 @@ dependency-reduced-pom.xml
 # Config de MCP con secretos embebidos (Jira, etc.). Versionar solo la plantilla.
 .mcp.json
 !.mcp.example.json
+
+# Design references / Stitch specs
+references/stitch_flashdrop_ui_design_specs/

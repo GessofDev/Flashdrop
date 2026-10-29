@@ -1,0 +1,89 @@
+/*
+ * FlashDrop design system — single source of truth for tokens (spec S4).
+ *
+ * Every colour, radius, typeface and elevation the UI paints is declared here
+ * once. The Tailwind v4 `@theme` block turns each token into a utility class
+ * (`bg-primary`, `rounded-control`, `font-display`, `shadow-card`, ...), so a
+ * component never repeats a hex literal.
+ *
+ * Sources of truth:
+ *  - `references/stitch_flashdrop_ui_design_specs/kinetic_delivery_system/DESIGN.md`
+ *  - `references/stitch_flashdrop_ui_design_specs/flashdrop_design_system_v2.0_gu_a_de_tokens_kit_de_componentes`
+ *  - `docs/plans/2026-10-28-flashdrop-web-ui-mockup-selection.md` §3
+ */
+
+@theme {
+  /* Brand */
+  --color-primary: #E84A0E;
+  --color-primary-hover: #FF5A1F;
+  --color-primary-active: #C23A08;
+  --color-primary-surface: #FFF4ED;
+
+  /* Neutrals */
+  --color-foreground: #0F172A;
+  --color-foreground-secondary: #334155;
+  --color-foreground-muted: #64748B;
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
+  --color-canvas: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F1F5F9;
+
+  /* Semantic tiers */
+  --color-success: #15803D;
+  --color-success-surface: #DCFCE7;
+  --color-info: #1D4ED8;
+  --color-info-surface: #DBEAFE;
+  --color-warning: #B45309;
+  --color-warning-surface: #FEF3C7;
+  --color-destructive: #B91C1C;
+  --color-destructive-hover: #991B1B;
+  --color-destructive-surface: #FEE2E2;
+
+  /* Shape: 8px controls, 16px containers, 24px overlays */
+  --radius-control: 8px;
+  --radius-container: 16px;
+  --radius-overlay: 24px;
+
+  /* Typography: display for headers, sans for data */
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --tracking-label: 0.02em;
+
+  /* Elevation and layout */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --container-app: 90rem;
+}
+
+@layer base {
+  /* Strict focus ring for full keyboard navigation (spec S4). */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    background-color: var(--color-canvas);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    background-color: var(--color-canvas);
+  }
+}
+
+/* Uppercase code/label treatment, tracking 0.05em (spec S4). */
+@utility label-code {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tabular figures for CLP amounts and `#FD-XXXX` codes (spec S4). */
+@utility nums-tabular {
+  font-variant-numeric: tabular-nums;
+}
