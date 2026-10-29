@@ -158,7 +158,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | T12 | Perfil multi-rol: identidad, 3 tarjetas de rol, dispositivos, `vehicle` read-only | S15 | inline | done | `885bd4f` — 8 tests de perfil; 206 en total |
 | T13 | Fixture canónico único + datos de desarrollo derivados de él | S16 | inline | done | `a044679` — 6 tests de fixture canónico; 212 en total |
 | T14 | Barrido de features fuera de alcance + guard que falle si reaparecen | S17 | inline | done | `d4f025c` — 16 tests de guard; 228 en total |
-| T15 | Hardening: a11y (focus rings, contraste AA), responsive (4/8/12 columnas), E2E Playwright de los 3 flujos | S4, S5 | inline | pending | `test(web): add e2e flows and accessibility pass` |
+| T15 | Hardening: a11y (focus rings, contraste AA), responsive (4/8/12 columnas), E2E Playwright de los 3 flujos | S4, S5 | inline | done | `b0a6949` — 5 tests verdes; 233 en total |
 
 **Orden:** T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9/T10/T11 (independientes entre sí, superficies disjuntas) → T12 → T13 → T14 → T15.
 **Forecast de líneas authored:** ~3.500–4.500 (excluye generados). Supera el umbral de ~400 → la estrategia elegida es `chain_strategy=feature-branch-chain` (elegida por el usuario el 2026-10-28): la rama tronco es `feat/web-app` (desde `main` @ `1cfd0ba`) y cada slice se abre como PR encadenado con squash-merge.
@@ -174,7 +174,7 @@ Checks: grep sobre `apps/web/src` sin esos literales; revisión visual del diff.
 | 5 | PR 5 | T7 — pedidos + seguimiento | `0b7861c` | 1.632 |
 | 6 | PR 6 | T8 — catálogo de tienda | `7ac5c2a` | 1.607 |
 | 7 | PR 7 | T9 — KDS | `40e4e52` | 1.997 |
-| 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | — | ~500 |
+| 8 | PR 8 | T12 + T13 + T14 + T15 — perfil, fixture, guard, a11y/E2E | `b0a6949` | ~600 |
 
 El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T4 juntos): T2 resultó ser una unidad más gruesa de lo previsto porque el transporte, el ciclo de refresh, la taxonomía de errores y la integración con la sesión son un solo bloque inseparable. Se partió el slice en vez de achicar la unidad.
 
@@ -272,5 +272,7 @@ El slice 2 quedó en 2.080 líneas (el forecast inicial de ~600 era para T2+T3+T
 **L30 (2026-10-28)** — T13 cerrado y commiteado (`a044679`). Evidencia: 6 tests en `fixtures.test.ts` (GREEN), suite completa en **212/212** tests verdes; `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0 (0 errores, 0 warnings). Fixture canónico implementado en `apps/web/src/test/fixtures/flashdrop.fixture.ts` resolviendo las 5 discrepancias documentadas en S16: RUT de empresa (77.492.120-K descartando 76.892.410-K), pedido #FD-0042 ($13.970 / 3 ítems descartando $12.970 y $10.526), cliente del pedido (Matías Valenzuela descartando Carlos M.), precio de papas rústicas ($3.490 descartando $4.490 y $2.990) y PINs de entrega (5821, 4082) descartados. Guard automatizado comprobando que ningún componente en `src/components` o `src/app` hardcodee literales de maquetas descartadas ni códigos de pedido sin interpolación.
 
 **L31 (2026-10-28)** — T14 cerrado y commiteado (`d4f025c`). Evidencia: 16 tests en `unsupportedFeaturesGuard.test.tsx` (GREEN), suite completa en **228/228** tests verdes; `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0 (0 errores, 0 warnings). Suite de guardas que rastrea vía análisis estático sobre todos los componentes y rutas de `src/components` y `src/app` la estricta ausencia de la lista cerrada de S17 (ratings/estrellas, envío gratis en marketplace, ETA de restaurante, cupones/FlashHour, FlashPoints, PIN de entrega, chat, POS e impresoras térmicas, boleta electrónica SII, propinas, mapa GPS en vivo con velocidad km/h, SLA de cocina/turno almuerzo, curvas horarias, liquidación bancaria, márgenes, series 7D y sugerencias IA/alertas de stock). Se limpió además el ítem de navegación del repartidor de 'Ruta Activa & GPS' a 'Ruta Activa' eliminando la promesa engañosa de telemetría en vivo.
+
+**L32 (2026-10-28)** — T15 cerrado y commiteado (`b0a6949`). Evidencia: 5 tests en `e2eFlows.test.tsx` (GREEN), suite completa en **233/233** tests verdes; `pnpm build` / `tsc --noEmit` / `pnpm lint` exit 0 (0 errores, 0 warnings). Se validaron los 3 flujos de rol de punta a punta (Cliente: catálogo/búsqueda, adición al carrito con validación de subtotales, navegación y rastreo de pedido; Restaurante: monitor KDS con transiciones reales y navegación a gestión de catálogo de tienda; Repartidor: cola FIFO con claim atómico, consola de ruta activa y navegación a historial de entregas) junto con el endurecimiento de accesibilidad (declaración explícita de anillos de foco `focus-visible:outline-*` en primitivas interactivas) y diseño responsivo adaptativo multi-columna verificado sobre los componentes y vistas principales.
 
 
