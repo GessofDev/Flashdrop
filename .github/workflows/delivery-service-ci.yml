@@ -1,0 +1,54 @@
+name: delivery-service CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/delivery-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/delivery-service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/delivery-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/delivery-service-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build y tests de delivery-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/delivery_db
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            services/**/*.gradle.kts
+            services/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Dar permisos de ejecucion a gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build y tests de delivery-service
+        run: ./gradlew :delivery-service:build --configure-on-demand --no-daemon
+
+      - name: Publicar resultados de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-delivery-service
+          path: services/delivery-service/build/reports/tests/test
+          if-no-files-found: ignore

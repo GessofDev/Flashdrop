@@ -23,7 +23,7 @@ public class OrdersServiceRestClientConfig {
     @Value("${orders.service.url}")
     private String ordersServiceUrl;
 
-    @Value("${INTERNAL_API_KEY}")
+    @Value("${internal.api.key}")
     private String internalApiKey;
 
     @Bean

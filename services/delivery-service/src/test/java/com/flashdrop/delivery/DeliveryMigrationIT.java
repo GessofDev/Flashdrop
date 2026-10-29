@@ -41,10 +41,10 @@ class DeliveryMigrationIT {
     }
 
     @Test
-    @DisplayName("Scenario 1 — given empty DB when app boots then delivery_persons has seeded U1 row")
+    @DisplayName("Scenario 1 — given empty DB when app boots then delivery_persons has seeded demo courier row")
     void seededU1RowPresent() {
         Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM internal.delivery_persons WHERE user_id = 'U1'",
+                "SELECT COUNT(*) FROM internal.delivery_persons WHERE user_id = '3'",
                 Long.class
         );
         assertThat(count).isGreaterThanOrEqualTo(1L);

@@ -49,11 +49,11 @@ class JpaDeliveryPersonRepositoryIT {
     }
 
     @Test
-    @DisplayName("TC1: Flyway seeded the U1 delivery person on boot")
+    @DisplayName("TC1: Flyway seeded the delivery person on boot")
     void flywaySeededU1Person() {
-        Optional<DeliveryPerson> u1 = adapter.findByUserId("U1");
+        Optional<DeliveryPerson> u1 = adapter.findByUserId("3");
         assertThat(u1).isPresent();
-        assertThat(u1.get().getUserId()).isEqualTo("U1");
+        assertThat(u1.get().getUserId()).isEqualTo("3");
     }
 
     @Test
@@ -81,9 +81,9 @@ class JpaDeliveryPersonRepositoryIT {
     }
 
     @Test
-    @DisplayName("TC4: existsByUserId returns true for seeded U1")
+    @DisplayName("TC4: existsByUserId returns true for seeded delivery person")
     void existsByUserIdTrue() {
-        assertThat(adapter.existsByUserId("U1")).isTrue();
+        assertThat(adapter.existsByUserId("3")).isTrue();
     }
 
     @Test
@@ -100,8 +100,9 @@ class JpaDeliveryPersonRepositoryIT {
         adapter.save(person);
 
         DeliveryPerson duplicate = new DeliveryPerson(null, uniqueUserId, null, Instant.now());
-        // Second save should either throw or replace — uniqueness is enforced at DB level
-        adapter.save(duplicate);
+        // Second save should throw — uniqueness is enforced at DB level
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> adapter.save(duplicate))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         long count = jpaDeliveryPersonRepository.findByUserId(uniqueUserId).stream().count();
         assertThat(count).isGreaterThanOrEqualTo(1);
