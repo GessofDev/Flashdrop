@@ -1,0 +1,72 @@
+name: Web App CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/web-cd.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to FloCI S3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'apps/web/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+
+      - name: Run unit & component tests
+        run: pnpm test
+        working-directory: apps/web
+
+      - name: Typecheck and compile production bundle
+        run: pnpm build
+        working-directory: apps/web
+        env:
+          VITE_API_BASE_URL: http://76.13.168.23
+
+      - name: Package build artifacts
+        run: tar -czf dist.tar.gz -C apps/web/dist .
+
+      - name: Copy bundle archive to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: 'dist.tar.gz'
+          target: '~'
+          overwrite: true
+
+      - name: Unpack and sync to FloCI S3
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            mkdir -p ~/flashdrop-dist
+            tar -xzf ~/dist.tar.gz -C ~/flashdrop-dist
+            export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1
+            aws --endpoint-url http://127.0.0.1:4566 s3 sync ~/flashdrop-dist s3://flashdrop-web --delete
+            rm -f ~/dist.tar.gz
