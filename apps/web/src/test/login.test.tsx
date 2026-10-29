@@ -70,23 +70,15 @@ describe('unified login', () => {
     expect(sessionStore.getSession()?.activeRole).toBe('CLIENTE');
   });
 
-  it('accepts a RUT with or without dots and hyphen, and always sends the canonical form', async () => {
-    const fetchMock = mockFetch(() => jsonResponse(AUTH_RESULT));
+  it('defaults to email identifier mode and keeps Chilean RUT disabled until backend support', () => {
     renderApp('/login');
 
-    const rut = screen.getByLabelText('RUT');
-    fireEvent.change(rut, { target: { value: '16482915k' } });
+    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
+    expect(screen.queryByLabelText('RUT')).toBeNull();
 
-    expect(rut).toHaveValue('16.482.915-K');
-
-    await userEvent.type(screen.getByLabelText('Contraseña'), 'Segura1234');
-    await submit();
-
-    await waitFor(() => expect(fetchMock.calls).toHaveLength(1));
-    expect(fetchMock.calls[0]?.body).toEqual({
-      login: '16.482.915-K',
-      password: 'Segura1234',
-    });
+    const rutTab = screen.getByRole('button', { name: /RUT Chileno/i });
+    expect(rutTab).toBeDisabled();
+    expect(rutTab).toHaveTextContent('Próximamente');
   });
 
   it('shows the literal message of the backend when the credentials are rejected', async () => {
