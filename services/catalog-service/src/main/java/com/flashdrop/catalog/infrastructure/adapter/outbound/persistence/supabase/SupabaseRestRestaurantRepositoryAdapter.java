@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -86,6 +87,28 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
                 .map(RestaurantRow::toDomain);
     }
 
+    @Override
+    public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
+        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
+                .path("/rest/v1/restaurant")
+                .queryParam("id", "eq." + restaurantId)
+                .build()
+                .toUriString();
+
+        RestaurantRow[] rows = restClient.patch()
+                .uri(url)
+                .header("Prefer", "return=representation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new AssignOwnerRequest(userId))
+                .retrieve()
+                .body(RestaurantRow[].class);
+
+        if (rows == null || rows.length == 0) {
+            return Optional.empty();
+        }
+        return Optional.of(rows[0].toDomain());
+    }
+
     private List<RestaurantRow> fetchRestaurants(String url) {
         RestaurantRow[] rows = restClient.get()
                 .uri(url)
@@ -116,5 +139,8 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
                     createdAt == null ? null : createdAt.toLocalDateTime()
             );
         }
+    }
+
+    private record AssignOwnerRequest(@JsonProperty("user_id") Long userId) {
     }
 }

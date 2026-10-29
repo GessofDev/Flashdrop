@@ -6,6 +6,7 @@ import com.flashdrop.auth.application.port.inbound.GetInternalUserUseCase;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
 import com.flashdrop.auth.domain.exception.UserNotFoundException;
 import com.flashdrop.auth.domain.model.User;
+import com.flashdrop.auth.domain.valueobject.Email;
 
 import java.util.List;
 import java.util.Objects;
@@ -21,6 +22,18 @@ public class GetInternalUserService implements GetInternalUserUseCase {
     @Override
     public InternalUserResponse getUser(Long userId) {
         User user = requireUser(userId);
+        return toResponse(user);
+    }
+
+    @Override
+    public InternalUserResponse getUserByEmail(String email) {
+        Email normalizedEmail = new Email(email);
+        User user = users.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + normalizedEmail.value()));
+        return toResponse(user);
+    }
+
+    private InternalUserResponse toResponse(User user) {
         return new InternalUserResponse(
                 user.id(),
                 user.name(),

@@ -36,6 +36,11 @@ public class InternalUserController {
         return getInternalUser.getUser(userId);
     }
 
+    @GetMapping("/by-email")
+    public InternalUserResponse getUserByEmail(@RequestParam String email) {
+        return getInternalUser.getUserByEmail(email);
+    }
+
     /**
      * Variante batch: GET /api/internal/users?ids=1,2,3
      *

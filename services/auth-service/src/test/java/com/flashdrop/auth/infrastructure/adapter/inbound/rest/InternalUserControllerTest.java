@@ -73,6 +73,22 @@ class InternalUserControllerTest {
     }
 
     @Test
+    void lookupPorCorreoRetornaUsuarioYExigeApiKey() throws Exception {
+        when(useCase.getUserByEmail("comercio@gmail.com")).thenReturn(new InternalUserResponse(
+                12L, "Comercio", "Demo", "comercio@gmail.com", null));
+
+        mvc.perform(get("/api/internal/users/by-email")
+                        .param("email", "comercio@gmail.com")
+                        .header("X-Internal-Api-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(12))
+                .andExpect(jsonPath("$.email").value("comercio@gmail.com"));
+
+        mvc.perform(get("/api/internal/users/by-email").param("email", "comercio@gmail.com"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void batchRetornaArrayConElContratoExacto() throws Exception {
         when(useCase.getUsers(List.of(1L, 3L))).thenReturn(List.of(
                 new InternalUserResponse(1L, "Cliente", "Demo", "cliente@demo.cl", "+56911111111"),

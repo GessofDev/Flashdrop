@@ -49,6 +49,25 @@ class GetInternalUserServiceTest {
     }
 
     @Test
+    void buscaUsuarioPorCorreoNormalizado() {
+        User comercio = new User(12L, new Email("comercio@gmail.com"), null, "Comercio", "Demo",
+                null, null, List.of(), Instant.now());
+        when(users.findByEmail(new Email("comercio@gmail.com"))).thenReturn(Optional.of(comercio));
+
+        var response = service.getUserByEmail(" Comercio@Gmail.com ");
+
+        assertEquals(12L, response.id());
+        assertEquals("comercio@gmail.com", response.email());
+    }
+
+    @Test
+    void correoInexistenteLanzaUserNotFound() {
+        when(users.findByEmail(new Email("missing@example.com"))).thenReturn(Optional.empty());
+
+        assertThrows(UserNotFoundException.class, () -> service.getUserByEmail("missing@example.com"));
+    }
+
+    @Test
     void usuarioConRolesRetornaIdYNombre() {
         when(users.findById(1L)).thenReturn(Optional.of(userWithRoles()));
 

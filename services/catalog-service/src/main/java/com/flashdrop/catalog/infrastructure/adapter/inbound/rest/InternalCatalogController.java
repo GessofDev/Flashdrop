@@ -9,12 +9,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flashdrop.catalog.application.usecase.CreateProductUseCase;
+import com.flashdrop.catalog.application.usecase.AssignRestaurantOwnerUseCase;
 import com.flashdrop.catalog.application.usecase.GetProductsByIdsUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByIdUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
@@ -22,6 +24,7 @@ import com.flashdrop.catalog.application.usecase.UpdateProductUseCase;
 import com.flashdrop.catalog.domain.model.Product;
 import com.flashdrop.catalog.domain.valueobjects.Money;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.CreateProductRequest;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.AssignRestaurantOwnerRequest;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.InternalProductResponse;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.InternalRestaurantResponse;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateProductRequest;
@@ -37,19 +40,22 @@ public class InternalCatalogController {
     private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final CreateProductUseCase createProductUseCase;
     private final UpdateProductUseCase updateProductUseCase;
+    private final AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase;
 
     public InternalCatalogController(
             GetProductsByIdsUseCase getProductsByIdsUseCase,
             GetRestaurantByIdUseCase getRestaurantByIdUseCase,
             GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
             CreateProductUseCase createProductUseCase,
-            UpdateProductUseCase updateProductUseCase
+            UpdateProductUseCase updateProductUseCase,
+            AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase
     ) {
         this.getProductsByIdsUseCase = getProductsByIdsUseCase;
         this.getRestaurantByIdUseCase = getRestaurantByIdUseCase;
         this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
         this.createProductUseCase = createProductUseCase;
         this.updateProductUseCase = updateProductUseCase;
+        this.assignRestaurantOwnerUseCase = assignRestaurantOwnerUseCase;
     }
 
     @GetMapping("/products")
@@ -101,6 +107,15 @@ public class InternalCatalogController {
     @GetMapping(value = "/restaurants", params = "userId")
     public InternalRestaurantResponse getRestaurantByUserId(@RequestParam Long userId) {
         return InternalRestaurantResponse.fromDomain(getRestaurantByUserIdUseCase.execute(userId));
+    }
+
+    @PutMapping("/restaurants/{restaurantId}/owner")
+    public InternalRestaurantResponse assignRestaurantOwner(
+            @PathVariable Long restaurantId,
+            @Valid @RequestBody AssignRestaurantOwnerRequest request
+    ) {
+        return InternalRestaurantResponse.fromDomain(
+                assignRestaurantOwnerUseCase.execute(restaurantId, request.userId()));
     }
 
     private List<Long> parseIds(String ids) {

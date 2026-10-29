@@ -6,7 +6,7 @@
 # de asignacion de roles, que es el mismo que consumira el panel de
 # administracion cuando exista.
 #
-#   ./scripts/qa-create-user.sh <email> <password> <rol> [rol...]
+#   ./scripts/qa-create-user.sh <email> <password> <rol> [rol...] [--restaurant-id ID] [--restaurant-name NAME]
 #
 # Roles validos: Cliente, Restaurante, Repartidor
 #
@@ -16,11 +16,13 @@
 #
 # Variables de entorno:
 #   BASE             URL base del servicio (default http://localhost:8081)
+#   CATALOG_BASE     URL base de Catalog (default http://localhost:8082)
 #   INTERNAL_API_KEY  clave interna; la misma que usa el servicio para
 #                     /api/internal/** (sin ella el endpoint responde 403)
 set -uo pipefail
 
 BASE="${BASE:-http://localhost:8081}"
+CATALOG_BASE="${CATALOG_BASE:-http://localhost:8082}"
 JSON='Content-Type: application/json'
 
 if [ "$#" -lt 3 ]; then
@@ -32,7 +34,65 @@ fi
 EMAIL="$1"
 PASS="$2"
 shift 2
-ROLES=("$@")
+ROLES=()
+RESTAURANT_ID=""
+RESTAURANT_NAME=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --restaurant-id)
+      if [ "$#" -lt 2 ] || [ -n "$RESTAURANT_ID" ]; then
+        echo "Uso invalido de --restaurant-id." >&2
+        exit 64
+      fi
+      RESTAURANT_ID="$2"
+      shift 2
+      ;;
+    --restaurant-name)
+      if [ "$#" -lt 2 ] || [ -n "$RESTAURANT_NAME" ]; then
+        echo "Uso invalido de --restaurant-name." >&2
+        exit 64
+      fi
+      RESTAURANT_NAME="$2"
+      shift 2
+      ;;
+    *)
+      ROLES+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "${#ROLES[@]}" -eq 0 ]; then
+  echo "Debes indicar al menos un rol." >&2
+  exit 64
+fi
+
+if [ -n "$RESTAURANT_ID" ]; then
+  case "$RESTAURANT_ID" in
+    *[!0-9]*|"")
+      echo "restaurant-id debe ser un entero positivo." >&2
+      exit 64
+      ;;
+  esac
+  if [ "$RESTAURANT_ID" -le 0 ]; then
+    echo "restaurant-id debe ser un entero positivo." >&2
+    exit 64
+  fi
+  HAS_RESTAURANT_ROLE=false
+  for rol in "${ROLES[@]}"; do
+    if [ "$(printf '%s' "$rol" | tr '[:upper:]' '[:lower:]')" = "restaurante" ]; then
+      HAS_RESTAURANT_ROLE=true
+      break
+    fi
+  done
+  if [ "$HAS_RESTAURANT_ROLE" != true ]; then
+    echo "Para asignar un comercio debes incluir el rol Restaurante." >&2
+    exit 64
+  fi
+elif [ -n "$RESTAURANT_NAME" ]; then
+  echo "--restaurant-name requiere --restaurant-id." >&2
+  exit 64
+fi
 
 if [ -z "${INTERNAL_API_KEY:-}" ]; then
   echo "Falta INTERNAL_API_KEY: es la clave que el servicio exige en /api/internal/**." >&2
@@ -41,6 +101,18 @@ fi
 
 BODY_FILE="$(mktemp)"
 trap 'rm -f "$BODY_FILE"' EXIT
+
+if [ -n "$RESTAURANT_NAME" ]; then
+  STATUS=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' \
+    "$CATALOG_BASE/api/internal/restaurants/$RESTAURANT_ID" \
+    -H "X-Internal-Api-Key: $INTERNAL_API_KEY")
+  RESP=$(cat "$BODY_FILE")
+  ACTUAL_NAME=$(printf '%s' "$RESP" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+  if [ "$STATUS" != "200" ] || [ "$ACTUAL_NAME" != "$RESTAURANT_NAME" ]; then
+    echo "No se modifico nada: el restaurante $RESTAURANT_ID no coincide con '$RESTAURANT_NAME' (HTTP $STATUS): $RESP" >&2
+    exit 1
+  fi
+fi
 
 # Escapa un valor para poder meterlo dentro de un string JSON: sin esto una
 # contrasena con comilla, barra invertida, tabulador o salto de linea produce
@@ -118,7 +190,24 @@ if [ "$STATUS" != "200" ]; then
 fi
 echo "== 2. roles asignados: $RESP"
 
-# --- 3. login (el token ya viaja con los roles) ----------------------------
+# --- 3. asociacion opcional con un comercio -------------------------------
+if [ -n "$RESTAURANT_ID" ]; then
+  STATUS=$(request PUT "$CATALOG_BASE/api/internal/restaurants/$RESTAURANT_ID/owner" \
+    "{\"userId\":$USER_ID}" -H "X-Internal-Api-Key: $INTERNAL_API_KEY")
+  RESP=$(cat "$BODY_FILE")
+  if [ "$STATUS" != "200" ]; then
+    echo "La cuenta $EMAIL (userId=$USER_ID) se creo y recibio sus roles, pero no se pudo vincular al comercio $RESTAURANT_ID (HTTP $STATUS): $RESP" >&2
+    exit 1
+  fi
+  OWNER_ID=$(printf '%s' "$RESP" | sed -n 's/.*"userId":\([0-9]*\).*/\1/p')
+  if [ "$OWNER_ID" != "$USER_ID" ]; then
+    echo "Catalog respondio sin confirmar el propietario esperado: $RESP" >&2
+    exit 1
+  fi
+  echo "== 3. comercio $RESTAURANT_ID vinculado al usuario $USER_ID"
+fi
+
+# --- 4. login (el token ya viaja con los roles) ----------------------------
 STATUS=$(request POST "$BASE/auth/login" \
   "{\"login\":\"$EMAIL_JSON\",\"password\":\"$PASS_JSON\"}")
 RESP=$(cat "$BODY_FILE")
@@ -168,7 +257,7 @@ for rol in "${ROLES[@]}"; do
       ;;
   esac
 done
-echo "== 3. claims del token: $CLAIMS"
+echo "== 4. claims del token: $CLAIMS"
 
 echo "== access token =="
 echo "$ACCESS"

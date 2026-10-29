@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -189,6 +190,42 @@ class InternalCatalogControllerTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("Restaurant not found with id: 999"));
+    }
+
+    @Test
+    void assignRestaurantOwnerChangesOwnerForTheCommerce() throws Exception {
+        mockMvc.perform(put("/api/internal/restaurants/1/owner")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":42}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.userId").value(42))
+                .andExpect(jsonPath("$.name").value("Flash Restaurant Demo"));
+
+        mockMvc.perform(get("/api/internal/restaurants")
+                        .param("userId", "42")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    void assignRestaurantOwnerRejectsUserAlreadyLinkedToAnotherCommerce() throws Exception {
+        mockMvc.perform(put("/api/internal/restaurants/1/owner")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":2}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El usuario ya tiene asignado otro comercio"));
+    }
+
+    @Test
+    void assignRestaurantOwnerRequiresInternalKey() throws Exception {
+        mockMvc.perform(put("/api/internal/restaurants/1/owner")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":42}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
