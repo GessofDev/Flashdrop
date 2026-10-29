@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SpringDataRoleRepository extends JpaRepository<RoleEntity, Long> {
-    Optional<RoleEntity> findByName(String name);
+    Optional<RoleEntity> findByNameIgnoreCase(String name);
     List<RoleEntity> findByIdIn(List<Long> ids);
 }

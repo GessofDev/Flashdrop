@@ -78,12 +78,39 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({InvalidEmailException.class, WeakPasswordException.class, InvalidUserException.class})
-    public ResponseEntity<ApiError> handleValidation(DomainException ex) {
+    public ResponseEntity<?> handleValidation(DomainException ex, HttpServletRequest req) {
+        // Los endpoints internos hablan el {status, error, message} del plan;
+        // los publicos el ApiError de observabilidad.
+        if (isInternal(req)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(400, "BAD_REQUEST", ex.getMessage()));
+        }
         return build(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage());
     }
 
+    /**
+     * Rol desconocido o nombre de rol vacio. En la superficie interna responde
+     * con el contrato {status, error, message} del plan, no con el ApiError
+     * de observabilidad: es lo que esperan los endpoints entre microservicios.
+     */
+    @ExceptionHandler(InvalidRoleException.class)
+    public ResponseEntity<?> handleInvalidRole(InvalidRoleException ex, HttpServletRequest req) {
+        if (isInternal(req)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(400, "BAD_REQUEST", ex.getMessage()));
+        }
+        return build(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage());
+    }
+
+    /** Los endpoints internos hablan el {status, error, message} del plan;
+     *  los publicos el ApiError de observabilidad. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> handleBeanValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<?> handleBeanValidation(MethodArgumentNotValidException ex,
+                                                  HttpServletRequest req) {
+        if (isInternal(req)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(400, "BAD_REQUEST", "Datos de entrada inválidos"));
+        }
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Datos de entrada inválidos");
     }
 
@@ -92,7 +119,12 @@ public class GlobalExceptionHandler {
      *  en handleGeneric y respondía 500. Vale para todos los endpoints con
      *  cuerpo, no solo para el perfil. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
+    public ResponseEntity<?> handleUnreadableBody(HttpMessageNotReadableException ex,
+                                                  HttpServletRequest req) {
+        if (isInternal(req)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse(400, "BAD_REQUEST", "Cuerpo de la petición inválido"));
+        }
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Cuerpo de la petición inválido");
     }
 

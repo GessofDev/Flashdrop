@@ -1,5 +1,9 @@
 ### Variables
 @baseUrl = http://localhost:8081
+# Clave interna: la misma que usa el servicio (INTERNAL_API_KEY).
+@internalApiKey = {{$INTERNAL_API_KEY}}
+# User id del paso 3 (copiar el "userId" de la respuesta del registro).
+@userId = 1
 
 ### 1. Validar Salud del Servicio (Actuator)
 GET {{baseUrl}}/actuator/health
@@ -56,3 +60,24 @@ Content-Type: application/json
 {
   "refreshToken": "{{refreshToken}}"
 }
+
+### 9. Crear un usuario de QA con roles (script recomendado)
+# register -> asigna roles -> login, en un solo comando:
+#   BASE=http://localhost:8081 INTERNAL_API_KEY=<clave-del-entorno> \
+#     ./scripts/qa-create-user.sh qa.repartidor@flashdrop.cl Segura1234 Repartidor
+
+### 10. Asignar roles a un usuario (endpoint interno)
+# Reemplaza el conjunto completo de roles. El usuario del paso 3 nace con
+# "Cliente"; aca se le asigna, por ejemplo, Repartidor.
+# Roles validos: Cliente, Restaurante, Repartidor
+PUT {{baseUrl}}/api/internal/users/{{userId}}/roles
+X-Internal-Api-Key: {{internalApiKey}}
+Content-Type: application/json
+
+{
+  "roles": ["Repartidor"]
+}
+
+### 11. Ver los roles del usuario
+GET {{baseUrl}}/api/internal/users/{{userId}}/roles
+X-Internal-Api-Key: {{internalApiKey}}

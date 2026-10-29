@@ -49,11 +49,48 @@ Internos, consumidos por Orders y Delivery (MIGRATION_PLAN sección 3.1):
 | GET | `/api/internal/users/{userId}` | datos de un usuario |
 | GET | `/api/internal/users?ids=1,2,3` | variante batch, para no hacer una llamada por registro al listar |
 | GET | `/api/internal/users/{userId}/roles` | roles asignados |
+| PUT | `/api/internal/users/{userId}/roles` | reemplazar el conjunto de roles de un usuario |
 
 Todos los `/api/internal/**` exigen la cabecera `X-Internal-Api-Key`. Si
 `INTERNAL_API_KEY` no está definida, el filtro responde 403 a todo: falla
 cerrado a propósito. El contrato completo está en
 [`openapi.yaml`](openapi.yaml).
+
+### Asignar roles a un usuario
+
+El registro siempre nace con el rol base `Cliente`. Para darle otros roles
+(repartidor, restaurante) está el `PUT /api/internal/users/{userId}/roles`, que
+**reemplaza** el conjunto completo: lo que no va en el cuerpo deja de estar
+asignado, y una lista vacía deja al usuario sin roles.
+
+```bash
+{"roles": ["Repartidor"]}
+```
+
+Los nombres se resuelven contra la tabla `roles` y no distinguen mayúsculas;
+la respuesta devuelve siempre el nombre canónico. Un rol que no existe se
+rechaza con 400 y no toca lo que ya estaba asignado.
+
+Los roles viajan en el claim `roles` del JWT, que se emite al hacer login:
+después de asignar roles hay que **volver a autenticarse** para que el token
+los traiga.
+
+**Sobre quién puede llamar**: hoy la única puerta es la clave interna que
+comparten los cinco despliegues, así que cualquier servicio que la tenga
+puede asignar roles a cualquier usuario. La auditoría registra el principal
+(`internal-api`), el origen de la petición y el usuario afectado, pero no hay
+identidad de llamador. Cuando exista el panel de administración hay que sumar
+una identidad real —un rol `Admin` o una credencial por servicio— antes de
+exponer esto más allá de QA.
+
+Es la misma operación que consumirá el panel de administración cuando exista.
+Mientras tanto, el script de QA hace el flujo completo —alta, roles y login—
+en un comando:
+
+```bash
+BASE=http://localhost:8081 INTERNAL_API_KEY=<clave-del-entorno> \
+  ./scripts/qa-create-user.sh qa.repartidor@flashdrop.cl Segura1234 Repartidor
+```
 
 ## Decisiones que conviene no deshacer sin leer
 
@@ -75,9 +112,12 @@ cerrado a propósito. El contrato completo está en
 cd .. && ./gradlew :auth-service:test --configure-on-demand
 ```
 
-93 tests. Los 10 de `AuthPostgresIntegrationTest` levantan un PostgreSQL real
-con Testcontainers y se omiten solos si no hay Docker, así que no rompen el
-build en equipos que no pueden levantar contenedores — pero sí corren en CI.
+142 tests. Los 19 de integración (12 de `AuthPostgresIT` y 7 de
+`AuthRoleAssignmentIT`) levantan un PostgreSQL real con Testcontainers y se
+omiten solos si no hay Docker, así que no rompen el build en equipos que no
+pueden levantar contenedores. Sí corren en CI:
+`.github/workflows/auth-service-ci.yml` ejecuta `./gradlew :auth-service:build`
+sobre `ubuntu-latest`, que tiene Docker.
 
 Cubren los mínimos de MIGRATION_PLAN sección 12.1 —unitarios de registro,
 autenticación y refresco; integración de los endpoints internos; el test de

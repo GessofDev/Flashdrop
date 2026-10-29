@@ -16,7 +16,7 @@ public class Slf4jAuditLogger implements AuditLogger {
 
     @Override
     public void record(AuditEvent event) {
-        log.info("action={} actor={} result={} ip={}",
-                event.action(), event.actor(), event.result(), event.ip());
+        log.info("action={} actor={} result={} ip={} target={}",
+                event.action(), event.actor(), event.result(), event.ip(), event.target());
     }
 }

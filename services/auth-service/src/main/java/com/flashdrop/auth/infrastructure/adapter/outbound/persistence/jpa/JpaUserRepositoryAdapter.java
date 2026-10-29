@@ -1,6 +1,7 @@
 package com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa;
 
 import com.flashdrop.auth.application.port.outbound.UserRepository;
+import com.flashdrop.auth.domain.exception.UserNotFoundException;
 import com.flashdrop.auth.domain.model.Role;
 import com.flashdrop.auth.domain.model.User;
 import com.flashdrop.auth.domain.valueobject.Email;
@@ -46,14 +47,15 @@ public class JpaUserRepositoryAdapter implements UserRepository {
                 user.id(), user.email().value(), user.rut(), user.name(),
                 user.lastName(), user.phone(), user.photo()));
 
-        if (!user.roles().isEmpty()) {
-            // Se reemplaza el conjunto completo: el dominio entrega la lista
-            // final de roles, no un delta.
-            userRoles.deleteByUserId(guardado.getId());
-            userRoles.flush();
-            user.roles().forEach(rol ->
-                    userRoles.save(new UserHasRoleEntity(guardado.getId(), rol.id())));
-        }
+        // El dominio entrega el conjunto final de roles y se escribe siempre,
+        // incluso cuando la lista viene vacia: una lista vacia significa
+        // "este usuario no tiene roles", no "no toques sus roles".
+        // UpdateUserProfileService preserva los roles en conPerfil, asi que
+        // editar el perfil reescribe el mismo conjunto y no lo altera.
+        userRoles.deleteByUserId(guardado.getId());
+        userRoles.flush();
+        user.roles().forEach(rol ->
+                userRoles.save(new UserHasRoleEntity(guardado.getId(), rol.id())));
         return aDominio(guardado, rolesDe(guardado.getId()));
     }
 
@@ -89,6 +91,36 @@ public class JpaUserRepositoryAdapter implements UserRepository {
     @Transactional(readOnly = true)
     public boolean existsByEmail(Email email) {
         return users.existsByEmail(email.value());
+    }
+
+    /**
+     * Reemplaza el conjunto de roles del usuario.
+     *
+     * <p>La existencia se verifica dentro de esta misma transaccion: si se
+     * comprobara antes, en otra transaccion, un borrado concurrente del
+     * usuario dejaria el INSERT pegando contra la FK y la respuesta seria un
+     * 409 en vez de un 404.
+     *
+     * <p>El borrado se hace flushed antes de insertar: sin ese flush, un
+     * rol que ya estaba asignado y vuelve a pedirse choca con la restriccion
+     * unica (id_user, id_rol) dentro de la misma transaccion.
+     *
+     * <p>Una lista vacia deja al usuario sin roles: es un reemplazo, no un
+     * delta, y el "borrado y no inserto" es justamente el caso que el
+     * {@code save()} no cubre (ahi la lista vacia significa "no toques los
+     * roles" porque el registro recien creado no tiene ninguno).
+     */
+    @Override
+    @Transactional
+    public void assignRoles(Long userId, List<Role> roles) {
+        if (!users.existsById(userId)) {
+            throw new UserNotFoundException("User not found with id: " + userId);
+        }
+        userRoles.deleteByUserId(userId);
+        userRoles.flush();
+        for (Role rol : roles) {
+            userRoles.save(new UserHasRoleEntity(userId, rol.id()));
+        }
     }
 
     private List<Role> rolesDe(Long userId) {

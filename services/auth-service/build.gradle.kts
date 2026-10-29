@@ -33,12 +33,10 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
-
-
     // Tests
-    // Sin Testcontainers: la persistencia es PostgREST, no JDBC, así que no
-    // hay nada que levantar en un contenedor de Postgres. Los tests son
-    // unitarios (dominio y casos de uso) y de capa REST con MockMvc.
+    // Los tests son unitarios (dominio y casos de uso) y de capa REST con
+    // MockMvc. Los de persistencia levantan un Postgres real y efimero con
+    // Testcontainers, y se omiten solos si no hay Docker.
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
 

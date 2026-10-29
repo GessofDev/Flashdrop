@@ -15,7 +15,7 @@ info:
     **Base path:** /auth
 
     ## Notas para el desarrollador
-    - Los IDs son **UUID** (no Long/BigInt)
+    - Los IDs son **numéricos** (bigint), no UUID
     - El JWT se emite con algoritmo **RS256** (asimétrico)
     - El gateway valida los tokens usando la clave pública expuesta en `/.well-known/jwks.json`
     - El header de autenticación es `Authorization: Bearer <token>`
@@ -64,7 +64,9 @@ paths:
       summary: Registrar nuevo usuario
       description: |
         Crea un nuevo usuario con rol **Cliente** por defecto.
-        automáticamente crea registros en las tablas `client` y `login`.
+        Automatically crea el registro en `users`, en `login` y la asignación
+        inicial en `roles`/`user_has_roles`. Ninguna tabla de otro servicio
+        se toca: los demás servicios consultan a auth por HTTP.
       operationId: registerUser
       requestBody:
         required: true
@@ -246,6 +248,10 @@ paths:
                   $ref: '#/components/schemas/InternalUserResponse'
         '400':
           description: Parametro ids con formato invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
         '403':
           $ref: '#/components/responses/InternalForbidden'
 
@@ -311,6 +317,57 @@ paths:
               schema:
                 $ref: '#/components/schemas/InternalErrorResponse'
 
+    put:
+      tags: [Internal]
+      summary: Reemplazar los roles de un usuario
+      description: >-
+        Contraparte de escritura del GET de roles. El cuerpo define el
+        conjunto final: los roles que no aparecen dejan de estar asignados y
+        una lista vacia deja al usuario sin roles. Los nombres no distinguen
+        mayusculas y la respuesta devuelve siempre el nombre canonico de la
+        tabla roles. El registro de un usuario nuevo nace con "Cliente";
+        esta es la via para asignarle los demas. Consume el mismo caso de uso
+        que usara el panel de administracion.
+      operationId: assignInternalUserRoles
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRolesRequest'
+            example:
+              roles: [Cliente, Repartidor]
+      responses:
+        '200':
+          description: Conjunto de roles que quedo asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignUserRolesResponse'
+        '400':
+          description: Rol desconocido o nombre de rol vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+        '403':
+          $ref: '#/components/responses/InternalForbidden'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -356,6 +413,32 @@ components:
           format: int64
         name:
           type: string
+
+    AssignRolesRequest:
+      type: object
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          description: >-
+            Conjunto final de roles del usuario. Lo que no aparece deja de
+            estar asignado; una lista vacia deja al usuario sin roles.
+          items:
+            type: string
+          example: [Cliente, Repartidor]
+
+    AssignUserRolesResponse:
+      type: object
+      additionalProperties: false
+      required: [userId, roles]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InternalRoleResponse'
 
     InternalErrorResponse:
       type: object
@@ -405,16 +488,10 @@ components:
       type: object
       properties:
         userId:
-          type: string
-          format: uuid
-          description: ID UUID del usuario creado
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        email:
-          type: string
-          example: juan@test.com
-        message:
-          type: string
-          example: Usuario registrado exitosamente
+          type: integer
+          format: int64
+          description: ID del usuario creado
+          example: 42
 
     LoginRequest:
       type: object
@@ -433,9 +510,9 @@ components:
       type: object
       properties:
         userId:
-          type: string
-          format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          type: integer
+          format: int64
+          example: 42
         name:
           type: string
           example: Juan
@@ -487,9 +564,9 @@ components:
       description: Claims decodificados del JWT
       properties:
         userId:
-          type: string
-          format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          type: integer
+          format: int64
+          example: 42
         email:
           type: string
           example: juan@test.com
@@ -498,20 +575,14 @@ components:
           items:
             type: string
           example: ["Cliente"]
-        issuer:
-          type: string
-          example: flashdrop-auth
-        expiresAt:
-          type: string
-          format: date-time
 
     UserProfile:
       type: object
       properties:
         userId:
-          type: string
-          format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          type: integer
+          format: int64
+          example: 42
         name:
           type: string
           example: Juan
