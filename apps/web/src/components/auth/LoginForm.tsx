@@ -31,7 +31,7 @@ const INPUT_CLASSES =
  * **inside the same tab**. The tokens still die with the tab.
  */
 export function LoginForm({ onSubmit, submitting }: LoginFormProps) {
-  const [identifierMode, setIdentifierMode] = useState<IdentifierMode>('rut');
+  const [identifierMode, setIdentifierMode] = useState<IdentifierMode>('email');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(isRememberSessionEnabled);
@@ -53,9 +53,6 @@ export function LoginForm({ onSubmit, submitting }: LoginFormProps) {
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-4">
-          <button type="button" className={tabClasses('rut')} onClick={() => setIdentifierMode('rut')}>
-            RUT Chileno
-          </button>
           <button
             type="button"
             className={tabClasses('email')}
@@ -63,29 +60,21 @@ export function LoginForm({ onSubmit, submitting }: LoginFormProps) {
           >
             Correo Electrónico
           </button>
+          <button
+            type="button"
+            disabled
+            title="Inicio de sesión por RUT deshabilitado temporalmente hasta soporte en el backend"
+            className="flex items-center gap-1.5 border-b-2 border-transparent pb-1 text-sm font-semibold text-foreground-muted opacity-50 cursor-not-allowed"
+          >
+            <span>RUT Chileno</span>
+            <span className="rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-normal text-foreground-secondary">
+              Próximamente
+            </span>
+          </button>
           <span className="label-code ml-auto text-[11px] text-foreground-muted">Formato Nacional</span>
         </div>
 
-        {identifierMode === 'rut' ? (
-          <>
-            <label className="sr-only" htmlFor="login-identifier">
-              RUT
-            </label>
-            <input
-              id="login-identifier"
-              name="login"
-              autoComplete="username"
-              placeholder="16.482.915-K"
-              value={identifier}
-              onChange={(event) => setIdentifier(formatRut(event.target.value))}
-              className={INPUT_CLASSES}
-            />
-            <p className="text-xs text-foreground-secondary">
-              Ingresa tu cédula con o sin puntos y guión. Validador Módulo 11{' '}
-              {isValidRut(identifier) ? 'validado.' : 'activado.'}
-            </p>
-          </>
-        ) : (
+        {identifierMode === 'email' ? (
           <>
             <label className="sr-only" htmlFor="login-identifier">
               Correo electrónico
@@ -102,6 +91,25 @@ export function LoginForm({ onSubmit, submitting }: LoginFormProps) {
             />
             <p className="text-xs text-foreground-secondary">
               Usa el correo electrónico con el que creaste tu cuenta en FlashDrop.
+            </p>
+          </>
+        ) : (
+          <>
+            <label className="sr-only" htmlFor="login-identifier">
+              RUT
+            </label>
+            <input
+              id="login-identifier"
+              name="login"
+              autoComplete="username"
+              placeholder="16.482.915-K"
+              value={identifier}
+              onChange={(event) => setIdentifier(formatRut(event.target.value))}
+              className={INPUT_CLASSES}
+            />
+            <p className="text-xs text-foreground-secondary">
+              Ingresa tu cédula con o sin puntos y guión. Validador Módulo 11{' '}
+              {isValidRut(identifier) ? 'validado.' : 'activado.'}
             </p>
           </>
         )}
