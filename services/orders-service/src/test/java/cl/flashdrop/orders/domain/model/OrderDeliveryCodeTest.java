@@ -72,11 +72,11 @@ class OrderDeliveryCodeTest {
     }
 
     @Test
-    void recepcionPorDefectoEsNormalYLosValoresSeInterpretanSinImportarMayusculas() {
-        assertEquals(ReceptionMode.NORMAL, ReceptionMode.fromRequest(null));
-        assertEquals(ReceptionMode.NORMAL, ReceptionMode.fromRequest("  "));
+    void recepcionPorDefectoEsSeguraYRechazaModoNormal() {
+        assertEquals(ReceptionMode.SEGURO, ReceptionMode.fromRequest(null));
+        assertEquals(ReceptionMode.SEGURO, ReceptionMode.fromRequest("  "));
         assertEquals(ReceptionMode.SEGURO, ReceptionMode.fromRequest("seguro"));
-        assertEquals(ReceptionMode.NORMAL, ReceptionMode.fromRequest("Normal"));
+        assertThrows(OrderDomainException.class, () -> ReceptionMode.fromRequest("Normal"));
     }
 
     @Test
