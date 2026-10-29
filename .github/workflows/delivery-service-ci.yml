@@ -27,7 +27,6 @@ jobs:
       DB_URL: jdbc:postgresql://localhost:5432/delivery_db
       DB_USERNAME: ci
       DB_PASSWORD: ci
-      INTERNAL_API_KEY: dummy-internal-key-for-ci
     steps:
       - uses: actions/checkout@v4
 
