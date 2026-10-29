@@ -18,6 +18,7 @@ GET  /catalog/restaurants
 GET  /api/internal/products?ids=1,2,3
 GET  /api/internal/restaurants/{restaurantId}
 GET  /api/internal/restaurants?userId={userId}
+PUT  /api/internal/restaurants/{restaurantId}/owner
 POST /api/catalog/my/products
 GET  /api/catalog/my/products
 PUT  /api/catalog/my/products/{productId}
@@ -31,6 +32,12 @@ Los `POST` publicos y todos los endpoints `/api/internal/**` requieren:
 ```text
 X-Internal-Api-Key: valor-de-INTERNAL_API_KEY
 ```
+
+Para vincular un correo existente con un comercio, Auth lo resuelve primero
+con `GET /api/internal/users/by-email?email=...`; luego Catalog asigna ese ID
+mediante `PUT /api/internal/restaurants/{restaurantId}/owner` con
+`{"userId": 12}`. Ambos endpoints requieren la clave interna. La operación
+reemplaza al dueño actual y rechaza asignar un usuario que ya tenga otro local.
 
 Todos los endpoints `/api/catalog/my/**` requieren un Bearer JWT emitido por Auth
 con el rol `Restaurante`. El claim `roles` es una lista y se mapean todos sus

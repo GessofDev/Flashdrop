@@ -8,6 +8,8 @@ import java.util.List;
 public interface GetInternalUserUseCase {
     InternalUserResponse getUser(Long userId);
 
+    InternalUserResponse getUserByEmail(String email);
+
     /**
      * Variante batch de {@link #getUser(Long)}. Los IDs inexistentes se
      * ignoran en vez de fallar: el consumidor (Orders listando pedidos)

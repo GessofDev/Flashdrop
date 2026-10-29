@@ -47,6 +47,7 @@ Internos, consumidos por Orders y Delivery (MIGRATION_PLAN sección 3.1):
 | Método | Ruta | Para qué |
 |---|---|---|
 | GET | `/api/internal/users/{userId}` | datos de un usuario |
+| GET | `/api/internal/users/by-email?email=...` | resolver un correo a su usuario e ID |
 | GET | `/api/internal/users?ids=1,2,3` | variante batch, para no hacer una llamada por registro al listar |
 | GET | `/api/internal/users/{userId}/roles` | roles asignados |
 | PUT | `/api/internal/users/{userId}/roles` | reemplazar el conjunto de roles de un usuario |
@@ -91,6 +92,25 @@ en un comando:
 BASE=http://localhost:8081 INTERNAL_API_KEY=<clave-del-entorno> \
   ./scripts/qa-create-user.sh qa.repartidor@flashdrop.cl Segura1234 Repartidor
 ```
+
+Para crear una cuenta de comercio y vincularla al restaurante ID 2 de FloCI
+(`Flash Restaurant Demo` en su seed), indica `--restaurant-id` y confirma el
+nombre esperado. El script verifica el nombre antes de crear la cuenta, ya que
+los IDs de la instancia local en memoria no coinciden con los de FloCI:
+
+```bash
+BASE=http://localhost:8081 CATALOG_BASE=http://localhost:8082 \
+  INTERNAL_API_KEY=<clave-del-entorno> \
+  ./scripts/qa-create-user.sh comercio@ejemplo.cl '<clave-segura>' Restaurante \
+    --restaurant-id 2 --restaurant-name 'Flash Restaurant Demo'
+```
+
+El script crea la cuenta, reemplaza sus roles por los indicados y, si se
+solicita un comercio, asigna el `userId` devuelto por Auth al restaurante en
+Catalog. El endpoint de asignación reemplaza al dueño actual; úsalo solo tras
+confirmar el ID y el comercio destino. Si el correo ya existe, el registro
+falla intencionalmente: resuelve su ID con `GET /api/internal/users/by-email`
+y ejecuta el `PUT /api/internal/restaurants/{restaurantId}/owner` manualmente.
 
 ## Decisiones que conviene no deshacer sin leer
 

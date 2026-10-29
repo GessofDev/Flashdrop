@@ -255,6 +255,43 @@ paths:
         '403':
           $ref: '#/components/responses/InternalForbidden'
 
+  /api/internal/users/by-email:
+    get:
+      tags: [Internal]
+      summary: Resolver correo a usuario
+      description: Busca un correo normalizado y devuelve su ID para operaciones administrativas internas.
+      operationId: getInternalUserByEmail
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalUserResponse'
+        '400':
+          description: Correo con formato invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+        '403':
+          $ref: '#/components/responses/InternalForbidden'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalErrorResponse'
+
   /api/internal/users/{userId}:
     get:
       tags: [Internal]

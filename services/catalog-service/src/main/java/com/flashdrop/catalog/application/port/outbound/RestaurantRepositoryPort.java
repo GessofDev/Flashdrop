@@ -15,4 +15,6 @@ public interface RestaurantRepositoryPort {
     Optional<Restaurant> findById(Long id);
 
     Optional<Restaurant> findByUserId(Long userId);
+
+    Optional<Restaurant> assignOwner(Long restaurantId, Long userId);
 }

@@ -498,6 +498,49 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/internal/restaurants/{restaurantId}/owner:
+    put:
+      tags: [Internal]
+      summary: Asignar dueño a un restaurante
+      description: Reemplaza el userId propietario. El usuario debe resolverse previamente en Auth.
+      parameters:
+        - in: path
+          name: restaurantId
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - in: header
+          name: X-Internal-Api-Key
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Content-Type
+          required: true
+          schema:
+            type: string
+            example: application/json
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRestaurantOwnerRequest'
+      responses:
+        '200':
+          description: Dueño asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalRestaurantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -773,6 +816,17 @@ components:
           type: string
           nullable: true
           example: Av. Providencia 1200
+
+    AssignRestaurantOwnerRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: ID previamente obtenido desde auth-service
+          example: 12
 
   responses:
     Unauthorized:

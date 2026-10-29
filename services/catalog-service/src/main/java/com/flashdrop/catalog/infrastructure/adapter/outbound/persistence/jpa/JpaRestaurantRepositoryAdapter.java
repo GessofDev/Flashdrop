@@ -3,6 +3,7 @@ package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -43,5 +44,15 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
     public Optional<Restaurant> findByUserId(Long userId) {
         return repository.findByUserId(userId)
                 .map(restaurantEntity -> restaurantEntity.toDomain());
+    }
+
+    @Override
+    @Transactional
+    public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
+        return repository.findById(restaurantId)
+                .map(entity -> {
+                    entity.changeOwner(userId);
+                    return entity.toDomain();
+                });
     }
 }

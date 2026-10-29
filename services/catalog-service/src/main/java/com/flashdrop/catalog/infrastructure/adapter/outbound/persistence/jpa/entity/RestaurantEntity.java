@@ -30,6 +30,10 @@ public class RestaurantEntity {
     protected RestaurantEntity() {
     }
 
+    public void changeOwner(Long userId) {
+        this.userId = userId;
+    }
+
     public Restaurant toDomain() {
         return new Restaurant(id, userId, name, address, createdAt);
     }
