@@ -56,6 +56,7 @@ class CreateOrderUseCaseTest {
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
         ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
+        lenient().when(deliveryCodePort.isSecureModeAvailable()).thenReturn(true);
     }
 
     @Test
@@ -310,23 +311,19 @@ class CreateOrderUseCaseTest {
     }
 
     @Test
-    void modoNormal_noDevuelveCodigoAlCliente() {
+    void modoNormal_esRechazadoAntesDeGuardar() {
         UUID userId = UUID.randomUUID(), productId = UUID.randomUUID();
-        UUID restaurantId = UUID.randomUUID(), clientId = UUID.randomUUID(), orderId = UUID.randomUUID();
-        stubCatalogAndClient(userId, productId, restaurantId, clientId);
-        when(orderRepository.save(any(Order.class))).thenReturn(Order.builder().id(orderId).build());
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.NORMAL)));
 
-        CreatedOrderResult result = createOrderUseCase.execute(commandWithMode(userId, productId, ReceptionMode.NORMAL));
-
-        assertEquals("NORMAL", result.receptionMode());
-        assertNull(result.deliveryCode());
-        verifyNoInteractions(deliveryCodePort);
+        assertTrue(ex.getMessage().contains("PIN"), ex.getMessage());
+        verifyNoInteractions(orderRepository, deliveryPort, eventPublisher, deliveryCodePort);
     }
 
     @Test
-    void sinModoInformado_seAsumeNormal() {
+    void sinModoInformado_seAsumeSeguro() {
         CreateOrderCommand command = CreateOrderCommand.builder().userId(UUID.randomUUID()).build();
 
-        assertEquals(ReceptionMode.NORMAL, command.getReceptionMode());
+        assertEquals(ReceptionMode.SEGURO, command.getReceptionMode());
     }
 }

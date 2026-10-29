@@ -621,16 +621,12 @@ components:
           example: 20
         receptionMode:
           type: string
-          enum: [NORMAL, SEGURO]
-          default: NORMAL
+          enum: [SEGURO]
+          default: SEGURO
           description: |
-            Cómo quiere recibir el pedido el cliente. **No se puede cambiar una vez creado el
-            pedido** (la app debe avisarlo).
-
-            - `SEGURO`: se genera un código único; el pedido solo se entrega si el cliente le
-              dicta ese código al repartidor.
-            - `NORMAL` (por defecto): el pedido puede dejarse en recepción o con un tercero. El
-              código es siempre `000000` y la app del repartidor lo completa sola.
+            Todos los pedidos nuevos requieren un PIN de entrega. Si se omite este campo, se usa
+            `SEGURO`; un valor `NORMAL` se rechaza. El pedido solo se entrega cuando el cliente
+            dicta su código único al repartidor. El modo no se puede cambiar después de crearlo.
           example: SEGURO
         items:
           type: array

@@ -5,7 +5,8 @@ import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import java.util.Locale;
 
 /**
- * Modo de recepción elegido por el cliente al crear el pedido. No se puede cambiar después.
+ * Modo de recepción del pedido. Los pedidos nuevos requieren recepción segura con PIN;
+ * NORMAL se conserva únicamente para pedidos históricos.
  *
  * <ul>
  *   <li>{@link #SEGURO}: el pedido solo se entrega con el código único del cliente.</li>
@@ -18,13 +19,17 @@ public enum ReceptionMode {
     NORMAL,
     SEGURO;
 
-    /** Si el cliente no informa modo se asume NORMAL (retrocompatible con la app actual). */
+    /** Si el cliente no informa modo, se aplica la política obligatoria de PIN. */
     public static ReceptionMode fromRequest(String raw) {
         if (raw == null || raw.isBlank()) {
-            return NORMAL;
+            return SEGURO;
         }
         try {
-            return valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            ReceptionMode mode = valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            if (mode != SEGURO) {
+                throw new OrderDomainException("Todos los pedidos requieren recepción SEGURO con PIN");
+            }
+            return mode;
         } catch (IllegalArgumentException e) {
             throw new OrderDomainException("Modo de recepcion invalido: use NORMAL o SEGURO");
         }

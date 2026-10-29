@@ -60,8 +60,8 @@ public class CreateOrderRequest {
     private Integer estimatedMinutes;
 
     /**
-     * Modo de recepción: NORMAL o SEGURO (opcional, por defecto NORMAL). No se puede cambiar
-     * una vez creado el pedido.
+     * Modo de recepción: SEGURO es obligatorio para pedidos nuevos. Si se omite, se asume SEGURO;
+     * NORMAL se rechaza. No se puede cambiar una vez creado el pedido.
      */
     @JsonAlias("reception_mode")
     private String receptionMode;

@@ -40,9 +40,9 @@ public class CreateOrderCommand {
     /** Tiempo estimado en minutos (opcional, se usa el valor por defecto si es null) */
     private final Integer estimatedMinutes;
 
-    /** Modo de recepción elegido por el cliente (NORMAL si no lo informó) */
+    /** Los pedidos nuevos siempre requieren recepción segura con PIN. */
     @Builder.Default
-    private final ReceptionMode receptionMode = ReceptionMode.NORMAL;
+    private final ReceptionMode receptionMode = ReceptionMode.SEGURO;
 
     /** Lista de ítems del pedido */
     private final List<ItemRequest> items;

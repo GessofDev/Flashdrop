@@ -57,12 +57,16 @@ public class CreateOrderUseCase {
     public CreatedOrderResult execute(CreateOrderCommand command) {
         log.info("Creando pedido para userId={}, {} ítems", command.getUserId(), command.getItems().size());
 
+        if (command.getReceptionMode() != ReceptionMode.SEGURO) {
+            throw new OrderDomainException("Todos los pedidos requieren recepción SEGURO con PIN");
+        }
+
         // 0. El modo SEGURO necesita la clave del código: si falta se rechaza ANTES de guardar
         // nada, con un 4xx (un 5xx dejaría una ruta huérfana en Delivery y el gateway abre el
         // circuit breaker de /api/orders tras varios 5xx seguidos).
         if (command.getReceptionMode() == ReceptionMode.SEGURO && !deliveryCodePort.isSecureModeAvailable()) {
             throw new OrderDomainException(
-                    "El modo de recepcion SEGURO no esta habilitado por ahora; elige el modo NORMAL");
+                    "La entrega SEGURO con PIN no está disponible temporalmente; no se puede crear el pedido");
         }
 
         // 1. Obtener precios actualizados desde catálogo (nunca del cliente)
