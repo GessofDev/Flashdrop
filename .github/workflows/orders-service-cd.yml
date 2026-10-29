@@ -1,0 +1,79 @@
+name: Orders Service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/orders-service/**'
+      - '.github/workflows/orders-service-cd.yml'
+  workflow_dispatch:
+
+jobs:
+  test-and-deploy:
+    name: Test, Build & Deploy orders-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/orders-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Dar permiso de ejecucion a mvnw
+        run: chmod +x mvnw
+
+      - name: Descargar imagen de PostgreSQL (con reintentos)
+        working-directory: .
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if docker pull postgres:15-alpine; then exit 0; fi
+            echo "Intento $attempt fallido; reintentando en $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          echo "No se pudo descargar postgres:15-alpine tras 5 intentos"
+          exit 1
+
+      - name: Run tests (Surefire + Failsafe)
+        run: ./mvnw verify
+
+      - name: Deploy orders-service to VPS via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            REPO_DIR="$HOME/flashdrop_backend"
+            if [ ! -d "$REPO_DIR" ]; then
+              if [ -d "$HOME/Flashdrop" ]; then
+                REPO_DIR="$HOME/Flashdrop"
+              elif [ -d "$HOME/flashdrop" ]; then
+                REPO_DIR="$HOME/flashdrop"
+              fi
+            fi
+            cd "$REPO_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            cd gateway/docker
+            docker compose -f docker-compose.stack.yml \
+              --env-file .env up -d --no-deps --build orders-service
+            for i in {1..12}; do
+              if curl -sf http://127.0.0.1:8083/actuator/health \
+                > /dev/null; then
+                echo "orders-service is up and healthy!"
+                exit 0
+              fi
+              echo "Waiting for orders-service health check... ($i/12)"
+              sleep 5
+            done
+            echo "orders-service health check timed out"
+            exit 1
