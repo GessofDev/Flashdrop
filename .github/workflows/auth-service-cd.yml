@@ -1,0 +1,80 @@
+name: auth-service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/auth-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/auth-service-cd.yml'
+  workflow_dispatch:
+
+jobs:
+  test-and-deploy:
+    name: Test, Build & Deploy auth-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/no-se-usa
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+      INTERNAL_API_KEY: dummy-internal-key-for-ci
+      JWT_ALLOW_EPHEMERAL: "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            services/**/*.gradle.kts
+            services/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Dar permisos de ejecucion a gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build y tests de auth-service
+        run: ./gradlew :auth-service:build --configure-on-demand --no-daemon
+
+      - name: Deploy auth-service to VPS via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            REPO_DIR="$HOME/flashdrop_backend"
+            if [ ! -d "$REPO_DIR" ]; then
+              if [ -d "$HOME/Flashdrop" ]; then
+                REPO_DIR="$HOME/Flashdrop"
+              elif [ -d "$HOME/flashdrop" ]; then
+                REPO_DIR="$HOME/flashdrop"
+              fi
+            fi
+            cd "$REPO_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            cd gateway/docker
+            docker compose -f docker-compose.stack.yml \
+              --env-file .env up -d --no-deps --build auth-service
+            for i in {1..12}; do
+              if curl -sf http://127.0.0.1:8081/actuator/health \
+                > /dev/null; then
+                echo "auth-service is up and healthy!"
+                exit 0
+              fi
+              echo "Waiting for auth-service health check... ($i/12)"
+              sleep 5
+            done
+            echo "auth-service health check timed out"
+            exit 1
