@@ -5,6 +5,8 @@ export type { CategoryChipsProps } from './CategoryChips';
 export { MarketplaceHero } from './MarketplaceHero';
 export type { MarketplaceHeroProps } from './MarketplaceHero';
 export { MarketplacePage } from './MarketplacePage';
+export { MarketplaceSearch } from './MarketplaceSearch';
+export type { MarketplaceSearchProps } from './MarketplaceSearch';
 export { PopularProducts } from './PopularProducts';
 export type { PopularProductsProps } from './PopularProducts';
 export { ProductCard } from './ProductCard';

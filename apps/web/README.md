@@ -151,6 +151,11 @@ A pedido belongs to a single local: the cart says it when it holds dishes
 of two, but the answer that ends up on the screen is still the one of the
 backend.
 
+The marketplace also includes a search bar (`MarketplaceSearch`) that lets
+customers search by restaurant name or by the name of any dish for sale
+(e.g., "pizza"). The search filters the restaurant grid dynamically, keeping
+the popular dishes section focused on category browsing.
+
 ## Canonical shell (T3)
 
 `src/components/shell/` holds the shell of the app, built from the mockup

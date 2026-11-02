@@ -192,4 +192,70 @@ describe('customer marketplace', () => {
     expect(rendered).not.toMatch(/\d+\s*-\s*\d+\s*min/i);
     expect(rendered).not.toMatch(/FlashHour/i);
   });
+
+  it('filters restaurants by restaurant name', async () => {
+    mockFetch(catalogResponse);
+    renderApp('/');
+
+    const restaurants = await screen.findByRole('region', { name: 'Restaurantes' });
+    await waitFor(() => expect(within(restaurants).getByText('La Maestranza Burgers')).toBeInTheDocument());
+    const searchInput = screen.getByRole('searchbox', { name: /buscar restaurante o plato/i });
+
+    await userEvent.type(searchInput, 'Sakura');
+
+    expect(within(restaurants).getByText('Sakura Nikkei Fusion')).toBeInTheDocument();
+    expect(within(restaurants).queryByText('La Maestranza Burgers')).toBeNull();
+  });
+
+  it('filters restaurants by available product name and keeps popular dishes untouched', async () => {
+    mockFetch(catalogResponse);
+    renderApp('/');
+
+    const restaurants = await screen.findByRole('region', { name: 'Restaurantes' });
+    await waitFor(() => expect(within(restaurants).getByText('La Maestranza Burgers')).toBeInTheDocument());
+    const searchInput = screen.getByRole('searchbox', { name: /buscar restaurante o plato/i });
+
+    await userEvent.type(searchInput, 'pizza');
+
+    expect(within(restaurants).getByText('Sakura Nikkei Fusion')).toBeInTheDocument();
+    expect(within(restaurants).queryByText('La Maestranza Burgers')).toBeNull();
+
+    const products = screen.getByRole('region', { name: 'Platos Populares' });
+    expect(within(products).getByText('Doble Smash Cheddar Bacon')).toBeInTheDocument();
+  });
+
+  it('does not match restaurants for unavailable products', async () => {
+    mockFetch(catalogResponse);
+    renderApp('/');
+
+    const restaurants = await screen.findByRole('region', { name: 'Restaurantes' });
+    await waitFor(() => expect(within(restaurants).getByText('La Maestranza Burgers')).toBeInTheDocument());
+    const searchInput = screen.getByRole('searchbox', { name: /buscar restaurante o plato/i });
+
+    await userEvent.type(searchInput, 'Hamburguesa Clásica');
+
+    expect(within(restaurants).queryByText('La Maestranza Burgers')).toBeNull();
+    expect(within(restaurants).queryByText('Sakura Nikkei Fusion')).toBeNull();
+    expect(
+      within(restaurants).getByText('No encontramos locales que coincidan con tu búsqueda'),
+    ).toBeInTheDocument();
+  });
+
+  it('clears restaurant search with the clear button', async () => {
+    mockFetch(catalogResponse);
+    renderApp('/');
+
+    const restaurants = await screen.findByRole('region', { name: 'Restaurantes' });
+    await waitFor(() => expect(within(restaurants).getByText('La Maestranza Burgers')).toBeInTheDocument());
+    const searchInput = screen.getByRole('searchbox', { name: /buscar restaurante o plato/i });
+
+    await userEvent.type(searchInput, 'Sakura');
+    expect(within(restaurants).queryByText('La Maestranza Burgers')).toBeNull();
+
+    const clearButton = screen.getByRole('button', { name: /limpiar búsqueda/i });
+    await userEvent.click(clearButton);
+
+    expect(within(restaurants).getByText('La Maestranza Burgers')).toBeInTheDocument();
+    expect(within(restaurants).getByText('Sakura Nikkei Fusion')).toBeInTheDocument();
+  });
 });
