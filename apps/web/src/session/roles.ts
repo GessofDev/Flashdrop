@@ -1,6 +1,5 @@
 import { ROLES } from './types';
 import type { Role } from './types';
-
 /**
  * Role names as the backend spells them.
  *
@@ -37,4 +36,24 @@ export function toRoles(values: readonly string[]): Role[] {
   }
 
   return ROLES.filter((role) => known.has(role));
+}
+
+/**
+ * Role the session is working on, restricted to the roles of the account.
+ *
+ * A session can only be in a role the user holds: a session stored by an
+ * older build, or an account whose roles changed, must not leave the app in
+ * a role the backend rejects.
+ *
+ * @param roles Roles the account holds.
+ * @param activeRole Role the session claims to be working on.
+ * @return The role to work on: the claimed one when the account holds it,
+ *         the first role of the account otherwise.
+ */
+export function resolveActiveRole(roles: readonly Role[], activeRole: Role): Role {
+  if (roles.includes(activeRole)) {
+    return activeRole;
+  }
+
+  return roles[0] ?? 'CLIENTE';
 }

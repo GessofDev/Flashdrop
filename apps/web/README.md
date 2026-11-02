@@ -156,6 +156,13 @@ The shell is mounted **once**, in the layout of the routes
 The switcher changes the role of the session and the route of the app. It
 never refetches the session and never asks for credentials.
 
+The three segments are always visible, but only the roles the account holds
+are enabled: the options of the other roles are shown disabled, with the
+reason in their tooltip, and they do not change the role. The rule is
+enforced twice: the switcher does not offer them and the store refuses to
+activate a role the session does not have (`sessionStore.setActiveRole`),
+so nothing can leave the app in a role the backend would reject.
+
 The guard of the layout applies two rules:
 
 - without a session, every protected route goes to `/login`;

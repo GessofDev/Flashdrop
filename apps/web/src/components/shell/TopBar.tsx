@@ -44,8 +44,13 @@ export function TopBar({ role }: TopBarProps) {
   const { session, tokens, setActiveRole, logout } = useSession();
   const navigate = useNavigate();
   const context = SHELL_CONTEXT[role];
+  const roles = session?.roles ?? [];
 
   const handleSwitch = (next: Role): void => {
+    if (!roles.includes(next)) {
+      return;
+    }
+
     setActiveRole(next);
     navigate(ROLE_HOME[next]);
   };
@@ -78,7 +83,7 @@ export function TopBar({ role }: TopBarProps) {
           </span>
         </div>
 
-        <RoleSwitcher activeRole={role} onSelect={handleSwitch} />
+        <RoleSwitcher activeRole={role} roles={roles} onSelect={handleSwitch} />
 
         <div className="flex items-center gap-4">
           <div className="hidden items-center gap-2 lg:flex">
