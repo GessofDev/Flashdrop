@@ -359,6 +359,31 @@ by Catalog through the gateway.
 The active Compose template is `gateway/docker/env.stack.template`. Do not add
 these values to the archived Coolify files.
 
+### Demo product images
+
+The demo products need a picture, and the catalog does not store files: it
+stores the **object key** (`products/<year>/<month>/<uuid>.<ext>`) and serves
+the bytes through the gateway route `/catalog/images/**`. The assets of the
+demo live in the repo, in `infra/demo-images/`, with the same key they use
+in the bucket:
+
+```bash
+cd ~/flashdrop_backend
+bash infra/demo-images/upload.sh          # creates the bucket if needed and syncs products/
+```
+
+`upload.sh` talks to the FloCI endpoint of the host
+(`http://127.0.0.1:4566`) and is idempotent: the keys are fixed, so running
+it twice leaves the same objects. The **Catalog Service CD** runs it before
+restarting the service, so the migration
+`V4__set_demo_product_images.sql` —which points the demo products at those
+keys— never points at an object that does not exist yet.
+
+Real photos take the owner's path instead: `POST
+/api/catalog/my/products/image` returns the key of the uploaded object, and
+the product is updated with it. That path generates its own UUID and does
+not touch the demo assets.
+
 ## 9. CORS origins (gateway + services)
 
 The browser sends the `Origin` header on every request, so the gateway and

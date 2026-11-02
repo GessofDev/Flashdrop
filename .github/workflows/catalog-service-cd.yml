@@ -58,6 +58,12 @@ jobs:
             cd "$REPO_DIR"
             git fetch origin main
             git reset --hard origin/main
+            # Las imagenes de demo viven en el repo y en el bucket privado del
+            # catalogo: se suben antes de reiniciar el servicio, para que la
+            # migracion V4 apunte a objetos que ya existen.
+            if ! bash infra/demo-images/upload.sh; then
+              echo "::warning::no se pudieron subir las imagenes de demo; el catalogo se despliega igual"
+            fi
             cd gateway/docker
             docker compose -f docker-compose.stack.yml \
               --env-file .env up -d --no-deps --build catalog-service
