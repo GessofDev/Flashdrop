@@ -2,6 +2,7 @@ import { notifySessionExpired } from '@/session/sessionEvents';
 import { isTokenPair, sessionStore } from '@/session/tokenStore';
 
 import { ApiError } from './ApiError';
+import { apiBaseUrl } from './baseUrl';
 import { isRecord, readErrorCode, readErrorMessage } from './errorBody';
 import { resolveApiErrorOutcome } from './errorPolicy';
 import type { QueryParams, RefreshRequest, TokenPair } from './types';
@@ -89,12 +90,6 @@ function encodeBody(body: unknown): BodyInit | undefined {
   }
 
   return JSON.stringify(body);
-}
-
-function apiBaseUrl(): string {
-  const configured = import.meta.env.VITE_API_BASE_URL;
-
-  return typeof configured === 'string' ? configured.replace(/\/+$/, '') : '';
 }
 
 function buildUrl(path: string, query: QueryParams | undefined): string {
