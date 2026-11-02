@@ -7,8 +7,13 @@ import { CatalogImage } from './CatalogImage';
 export interface ProductCardProps {
   /** Dish the catalog answered with. */
   product: ProductResponse;
-  /** Name of the restaurant of the dish, when the catalog knows it. */
-  restaurantName: string | undefined;
+  /**
+   * Name of the restaurant of the dish, when the catalog knows it.
+   *
+   * It is absent on the page of a restaurant: there, the local is the page
+   * itself.
+   */
+  restaurantName?: string;
   /** Add the dish to the cart. */
   onAdd: (product: ProductResponse) => void;
 }

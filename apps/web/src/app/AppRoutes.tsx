@@ -7,7 +7,7 @@ import {
   CourierHistoryPage,
 } from '@/components/courier';
 import { KitchenBoardPage } from '@/components/kitchen';
-import { MarketplacePage } from '@/components/marketplace';
+import { MarketplacePage, RestaurantPage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
 import { ProfilePage } from '@/components/profile';
 import { StoreAnalyticsPage, StoreCatalogPage } from '@/components/store';
@@ -44,6 +44,7 @@ export function AppRoutes() {
       <Route path={routePaths.login} element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path={routePaths.marketplace} element={<MarketplacePage />} />
+        <Route path={routePaths.restaurant} element={<RestaurantPage />} />
         <Route path={routePaths.orders} element={<OrderListPage />} />
         <Route path={routePaths.orderDetail} element={<OrderTrackingPage />} />
         <Route path={routePaths.storeCatalog} element={<StoreCatalogPage />} />

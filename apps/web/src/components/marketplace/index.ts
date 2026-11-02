@@ -13,5 +13,6 @@ export { RestaurantCard } from './RestaurantCard';
 export type { RestaurantCardProps } from './RestaurantCard';
 export { RestaurantGrid } from './RestaurantGrid';
 export type { RestaurantGridProps } from './RestaurantGrid';
+export { RestaurantPage } from './RestaurantPage';
 export { Skeleton } from './Skeleton';
 export type { SkeletonProps } from './Skeleton';
