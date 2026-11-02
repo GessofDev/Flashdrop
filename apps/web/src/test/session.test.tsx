@@ -147,6 +147,24 @@ describe('session tokens', () => {
     expect(screen.getByTestId('access-token')).toHaveTextContent('access-1');
   });
 
+  it('ignores a role the session does not have', () => {
+    sessionStore.set({
+      session: {
+        userId: '42',
+        name: 'Demo',
+        email: 'demo@flashdrop.cl',
+        roles: ['CLIENTE'],
+        activeRole: 'CLIENTE',
+        restaurantId: null,
+      },
+      tokens: { accessToken: 'access-1', refreshToken: 'refresh-1', expiresInSeconds: 900 },
+    });
+
+    sessionStore.setActiveRole('REPARTIDOR');
+
+    expect(sessionStore.getActiveRole()).toBe('CLIENTE');
+  });
+
   it('clears the session and the tokens on logout', () => {
     render(
       <SessionProvider>

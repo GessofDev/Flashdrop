@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 import type { AuthResult, TokenPair } from '@/api/types';
 
-import { toRoles } from './roles';
+import { toRoles, resolveActiveRole } from './roles';
 import { sessionStore } from './tokenStore';
 import type { Role, Session } from './types';
 
@@ -79,7 +79,7 @@ export function SessionProvider({ children, initialSession = null }: SessionProv
 
   const login = useCallback((result: AuthResult, options?: LoginOptions) => {
     const roles = toRoles(result.roles);
-    const activeRole = options?.activeRole ?? roles[0] ?? 'CLIENTE';
+    const activeRole = resolveActiveRole(roles, options?.activeRole ?? roles[0] ?? 'CLIENTE');
 
     sessionStore.set({
       session: {

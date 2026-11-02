@@ -1,6 +1,7 @@
 import type { TokenPair } from '@/api/types';
 
 import { isRememberSessionEnabled } from './rememberSession';
+import { resolveActiveRole } from './roles';
 import { isRole } from './types';
 import type { Role, Session } from './types';
 
@@ -86,8 +87,17 @@ function readStorage(): SessionState {
       return EMPTY_STATE;
     }
 
+    if (parsed.session === null || !isSession(parsed.session)) {
+      return { session: null, tokens: isTokenPair(parsed.tokens) ? parsed.tokens : null };
+    }
+
+    const session: Session = {
+      ...parsed.session,
+      activeRole: resolveActiveRole(parsed.session.roles, parsed.session.activeRole),
+    };
+
     return {
-      session: isSession(parsed.session) ? parsed.session : null,
+      session,
       tokens: isTokenPair(parsed.tokens) ? parsed.tokens : null,
     };
   } catch {
@@ -186,6 +196,12 @@ export const sessionStore = {
     const session = currentState().session;
 
     if (session === null) {
+      return;
+    }
+
+    // The account can only work on the roles it holds: a role that is not
+    // one of them belongs to another profile and the backend rejects it.
+    if (!session.roles.includes(role)) {
       return;
     }
 
