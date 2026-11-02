@@ -38,6 +38,13 @@ export function CartPanel({ restaurantNames }: CartPanelProps) {
   const merchantLabel =
     localNames.length === 1 ? (localNames[0] ?? '') : 'Varios locales';
 
+  /**
+   * A pedido belongs to a single local: the backend rejects the one that
+   * mixes two of them. The cart says it before the customer confirms, but
+   * the answer of the backend is the one that ends up on the screen.
+   */
+  const mixedLocals = localNames.length > 1;
+
   const handleSubmit = async (values: CheckoutValues): Promise<void> => {
     setError(null);
 
@@ -102,6 +109,15 @@ export function CartPanel({ restaurantNames }: CartPanelProps) {
               <p className="rounded-control bg-surface-hover px-3 py-2 text-sm font-semibold text-foreground-secondary">
                 {merchantLabel}
               </p>
+
+              {mixedLocals ? (
+                <p
+                  role="status"
+                  className="rounded-control bg-warning-surface px-3 py-2 text-sm font-semibold text-warning"
+                >
+                  Un pedido es de un solo local: quita los platos del otro local.
+                </p>
+              ) : null}
 
               <ul className="flex flex-col gap-2">
                 {items.map((item) => (

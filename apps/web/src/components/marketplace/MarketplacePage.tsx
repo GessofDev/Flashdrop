@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
-import { asApiError, catalogApi } from '@/api';
-import type { ApiError, ProductResponse } from '@/api';
+import { catalogApi } from '@/api';
+import type { ProductResponse } from '@/api';
 import { useCart } from '@/cart';
 import { CartPanel } from '@/components/cart';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
@@ -10,58 +10,7 @@ import { CategoryChips } from './CategoryChips';
 import { MarketplaceHero } from './MarketplaceHero';
 import { PopularProducts } from './PopularProducts';
 import { RestaurantGrid } from './RestaurantGrid';
-
-interface CatalogResource<T> {
-  /** Answer of the catalog; `null` while it is loading or after a failure. */
-  data: T | null;
-  /** Failure of the call, with the message of the backend. */
-  error: ApiError | null;
-  /** Whether the call is still in flight. */
-  loading: boolean;
-}
-
-/**
- * Load a resource of the catalog.
- *
- * The loader is stable, so the section reloads only when the filter of the
- * section changes.
- */
-function useCatalogResource<T>(loader: () => Promise<T>): CatalogResource<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-
-    setLoading(true);
-    setError(null);
-    setData(null);
-
-    loader()
-      .then((answer) => {
-        if (active) {
-          setData(answer);
-        }
-      })
-      .catch((cause: unknown) => {
-        if (active) {
-          setError(asApiError(cause));
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [loader]);
-
-  return { data, error, loading };
-}
+import { useCatalogResource } from './useCatalogResource';
 
 /**
  * Marketplace of the customer (spec S8).

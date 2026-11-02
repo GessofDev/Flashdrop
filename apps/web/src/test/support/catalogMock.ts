@@ -76,8 +76,8 @@ export const PRODUCTS = [
 /**
  * Answer the catalog endpoints of `catalog-service`.
  *
- * The products endpoint applies the filter of the category, exactly as the
- * backend does with the `categoryId` of the query string.
+ * The products endpoint applies the filters of the query string, exactly as
+ * the backend does with the `categoryId` and the `restaurantId`.
  */
 export function catalogResponse(call: RecordedCall): Response {
   const { pathname, searchParams } = new URL(call.url, 'http://flashdrop.test');
@@ -92,10 +92,12 @@ export function catalogResponse(call: RecordedCall): Response {
 
   if (pathname === '/catalog/products') {
     const categoryId = searchParams.get('categoryId');
-    const products =
-      categoryId === null
-        ? PRODUCTS
-        : PRODUCTS.filter((product) => String(product.categoryId) === categoryId);
+    const restaurantId = searchParams.get('restaurantId');
+    const products = PRODUCTS.filter(
+      (product) =>
+        (categoryId === null || String(product.categoryId) === categoryId) &&
+        (restaurantId === null || String(product.restaurantId) === restaurantId),
+    );
 
     return jsonResponse(products);
   }

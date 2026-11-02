@@ -11,6 +11,7 @@
  */
 export const routePaths = {
   marketplace: '/',
+  restaurant: '/restaurante/:id',
   orders: '/pedidos',
   orderDetail: '/pedidos/:id',
   storeKds: '/tienda/kds',
@@ -42,4 +43,14 @@ export const LOGIN_PATH = routePaths.login;
  */
 export function orderDetailPath(orderId: string): string {
   return `${routePaths.orders}/${encodeURIComponent(orderId)}`;
+}
+
+/**
+ * Route of the page of one restaurant.
+ *
+ * The marketplace links every restaurant to its page, so the path is built
+ * here instead of being written in the components.
+ */
+export function restaurantPath(restaurantId: number | string): string {
+  return routePaths.restaurant.replace(':id', encodeURIComponent(String(restaurantId)));
 }

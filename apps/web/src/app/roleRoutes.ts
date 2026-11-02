@@ -45,6 +45,19 @@ export const ROLE_NAVIGATION: Record<Role, readonly NavigationItem[]> = {
 };
 
 /**
+ * Paths that continue a screen of a role without having an entry of their
+ * own in the navigation.
+ *
+ * The page of a restaurant is the continuation of the marketplace: it is
+ * where the customer picks the dishes of the local they chose.
+ */
+const ROLE_CONTINUATIONS: Record<Role, readonly string[]> = {
+  CLIENTE: ['/restaurante/'],
+  RESTAURANTE: [],
+  REPARTIDOR: [],
+};
+
+/**
  * Role that owns a path, or `null` when the path is shared by every role
  * (the profile) or does not exist.
  *
@@ -55,9 +68,10 @@ export const ROLE_NAVIGATION: Record<Role, readonly NavigationItem[]> = {
  */
 export function roleOwningPath(pathname: string): Role | null {
   for (const role of ROLES) {
-    const owns = ROLE_NAVIGATION[role].some(
-      (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
-    );
+    const owns =
+      ROLE_NAVIGATION[role].some(
+        (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
+      ) || ROLE_CONTINUATIONS[role].some((prefix) => pathname.startsWith(prefix));
 
     if (owns) {
       return role;

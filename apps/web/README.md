@@ -121,6 +121,7 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | Path | Role | Screen | Origin mockup |
 |---|---|---|---|
 | `/` | Cliente | Marketplace | `marketplace_y_cat_logo_de_clientes_flashdrop_v2.0` |
+| `/restaurante/:id` | Cliente | Platos del local | `marketplace_y_cat_logo_de_clientes_flashdrop_v2.0` |
 | `/pedidos` | Cliente | Mis pedidos | `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0` |
 | `/pedidos/:id` | Cliente | Seguimiento del pedido | `seguimiento_de_pedido_en_vivo_fd_0042_flashdrop_v2.0` |
 | `/tienda/kds` | Mi Tienda | Monitor de cocina | `monitor_de_cocina_y_gestor_de_pedidos_mi_tienda` |
@@ -134,8 +135,21 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | `/login` | Todos | Inicio de sesión | `iniciar_sesi_n_portal_unificado_flashdrop` |
 
 Every route but `/login` renders a placeholder that states its origin mockup.
-The marketplace (T5) and the orders of the customer (T7) already have their
-screens; the other screens land in later tasks.
+The marketplace (T5), the page of a restaurant, and the orders of the
+customer (T7) already have their screens; the other screens land in later
+tasks.
+
+## The customer picks a restaurant (T5, extended)
+
+The card of a restaurant in the marketplace is a link to
+`/restaurante/:id`, the page where the customer sees the dishes of that
+local and adds them to the cart. The page asks the catalog for the dishes of
+that local only (`GET /catalog/products?restaurantId=`) and reuses the card
+of the dish and the cart of the marketplace.
+
+A pedido belongs to a single local: the cart says it when it holds dishes
+of two, but the answer that ends up on the screen is still the one of the
+backend.
 
 ## Canonical shell (T3)
 
