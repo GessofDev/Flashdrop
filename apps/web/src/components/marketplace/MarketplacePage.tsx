@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { catalogApi } from '@/api';
 import type { ProductResponse } from '@/api';
@@ -8,6 +8,7 @@ import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 
 import { CategoryChips } from './CategoryChips';
 import { MarketplaceHero } from './MarketplaceHero';
+import { MarketplaceSearch } from './MarketplaceSearch';
 import { PopularProducts } from './PopularProducts';
 import { RestaurantGrid } from './RestaurantGrid';
 import { useCatalogResource } from './useCatalogResource';
@@ -22,6 +23,8 @@ import { useCatalogResource } from './useCatalogResource';
  */
 export function MarketplacePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [cachedAllProducts, setCachedAllProducts] = useState<ProductResponse[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
   const { addItem } = useCart();
@@ -39,6 +42,36 @@ export function MarketplacePage() {
   const restaurants = useCatalogResource(loadRestaurants);
   const categories = useCatalogResource(loadCategories);
   const products = useCatalogResource(loadProducts);
+
+  useEffect(() => {
+    if (selectedCategoryId === null && products.data && products.data.length > 0) {
+      setCachedAllProducts(products.data);
+    }
+  }, [selectedCategoryId, products.data]);
+
+  const filteredRestaurants = useMemo(() => {
+    const list = restaurants.data ?? [];
+    const term = searchTerm.trim().toLowerCase();
+    if (term === '') {
+      return list;
+    }
+
+    const productsToCheck =
+      cachedAllProducts.length > 0 ? cachedAllProducts : (products.data ?? []);
+
+    const matchingRestaurantIds = new Set<number>();
+    for (const product of productsToCheck) {
+      if (product.available && product.name.toLowerCase().includes(term)) {
+        matchingRestaurantIds.add(product.restaurantId);
+      }
+    }
+
+    return list.filter(
+      (restaurant) =>
+        restaurant.name.toLowerCase().includes(term) ||
+        matchingRestaurantIds.has(restaurant.id),
+    );
+  }, [restaurants.data, searchTerm, cachedAllProducts, products.data]);
 
   const availableProducts = useMemo(
     () => (products.data ?? []).filter((product) => product.available),
@@ -74,6 +107,12 @@ export function MarketplacePage() {
             categoryCount={categories.data?.length ?? 0}
           />
 
+          <MarketplaceSearch
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onClear={() => setSearchTerm('')}
+          />
+
           <CategoryChips
             categories={categories.data ?? []}
             selectedId={selectedCategoryId}
@@ -83,9 +122,14 @@ export function MarketplacePage() {
           {categories.error !== null ? <ApiErrorNotice error={categories.error} /> : null}
 
           <RestaurantGrid
-            restaurants={restaurants.data ?? []}
+            restaurants={filteredRestaurants}
             loading={restaurants.loading}
             error={restaurants.error}
+            emptyMessage={
+              searchTerm.trim() !== ''
+                ? 'No encontramos locales que coincidan con tu búsqueda'
+                : undefined
+            }
           />
 
           {selectedCategory !== undefined ? (

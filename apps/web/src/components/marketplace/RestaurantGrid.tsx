@@ -11,6 +11,8 @@ export interface RestaurantGridProps {
   loading: boolean;
   /** Failure of the call, with the message of the backend. */
   error: ApiError | null;
+  /** Empty state message override. */
+  emptyMessage?: string;
 }
 
 /**
@@ -20,7 +22,12 @@ export interface RestaurantGridProps {
  * "FlashPick" selection, but the backend has no criterion to select them
  * with.
  */
-export function RestaurantGrid({ restaurants, loading, error }: RestaurantGridProps) {
+export function RestaurantGrid({
+  restaurants,
+  loading,
+  error,
+  emptyMessage,
+}: RestaurantGridProps) {
   return (
     <section aria-labelledby="marketplace-restaurants-title" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -43,7 +50,7 @@ export function RestaurantGrid({ restaurants, loading, error }: RestaurantGridPr
         <Skeleton label="Cargando restaurantes" blocks={2} height="h-56" />
       ) : restaurants.length === 0 ? (
         <p className="rounded-container border border-dashed border-border bg-surface p-6 text-center text-sm text-foreground-secondary">
-          Todavía no hay locales disponibles
+          {emptyMessage ?? 'Todavía no hay locales disponibles'}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
