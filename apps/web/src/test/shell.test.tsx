@@ -53,6 +53,38 @@ describe('canonical shell', () => {
     expect(screen.queryByLabelText('Contraseña')).toBeNull();
   });
 
+  it('disables the options of the roles the profile does not have', () => {
+    signIn({ activeRole: 'CLIENTE', roles: ['CLIENTE'] });
+    renderApp('/');
+
+    expect(screen.getByRole('button', { name: 'Cliente' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Mi Tienda' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Repartidor' })).toBeDisabled();
+  });
+
+  it('does not change the role when a disabled option is clicked', async () => {
+    signIn({ activeRole: 'CLIENTE', roles: ['CLIENTE'] });
+    renderApp('/');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mi Tienda' }));
+
+    expect(screen.getByTestId('location').textContent).toBe('/');
+    expect(screen.getByRole('link', { name: 'Marketplace & Consumo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cliente' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('changes to the roles the profile does have', async () => {
+    signIn({ activeRole: 'CLIENTE', roles: ['CLIENTE', 'RESTAURANTE'] });
+    renderApp('/');
+
+    expect(screen.getByRole('button', { name: 'Repartidor' })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mi Tienda' }));
+
+    expect(screen.getByTestId('location').textContent).toBe('/tienda/kds');
+    expect(screen.getByRole('link', { name: 'KDS Pantalla Cocina' })).toBeInTheDocument();
+  });
+
   it('keeps the active role after a reload', async () => {
     signIn({ activeRole: 'CLIENTE' });
     const { unmount } = renderApp('/');
