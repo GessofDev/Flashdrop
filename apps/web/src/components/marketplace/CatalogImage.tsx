@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { resolveImageUrl } from '@/api/imageUrl';
+
 export interface CatalogImageProps {
   /** URL of the picture; the catalog may answer without one. */
   src: string | null;
@@ -18,7 +20,8 @@ export interface CatalogImageProps {
  */
 export function CatalogImage({ src, alt, className }: CatalogImageProps) {
   const [failed, setFailed] = useState(false);
-  const hasSource = src !== null && src.trim().length > 0;
+  const source = resolveImageUrl(src);
+  const hasSource = source !== null;
 
   const frame = [
     'flex h-full w-full items-center justify-center overflow-hidden bg-surface-hover',
@@ -37,7 +40,7 @@ export function CatalogImage({ src, alt, className }: CatalogImageProps) {
 
   return (
     <img
-      src={src}
+      src={source}
       alt={alt}
       className={`h-full w-full object-cover ${className ?? ''}`.trim()}
       onError={() => setFailed(true)}

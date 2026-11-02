@@ -62,6 +62,10 @@
         {
           "name": "AUTH_ISSUER",
           "value": "flashdrop-auth"
+        },
+        {
+          "name": "CORS_ORIGINS",
+          "value": "[\"http://localhost:3000\",\"http://web.76-13-168-23.sslip.io\"]"
         }
       ],
       "logConfiguration": {

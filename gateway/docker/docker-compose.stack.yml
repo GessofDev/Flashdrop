@@ -159,6 +159,11 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8081
       - CATALOG_SERVICE_URL=http://catalog-service:8082
       - DELIVERY_SERVICE_URL=http://delivery-service:8084
+      # Origenes que el navegador puede usar contra orders-service. El
+      # frontend publicado va contra el gateway con su propio origen, asi que
+      # ese origen tiene que estar en la lista: sin el, Spring rechaza el
+      # pedido con 403 "Invalid CORS request" y el navegador lo descarta.
+      - ORDERS_CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:4200}
       # Sin broker de RabbitMQ, confirmado. Orders publica eventos pero
       # ningun servicio los consume: no hay un solo @RabbitListener en el
       # repositorio, y delivery y catalog ni siquiera declaran la dependencia
@@ -260,6 +265,6 @@ services:
       # El YAML se hornea en la imagen. Las variables de entorno se inyectan
       # desde Compose o la task definition de ECS.
       - AUTH_SERVICE_JWKS_URI=${AUTH_SERVICE_JWKS_URI:-http://auth-service:8081/auth/.well-known/jwks.json}
-      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","http://web.76-13-168-23.sslip.io"]}
     ports:
       - '127.0.0.1:3000:3000'

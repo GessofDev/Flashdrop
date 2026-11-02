@@ -359,7 +359,49 @@ by Catalog through the gateway.
 The active Compose template is `gateway/docker/env.stack.template`. Do not add
 these values to the archived Coolify files.
 
-## 9. Cross-service networking
+## 9. CORS origins (gateway + services)
+
+The browser sends the `Origin` header on every request, so the gateway and
+each service that answers a browser call declare the origins they accept. An
+origin that is not on the list is rejected with `403 Invalid CORS request`
+before the request is resolved, and the browser discards the response: the app
+sees a network failure instead of the real status.
+
+| Where | Variable | Default in the compose template |
+| --- | --- | --- |
+| Gateway | `CORS_ORIGINS` (JSON or YAML list) | `["http://localhost:3000","http://web.76-13-168-23.sslip.io"]` |
+| auth-service | `SECURITY_CORS_ALLOWED_ORIGINS` (comma separated) | `http://localhost:3000` |
+| catalog-service | `CATALOG_CORS_ALLOWED_ORIGINS` (comma separated) | `http://localhost:3000` |
+| orders-service | `ORDERS_CORS_ALLOWED_ORIGINS` (comma separated) | `http://localhost:3000,http://localhost:5173,http://localhost:4200` |
+
+`CORS_ALLOWED_ORIGINS` in `gateway/docker/.env` feeds auth, catalog and orders
+— the compose template wires the three. The published web app
+(`http://web.76-13-168-23.sslip.io`) has to be on that list, otherwise the
+browser drops its answers.
+
+No service hardcodes an origin: each one reads its own property
+(`security.cors.allowed-origins`, `catalog.cors.allowed-origins`,
+`orders.cors.allowed-origins`).
+
+## 10. Web app publishing (S3 + nginx)
+
+The bundle of `apps/web` is synced to the `flashdrop-web` bucket
+(`aws --endpoint-url http://127.0.0.1:4566 s3 sync ... s3://flashdrop-web --delete`)
+and served by nginx on the VPS, which proxies the bucket.
+
+nginx needs the SPA fallback. Without it, every deep link answers `404` with
+`NoSuchKey`: the router of the app declares `/pedidos`, `/pedidos/:id`,
+`/tienda/kds`, `/repartidor` and the rest, and the browser asks for those
+paths directly when the user opens or refreshes one of them. The fallback is
+"serve `index.html` when the path does not exist in the bucket" (`try_files
+$uri /index.html;`, or the equivalent according to how nginx proxies the
+bucket).
+
+The API lives on another host: the bundle is built with
+`VITE_API_BASE_URL=http://76.13.168.23`, so the browser calls the gateway
+cross-origin and the origins of the section above apply.
+
+## 11. Cross-service networking
 
 Today delivery-service can call other services because they all share
 `floci_default`. The DNS names `flashdrop-auth:8081`, `flashdrop-orders:8083`,
@@ -370,7 +412,7 @@ Until then: cross-service calls in dev are by IP (`172.16.1.X:port`). This is
 acceptable for dev but **must not** leak into code — every cross-service URL must
 come from config / env var, never be hardcoded.
 
-## 10. Operational notes
+## 12. Operational notes
 
 - **Backups**: FloCI's RDS instances are not backed up. Treat them as
   ephemeral — every DB state we care about lives in Flyway migrations.
@@ -386,7 +428,7 @@ come from config / env var, never be hardcoded.
 - **Metrics**: not wired. Add when needed (FloCI likely supports CloudWatch
   metrics — to verify).
 
-## 11. References
+## 13. References
 
 - FloCI project: https://github.com/floci/floci
 - FloCI docs: see project README for the full list of emulated services
