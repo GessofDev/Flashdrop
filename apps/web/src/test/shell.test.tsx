@@ -131,6 +131,29 @@ describe('canonical shell', () => {
     expect(screen.getByText('Matías Valenzuela')).toBeInTheDocument();
   });
 
+  it('opens the profile from the identity control in the top bar', async () => {
+    signIn({ activeRole: 'CLIENTE', name: 'Matías Valenzuela' });
+    mockFetch(() =>
+      jsonResponse({
+        userId: 42,
+        name: 'Matías',
+        lastName: 'Valenzuela',
+        email: 'demo@flashdrop.cl',
+        rut: '12.345.678-9',
+        phone: '+56911111111',
+        photo: null,
+        roles: ['Cliente'],
+      }),
+    );
+    renderApp('/');
+
+    const profileLink = screen.getByRole('link', { name: 'Ver perfil de Matías Valenzuela' });
+
+    expect(profileLink).toHaveAttribute('href', '/perfil');
+    await userEvent.click(profileLink);
+    expect(screen.getByTestId('location').textContent).toBe('/perfil');
+  });
+
   it('shows the telemetry of the courier in the top bar', () => {
     signIn({ activeRole: 'REPARTIDOR' });
     renderApp('/repartidor');
