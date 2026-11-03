@@ -40,6 +40,21 @@ function renderBoard(): void {
   );
 }
 
+/**
+ * The band of the header of a column of the board.
+ *
+ * The band is the wrapper of the title of the column: it is the surface the
+ * board paints with the color of the column.
+ */
+function columnBand(column: HTMLElement): HTMLElement {
+  const heading = within(column).getByRole('heading', { level: 2 });
+  const band = heading.closest('header');
+
+  expect(band, 'the title of the column must live inside its header').not.toBeNull();
+
+  return band as HTMLElement;
+}
+
 describe('kitchen display board', () => {
   beforeEach(() => {
     sessionStore.reset();
@@ -87,6 +102,59 @@ describe('kitchen display board', () => {
 
     // The order already left the kitchen: it belongs to no column.
     expect(screen.queryByText('#FD-39')).toBeNull();
+  });
+
+  it('paints every column with the color of the status it holds', async () => {
+    mockFetch((call: RecordedCall) => kitchenResponse(call, kitchenMockState()));
+    renderApp(KDS_PATH);
+
+    const pending = await screen.findByRole('region', { name: 'Columna POR ACEPTAR' });
+    const preparing = screen.getByRole('region', { name: 'Columna EN COCINA' });
+    const ready = screen.getByRole('region', { name: 'Columna LISTO / RETIRO' });
+
+    expect(columnBand(pending)).toHaveClass('bg-warning-surface', 'border-warning');
+    expect(columnBand(preparing)).toHaveClass('bg-info-surface', 'border-info');
+    expect(columnBand(ready)).toHaveClass('bg-success-surface', 'border-success');
+
+    expect(within(pending).getByRole('heading', { level: 2 })).toHaveClass('text-warning');
+    expect(within(preparing).getByRole('heading', { level: 2 })).toHaveClass('text-info');
+    expect(within(ready).getByRole('heading', { level: 2 })).toHaveClass('text-success');
+  });
+
+  it('marks every card with the color of the column it belongs to', async () => {
+    mockFetch((call: RecordedCall) => kitchenResponse(call, kitchenMockState()));
+    renderApp(KDS_PATH);
+
+    const pending = await screen.findByRole('region', { name: 'Columna POR ACEPTAR' });
+    const preparing = screen.getByRole('region', { name: 'Columna EN COCINA' });
+    const ready = screen.getByRole('region', { name: 'Columna LISTO / RETIRO' });
+
+    const pendingCard = within(pending).getByRole('article', { name: 'Pedido FD-46' });
+    const preparingCard = within(preparing).getByRole('article', { name: 'Pedido FD-42' });
+    const readyCard = within(ready).getByRole('article', { name: 'Pedido FD-40' });
+
+    expect(pendingCard).toHaveClass('border-warning');
+    expect(preparingCard).toHaveClass('border-info');
+    expect(readyCard).toHaveClass('border-success');
+
+    // The card is marked with the color of its column, not with a neutral border.
+    expect(pendingCard).not.toHaveClass('border-border');
+    expect(preparingCard).not.toHaveClass('border-border');
+    expect(readyCard).not.toHaveClass('border-border');
+  });
+
+  it('keeps the color of the column when the card is selected', async () => {
+    mockFetch((call: RecordedCall) => kitchenResponse(call, kitchenMockState()));
+    renderApp(KDS_PATH);
+
+    const pending = await screen.findByRole('region', { name: 'Columna POR ACEPTAR' });
+
+    await userEvent.click(within(pending).getByRole('article', { name: 'Pedido FD-46' }));
+
+    const selected = within(pending).getByRole('article', { name: 'Pedido FD-46' });
+
+    expect(selected).toHaveClass('border-warning');
+    expect(selected).toHaveClass('ring-warning/30');
   });
 
   it('asks the listing for the view of the restaurant', async () => {

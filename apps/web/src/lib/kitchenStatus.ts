@@ -19,21 +19,102 @@ export const KITCHEN_STATUSES = ['Nuevo pedido', 'Preparando', 'Listo para retir
 /** One status of the kitchen board. */
 export type KitchenStatus = (typeof KITCHEN_STATUSES)[number];
 
+/** Stable key of a column of the board. */
+export type KitchenColumnKey = 'pending' | 'preparing' | 'ready';
+
+/**
+ * Visual identity of a column of the board.
+ *
+ * Every column of the board has its own color, so the kitchen reads the
+ * stage of an order without reading the title of the column: the orders to
+ * accept are amber, the ones in the kitchen are blue and the ones that wait
+ * for the courier are green.
+ *
+ * The classes are written in full, never composed at runtime, because
+ * Tailwind only generates the utilities it finds in the source. The colors
+ * are the semantic tokens of the design system (spec S4): `warning`,
+ * `info` and `success`, with their surface for the band of the header.
+ */
+export interface KitchenAccent {
+  /** Dot that marks the header of the column. */
+  dot: string;
+  /** Band of the header of the column. */
+  header: string;
+  /** Title and counter of the column. */
+  text: string;
+  /** Background of the column. */
+  body: string;
+  /** Border of the card of the column. */
+  card: string;
+  /** Ring of the selected card. */
+  ring: string;
+  /** Border of the empty state of the column. */
+  empty: string;
+}
+
+/** The accent of every column of the board, by the key of the column. */
+export const KITCHEN_ACCENTS: Readonly<Record<KitchenColumnKey, KitchenAccent>> = {
+  pending: {
+    dot: 'bg-warning',
+    header: 'border-warning bg-warning-surface',
+    text: 'text-warning',
+    body: 'bg-warning-surface/40',
+    card: 'border-warning',
+    ring: 'ring-warning/30',
+    empty: 'border-warning/40',
+  },
+  preparing: {
+    dot: 'bg-info',
+    header: 'border-info bg-info-surface',
+    text: 'text-info',
+    body: 'bg-info-surface/40',
+    card: 'border-info',
+    ring: 'ring-info/30',
+    empty: 'border-info/40',
+  },
+  ready: {
+    dot: 'bg-success',
+    header: 'border-success bg-success-surface',
+    text: 'text-success',
+    body: 'bg-success-surface/40',
+    card: 'border-success',
+    ring: 'ring-success/30',
+    empty: 'border-success/40',
+  },
+};
+
 /** The three columns of the board. */
 export interface KitchenColumnDefinition {
   /** Stable key of the column. */
-  key: 'pending' | 'preparing' | 'ready';
+  key: KitchenColumnKey;
   /** Title of the column, as the mockup writes it. */
   title: string;
   /** Status of the backend the column holds. */
   status: KitchenStatus;
+  /** Color that identifies the column and its cards. */
+  accent: KitchenAccent;
 }
 
 /** The columns of the board, in the order the kitchen reads them. */
 export const KITCHEN_COLUMNS: readonly KitchenColumnDefinition[] = [
-  { key: 'pending', title: 'POR ACEPTAR', status: 'Nuevo pedido' },
-  { key: 'preparing', title: 'EN COCINA', status: 'Preparando' },
-  { key: 'ready', title: 'LISTO / RETIRO', status: 'Listo para retiro' },
+  {
+    key: 'pending',
+    title: 'POR ACEPTAR',
+    status: 'Nuevo pedido',
+    accent: KITCHEN_ACCENTS.pending,
+  },
+  {
+    key: 'preparing',
+    title: 'EN COCINA',
+    status: 'Preparando',
+    accent: KITCHEN_ACCENTS.preparing,
+  },
+  {
+    key: 'ready',
+    title: 'LISTO / RETIRO',
+    status: 'Listo para retiro',
+    accent: KITCHEN_ACCENTS.ready,
+  },
 ];
 
 /** The milestones of an order inside the kitchen, in order. */

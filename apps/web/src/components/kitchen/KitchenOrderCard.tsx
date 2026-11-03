@@ -2,6 +2,7 @@ import type { ApiError, OrderDetail, OrderListItem } from '@/api';
 import { Button } from '@/components/ui';
 import { formatClp, formatOrderTime } from '@/lib/format';
 import { nextKitchenTransition } from '@/lib/kitchenStatus';
+import type { KitchenAccent } from '@/lib/kitchenStatus';
 import type { Role } from '@/session';
 
 import { ElapsedTimer } from './ElapsedTimer';
@@ -19,6 +20,8 @@ export interface KitchenOrderCardProps {
   now: number;
   /** Role of the user working on the board. */
   role: Role;
+  /** Color of the column the card belongs to. */
+  accent: KitchenAccent;
   /** Whether the card is the one the keyboard shortcut acts on. */
   selected: boolean;
   /** Whether a change of status is in flight for this order. */
@@ -38,6 +41,11 @@ export interface KitchenOrderCardProps {
  * for it, how long it has been waiting and the dishes it carries. The dishes
  * are not part of the listing of the backend, so the card shows them once the
  * detail of the order could be read.
+ *
+ * The card is marked with the color of the column that holds it: the border
+ * is painted with that color and the code of the order wears it, so every
+ * order reads as an individual card and the stage of the board is visible
+ * without reading the title of the column.
  */
 export function KitchenOrderCard({
   order,
@@ -46,6 +54,7 @@ export function KitchenOrderCard({
   detailLoading,
   now,
   role,
+  accent,
   selected,
   pending,
   onSelect,
@@ -55,9 +64,12 @@ export function KitchenOrderCard({
   const target = nextKitchenTransition(order.status, role);
 
   const classes = [
-    'flex flex-col gap-3 rounded-container border bg-surface p-4 shadow-card',
-    selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
-  ].join(' ');
+    'flex flex-col gap-3 rounded-container border-2 border-l-4 bg-surface p-4 shadow-card',
+    accent.card,
+    selected ? `ring-2 ${accent.ring}` : '',
+  ]
+    .filter((value): value is string => value.length > 0)
+    .join(' ');
 
   return (
     <article
@@ -68,7 +80,9 @@ export function KitchenOrderCard({
       className={classes}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="nums-tabular label-code font-display text-lg font-bold text-foreground">
+        <span
+          className={`nums-tabular label-code font-display text-lg font-bold ${accent.text}`}
+        >
           {`#${order.code}`}
         </span>
         <ElapsedTimer createdAt={order.createdAt} now={now} />

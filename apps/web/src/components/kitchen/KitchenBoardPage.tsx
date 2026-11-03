@@ -349,7 +349,9 @@ export function KitchenBoardPage() {
             return (
               <KitchenColumn key={column.key} column={column} count={orders.length}>
                 {orders.length === 0 ? (
-                  <p className="rounded-container border border-dashed border-border bg-surface p-6 text-center text-sm text-foreground-secondary">
+                  <p
+                    className={`rounded-container border border-dashed bg-surface p-6 text-center text-sm text-foreground-secondary ${column.accent.empty}`}
+                  >
                     Sin pedidos
                   </p>
                 ) : (
@@ -364,6 +366,7 @@ export function KitchenBoardPage() {
                       }
                       now={now}
                       role={role}
+                      accent={column.accent}
                       selected={selectedOrderId === order.id}
                       pending={pendingOrderId === order.id}
                       onSelect={(orderId) => {
