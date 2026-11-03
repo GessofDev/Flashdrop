@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { authApi } from '@/api';
 import { routePaths } from '@/app/routePaths';
@@ -103,18 +103,24 @@ export function TopBar({ role }: TopBarProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white"
-              aria-hidden="true"
+            <Link
+              to={routePaths.profile}
+              aria-label={`Ver perfil de ${session?.name ?? 'usuario'}`}
+              className="flex items-center gap-3 rounded-control px-2 py-1 transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
             >
-              {initials(session?.name ?? '')}
-            </span>
-            <span className="hidden flex-col items-start leading-none lg:flex">
-              <span className="text-xs font-semibold text-foreground">{session?.name}</span>
-              <Badge variant="info" className="mt-1">
-                {ROLE_LABELS[role]}
-              </Badge>
-            </span>
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white"
+                aria-hidden="true"
+              >
+                {initials(session?.name ?? '')}
+              </span>
+              <span className="hidden flex-col items-start leading-none lg:flex">
+                <span className="text-xs font-semibold text-foreground">{session?.name}</span>
+                <Badge variant="info" className="mt-1">
+                  {ROLE_LABELS[role]}
+                </Badge>
+              </span>
+            </Link>
             <Button variant="secondary" size="sm" onClick={handleSignOut}>
               Salir
             </Button>
