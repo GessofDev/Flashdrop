@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("delivery")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("DeliveryServiceApplicationIT — KAN-45: Spring Boot full-context with Testcontainers")
 class DeliveryServiceApplicationIT {
 

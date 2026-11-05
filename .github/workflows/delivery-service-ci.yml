@@ -27,6 +27,7 @@ jobs:
       DB_URL: jdbc:postgresql://localhost:5432/delivery_db
       DB_USERNAME: ci
       DB_PASSWORD: ci
+      DOCKER_API_VERSION: "1.44"
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +42,16 @@ jobs:
 
       - name: Dar permisos de ejecucion a gradlew
         run: chmod +x ./gradlew
+
+      - name: Descargar imagen de PostgreSQL (con reintentos)
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if docker pull postgres:16-alpine; then exit 0; fi
+            echo "Intento $attempt fallido; reintentando en $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          echo "No se pudo descargar postgres:16-alpine tras 5 intentos"
+          exit 1
 
       - name: Build y tests de delivery-service
         run: ./gradlew :delivery-service:build --configure-on-demand --no-daemon
