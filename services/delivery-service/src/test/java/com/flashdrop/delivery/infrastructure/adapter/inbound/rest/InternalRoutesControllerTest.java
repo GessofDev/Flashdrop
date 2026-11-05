@@ -7,6 +7,7 @@ import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
 import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
+import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -324,6 +326,95 @@ class InternalRoutesControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"status\":\"ENTREGADO\"}"))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("Release internal delivery route")
+    class ReleaseRoute {
+
+        @Test
+        @DisplayName("returns 200 and releases the route for the expected courier")
+        void releaseExpectedCourier_returns200() throws Exception {
+            DeliveryRoute released = new DeliveryRoute(
+                    42L, 1001L, null, "Pickup A", "Delivery B",
+                    Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
+                    RouteStatus.PENDIENTE, Instant.parse("2024-01-01T10:00:00Z")
+            );
+            when(routeRepository.releaseDeliveryPerson(1001L, 7L)).thenReturn(released);
+
+            mockMvc.perform(post("/api/internal/routes/order/1001/release")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"expectedDeliveryId\":7}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.status").value("Pendiente"));
+
+            verify(routeRepository).releaseDeliveryPerson(1001L, 7L);
+        }
+
+        @Test
+        @DisplayName("returns 409 when the route belongs to another courier")
+        void releaseDifferentCourier_returns409() throws Exception {
+            when(routeRepository.releaseDeliveryPerson(1001L, 7L))
+                    .thenThrow(new RouteReleaseConflictException(1001L));
+
+            mockMvc.perform(post("/api/internal/routes/order/1001/release")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"expectedDeliveryId\":7}"))
+                    .andExpect(status().isConflict());
+        }
+
+        @Test
+        @DisplayName("returns 400 when expectedDeliveryId is missing")
+        void releaseWithoutExpectedCourier_returns400() throws Exception {
+            mockMvc.perform(post("/api/internal/routes/order/1001/release")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("returns 401 without the internal API key")
+        void releaseWithoutApiKey_returns401() throws Exception {
+            mockMvc.perform(post("/api/internal/routes/order/1001/release")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"expectedDeliveryId\":7}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    @DisplayName("Close an internal route after pickup")
+    class CloseRouteStatus {
+
+        @Test
+        @DisplayName("returns 200 and closes the route with Cancelado")
+        void closeRouteAsCancelled_returns200() throws Exception {
+            DeliveryRoute existing = new DeliveryRoute(
+                    42L, 1001L, 7L, "Pickup A", "Delivery B",
+                    Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
+                    RouteStatus.EN_CAMINO, Instant.parse("2024-01-01T10:00:00Z")
+            );
+            DeliveryRoute closed = new DeliveryRoute(
+                    42L, 1001L, 7L, "Pickup A", "Delivery B",
+                    Distance.of(BigDecimal.valueOf(3.5)), EstimatedTime.of(20),
+                    RouteStatus.CANCELADO, Instant.parse("2024-01-01T10:00:00Z")
+            );
+            when(routeRepository.findByOrderId(1001L)).thenReturn(java.util.Optional.of(existing));
+            when(routeRepository.closeRoute(42L, RouteStatus.CANCELADO)).thenReturn(closed);
+
+            mockMvc.perform(patch("/api/internal/routes/order/1001/status")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"Cancelado\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("Cancelado"));
+
+            verify(routeRepository).closeRoute(42L, RouteStatus.CANCELADO);
         }
     }
 }

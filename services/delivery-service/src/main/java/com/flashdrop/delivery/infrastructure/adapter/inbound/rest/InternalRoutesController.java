@@ -2,8 +2,9 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
 import com.flashdrop.delivery.application.dto.ApiResponse;
 import com.flashdrop.delivery.application.dto.CreateDeliveryRouteRequest;
+import com.flashdrop.delivery.application.dto.InternalUpdateRouteStatusRequest;
+import com.flashdrop.delivery.application.dto.ReleaseDeliveryRouteRequest;
 import com.flashdrop.delivery.application.dto.RouteResponse;
-import com.flashdrop.delivery.application.dto.UpdateRouteStatusRequest;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
@@ -64,10 +65,10 @@ public class InternalRoutesController {
     @PatchMapping("/{routeId}/status")
     public ResponseEntity<ApiResponse<RouteResponse>> updateStatus(
             @PathVariable Long routeId,
-            @Valid @RequestBody UpdateRouteStatusRequest request) {
+            @Valid @RequestBody InternalUpdateRouteStatusRequest request) {
         log.info("PATCH /api/internal/routes/{}/status - Updating status to: {}", routeId, request.status());
 
-        DeliveryRoute updated = routeRepository.updateStatus(routeId, canonicalStatus(request.status()));
+        DeliveryRoute updated = updateStatusInternal(routeId, RouteStatus.fromAnyValue(request.status()));
         return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
     }
 
@@ -83,21 +84,42 @@ public class InternalRoutesController {
     @PatchMapping("/order/{orderId}/status")
     public ResponseEntity<ApiResponse<RouteResponse>> updateStatusByOrderId(
             @PathVariable Long orderId,
-            @Valid @RequestBody UpdateRouteStatusRequest request) {
+            @Valid @RequestBody InternalUpdateRouteStatusRequest request) {
         log.info("PATCH /api/internal/routes/order/{}/status - Updating status to: {}", orderId, request.status());
 
         DeliveryRoute route = routeRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("No route found for orderId=" + orderId));
-        DeliveryRoute updated = routeRepository.updateStatus(route.getId(), canonicalStatus(request.status()));
+        DeliveryRoute updated = updateStatusInternal(route.getId(), RouteStatus.fromAnyValue(request.status()));
         return ResponseEntity.ok(ApiResponse.success(toResponse(updated)));
     }
 
     /**
-     * Stores the status the way the public API does ("Entregado", never "ENTREGADO"), so the
-     * column does not mix formats. Accepts the enum name or the stored value, any casing.
+     * Releases a route from the courier that currently owns it. The expected
+     * courier id prevents a stale caller from releasing a route that has
+     * already changed hands.
      */
-    private static String canonicalStatus(String rawStatus) {
-        return RouteStatus.fromAnyValue(rawStatus).getDbValue();
+    @PostMapping("/order/{orderId}/release")
+    public ResponseEntity<ApiResponse<RouteResponse>> releaseByOrderId(
+            @PathVariable Long orderId,
+            @Valid @RequestBody ReleaseDeliveryRouteRequest request) {
+        log.info("POST /api/internal/routes/order/{}/release - Releasing expected delivery person: {}",
+                orderId, request.expectedDeliveryId());
+
+        DeliveryRoute released = routeRepository.releaseDeliveryPerson(
+                orderId, request.expectedDeliveryId());
+        return ResponseEntity.ok(ApiResponse.success(toResponse(released)));
+    }
+
+    /**
+     * Existing status transitions keep their previous behavior. Cancellation
+     * states use the locked close operation so retries are idempotent and a
+     * terminal route cannot be overwritten.
+     */
+    private DeliveryRoute updateStatusInternal(Long routeId, RouteStatus targetStatus) {
+        if (targetStatus.isCancellation()) {
+            return routeRepository.closeRoute(routeId, targetStatus);
+        }
+        return routeRepository.updateStatus(routeId, targetStatus.getDbValue());
     }
 
     private RouteResponse toResponse(DeliveryRoute route) {
