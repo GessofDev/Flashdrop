@@ -136,6 +136,19 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    public boolean updateStatusIfCurrent(UUID orderId, OrderStatus expected, OrderStatus status) {
+        OrderRow[] updated = supabaseRestClient.patch()
+                .uri(uriBuilder -> uriBuilder.path("/orders")
+                        .queryParam("id", "eq." + IdConverter.toLong(orderId))
+                        .queryParam("status", "eq." + expected.getValue())
+                        .queryParam("select", "id").build())
+                .header("Prefer", "return=representation")
+                .body(Map.of("status", status.getValue()))
+                .retrieve().body(OrderRow[].class);
+        return updated != null && updated.length == 1;
+    }
+
+    @Override
     public int claimOrders(List<UUID> orderIds, UUID deliveryId) {
         long rawDeliveryId = IdConverter.toLong(deliveryId);
         List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).collect(Collectors.toList());

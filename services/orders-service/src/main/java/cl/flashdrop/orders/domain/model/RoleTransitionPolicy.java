@@ -18,9 +18,9 @@ import java.util.Set;
 public final class RoleTransitionPolicy {
 
     private static final Map<Role, Set<OrderStatus>> SETTABLE_STATUSES = Map.of(
-            Role.RESTAURANTE, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+            Role.RESTAURANTE, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
             Role.REPARTIDOR, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
-            Role.CLIENTE, EnumSet.noneOf(OrderStatus.class)
+            Role.CLIENTE, EnumSet.of(OrderStatus.CANCELADO)
     );
 
     private RoleTransitionPolicy() {

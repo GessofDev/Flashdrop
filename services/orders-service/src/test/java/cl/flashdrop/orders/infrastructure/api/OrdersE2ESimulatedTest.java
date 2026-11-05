@@ -115,7 +115,7 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
 
         UpdateOrderStatusUseCase updateOrderStatusUseCase = new UpdateOrderStatusUseCase(
-                orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter);
+                orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter, clientAdapter);
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         ListOrdersUseCase listOrdersUseCase = new ListOrdersUseCase(

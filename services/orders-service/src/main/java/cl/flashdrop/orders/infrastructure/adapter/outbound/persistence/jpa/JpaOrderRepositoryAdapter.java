@@ -125,6 +125,12 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
+    public boolean updateStatusIfCurrent(UUID id, OrderStatus expected, OrderStatus status) {
+        return orderRepository.updateStatusIfCurrent(IdConverter.toLong(id), expected.getValue(), status.getValue()) == 1;
+    }
+
+    @Override
+    @Transactional
     public Optional<Order> findByIdForUpdate(UUID id) {
         if (id == null) return Optional.empty();
         long rawId = IdConverter.toLong(id);

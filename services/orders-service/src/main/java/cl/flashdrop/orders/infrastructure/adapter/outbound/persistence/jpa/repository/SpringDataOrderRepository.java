@@ -30,6 +30,11 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id")
     Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :status WHERE o.id = :id AND o.status = :expected")
+    int updateStatusIfCurrent(@Param("id") Long id, @Param("expected") String expected,
+                              @Param("status") String status);
+
     /**
      * Asignación atómica: asigna el repartidor SOLO a los pedidos que siguen sin repartidor,
      * en una única sentencia. Devuelve cuántos pedidos se asignaron; si dos repartidores

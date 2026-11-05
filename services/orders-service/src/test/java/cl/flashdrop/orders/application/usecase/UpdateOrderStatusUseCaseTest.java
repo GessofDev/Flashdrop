@@ -7,6 +7,7 @@ import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -54,19 +55,24 @@ class UpdateOrderStatusUseCaseTest {
     @Mock
     private CatalogPort catalogPort;
 
+    @Mock
+    private ClientPort clientPort;
+
     private UpdateOrderStatusUseCase useCase;
 
     private static final UUID ORDER_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID RESTAURANT_ID = UUID.randomUUID();
     private static final UUID DELIVERY_ID = UUID.randomUUID();
+    private static final UUID CLIENT_ID = UUID.randomUUID();
 
     private static final Set<Role> RESTAURANTE = Set.of(Role.RESTAURANTE);
     private static final Set<Role> REPARTIDOR = Set.of(Role.REPARTIDOR);
 
     @BeforeEach
     void setUp() {
-        useCase = new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort);
+        useCase = new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort);
+        org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
         ReflectionTestUtils.setField(useCase, "statusUpdatedRoutingKey", "order.status.updated");
     }
 
@@ -79,7 +85,7 @@ class UpdateOrderStatusUseCaseTest {
     }
 
     private void givenOrder(OrderStatus status, UUID assignedDeliveryId, ReceptionMode mode) {
-        Order order = Order.builder().id(ORDER_ID).restaurantId(RESTAURANT_ID)
+        Order order = Order.builder().id(ORDER_ID).clientId(CLIENT_ID).restaurantId(RESTAURANT_ID)
                 .deliveryId(assignedDeliveryId).status(status).receptionMode(mode).build();
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
     }
@@ -93,7 +99,71 @@ class UpdateOrderStatusUseCaseTest {
     }
 
     private void assertNothingPersisted() {
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
+        verify(deliveryPort, never()).updateRouteStatusByOrder(any(), anyString());
+        verify(eventPublisher, never()).publish(anyString(), any());
+    }
+
+    @Test
+    void clientePropietario_puedeCancelarPedidoNuevo() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, null);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
+        useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO);
+        verify(deliveryPort, never()).updateRouteStatusByOrder(any(), anyString());
+    }
+
+    @Test
+    void clienteAjeno_noPuedeCancelar() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, null);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(UUID.randomUUID()));
+        assertThrows(StatusTransitionForbiddenException.class,
+                () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
+        assertNothingPersisted();
+    }
+
+    @Test
+    void restaurantePropietario_puedeRechazarPedidoNuevo() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, null);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+        useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO);
+    }
+
+    @Test
+    void otroRestaurante_noPuedeRechazar() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, null);
+        givenUserOwnsRestaurant(UUID.randomUUID());
+        assertThrows(StatusTransitionForbiddenException.class,
+                () -> useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID));
+        assertNothingPersisted();
+    }
+
+    @Test
+    void pedidoNuevoConRepartidor_noPuedeCancelarse() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, DELIVERY_ID);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
+        assertThrows(OrderDomainException.class,
+                () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
+        assertNothingPersisted();
+    }
+
+    @Test
+    void pedidoPreparando_noPuedeCancelarseNiRechazarse() {
+        givenOrder(OrderStatus.PREPARANDO, null);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+        assertThrows(OrderDomainException.class, () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
+        assertThrows(OrderDomainException.class, () -> useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID));
+        assertNothingPersisted();
+    }
+
+    @Test
+    void cambioConcurrente_noPublicaNiSincroniza() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, null);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
+        when(orderRepository.updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO)).thenReturn(false);
+        assertThrows(OrderDomainException.class, () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
         verify(deliveryPort, never()).updateRouteStatusByOrder(any(), anyString());
         verify(eventPublisher, never()).publish(anyString(), any());
     }
@@ -105,7 +175,7 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Preparando", RESTAURANTE, USER_ID);
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.PREPARANDO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO);
         verify(deliveryPort).updateRouteStatusByOrder(ORDER_ID, "Preparando");
 
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
@@ -123,7 +193,7 @@ class UpdateOrderStatusUseCaseTest {
 
         assertEquals("Estado no valido: Estado inexistente", ex.getMessage());
         verify(orderRepository, never()).findById(any());
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -134,7 +204,7 @@ class UpdateOrderStatusUseCaseTest {
                 () -> useCase.execute(ORDER_ID, "Preparando", RESTAURANTE, USER_ID));
 
         assertEquals("Pedido no encontrado", ex.getMessage());
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -199,7 +269,7 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Retirado", REPARTIDOR, USER_ID);
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
         verify(catalogPort, never()).findRestaurantIdByUserId(any());
     }
 
@@ -214,7 +284,7 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Retirado", Set.of(Role.RESTAURANTE, Role.REPARTIDOR), USER_ID);
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
         verify(catalogPort, never()).findRestaurantIdByUserId(any());
     }
 
@@ -243,7 +313,7 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Retirado", REPARTIDOR, USER_ID);
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
     }
 
     /** Modo NORMAL: el codigo es publico (000000), asi que PUT /status sigue entregando. */
@@ -254,7 +324,7 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Entregado", REPARTIDOR, USER_ID);
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.ENTREGADO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.RETIRADO, OrderStatus.ENTREGADO);
         verify(deliveryPort).updateRouteStatusByOrder(ORDER_ID, "Entregado");
     }
 
