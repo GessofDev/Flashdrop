@@ -198,6 +198,15 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         assertDoesNotThrow(() -> adapter.updateStatus(IdConverter.toUuid(999_999L), OrderStatus.PREPARANDO));
     }
 
+    @Test
+    void updateStatusIfCurrent_staleStatus_doesNotOverwriteNewerState() {
+        Order saved = adapter.save(baseOrder().status(OrderStatus.NUEVO_PEDIDO).items(List.of()).build());
+
+        assertTrue(adapter.updateStatusIfCurrent(saved.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO));
+        assertFalse(adapter.updateStatusIfCurrent(saved.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO));
+        assertEquals(OrderStatus.PREPARANDO, adapter.findById(saved.getId()).orElseThrow().getStatus());
+    }
+
     // ------------------------------------------------------------------
     // claimOrders / countActiveOrdersByDelivery / findByIdsForClaim / findByIds
     // ------------------------------------------------------------------
