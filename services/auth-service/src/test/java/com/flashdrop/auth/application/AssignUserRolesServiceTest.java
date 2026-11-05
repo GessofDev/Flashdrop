@@ -40,6 +40,7 @@ class AssignUserRolesServiceTest {
     private static final Role ROL_CLIENTE = new Role(1L, "Cliente", "/client/products/list");
     private static final Role ROL_RESTAURANTE = new Role(2L, "Restaurante", "/restaurant/orders/list");
     private static final Role ROL_REPARTIDOR = new Role(3L, "Repartidor", "/delivery/orders/list");
+    private static final Role ROL_SOPORTE = new Role(4L, "Soporte", "/support/orders");
     private static final String IP = "10.0.0.7";
 
     private final UserRepository users = mock(UserRepository.class);
@@ -70,6 +71,17 @@ class AssignUserRolesServiceTest {
 
         assertEquals(42L, result.userId());
         assertEquals(List.of("Repartidor", "Cliente"),
+                result.roles().stream().map(r -> r.name()).toList());
+    }
+
+    @Test
+    void asignaElRolSoporteYDevuelveSuNombreCanonico() {
+        when(roles.findAll()).thenReturn(List.of(
+                ROL_CLIENTE, ROL_RESTAURANTE, ROL_REPARTIDOR, ROL_SOPORTE));
+
+        var result = service.assign(command(List.of("soporte")));
+
+        assertEquals(List.of("Soporte"),
                 result.roles().stream().map(r -> r.name()).toList());
     }
 

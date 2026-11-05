@@ -55,6 +55,16 @@ class JwtTokenServiceTest {
     }
 
     @Test
+    void elTokenConservaElRolSoporte() {
+        var jwt = servicio(props("flashdrop-auth", 15));
+        var claims = new TokenClaims(8L, "soporte@flashdrop.cl", List.of("Soporte"));
+
+        var verificado = jwt.verify(jwt.issue(claims));
+
+        assertEquals(List.of("Soporte"), verificado.roles());
+    }
+
+    @Test
     void elTokenLlevaElKidDeLaClaveQueLoFirmo() {
         var p = props("flashdrop-auth", 15);
         var claves = new RsaKeyProvider(p);

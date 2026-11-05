@@ -141,6 +141,41 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         }
     }
 
+    @Override
+    public void releaseRoute(UUID orderId, UUID expectedDeliveryId) {
+        long rawOrderId = IdConverter.toLong(orderId);
+        long rawDeliveryId = IdConverter.toLong(expectedDeliveryId);
+        log.debug("Liberando ruta en Delivery para orderId={} (expectedDeliveryId={})", rawOrderId, rawDeliveryId);
+        try {
+            deliveryInternalRestClient.post()
+                    .uri("/api/internal/routes/order/{orderId}/release", rawOrderId)
+                    .body(Map.of("expectedDeliveryId", rawDeliveryId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpStatusCodeException e) {
+            throw InternalHttpSupport.httpError(SERVICE, e);
+        } catch (ResourceAccessException e) {
+            throw InternalHttpSupport.connectionFailure(SERVICE, e);
+        }
+    }
+
+    @Override
+    public void closeRoute(UUID orderId, String targetStatus) {
+        long rawOrderId = IdConverter.toLong(orderId);
+        log.debug("Cerrando ruta en Delivery para orderId={} con status={}", rawOrderId, targetStatus);
+        try {
+            deliveryInternalRestClient.patch()
+                    .uri("/api/internal/routes/order/{orderId}/status", rawOrderId)
+                    .body(Map.of("status", targetStatus))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpStatusCodeException e) {
+            throw InternalHttpSupport.httpError(SERVICE, e);
+        } catch (ResourceAccessException e) {
+            throw InternalHttpSupport.connectionFailure(SERVICE, e);
+        }
+    }
+
     /** No existe endpoint bulk en Delivery todavia (ver nota arriba): una llamada por orderId,
      *  cada una con su propio manejo de errores para que una falla no corte las demas. */
     private void patchRouteStatus(long rawOrderId, String routeToken) {

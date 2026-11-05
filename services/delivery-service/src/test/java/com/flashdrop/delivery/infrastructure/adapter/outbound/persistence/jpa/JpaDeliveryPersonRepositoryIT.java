@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("delivery")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("JpaDeliveryPersonRepositoryIT — KAN-44: Testcontainers Postgres + Flyway CRUD round-trip")
 class JpaDeliveryPersonRepositoryIT {
 

@@ -32,4 +32,13 @@ public interface JpaDeliveryRouteRepository extends JpaRepository<DeliveryRouteJ
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM DeliveryRouteJpaEntity r WHERE r.orderId = :orderId")
     Optional<DeliveryRouteJpaEntity> findByOrderIdForUpdate(@Param("orderId") Long orderId);
+
+    /**
+     * Locks a route by its primary key for conditional state changes. The
+     * release and close operations re-check the assignment and terminal state
+     * while holding this lock.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM DeliveryRouteJpaEntity r WHERE r.id = :id")
+    Optional<DeliveryRouteJpaEntity> findByIdForUpdate(@Param("id") Long id);
 }

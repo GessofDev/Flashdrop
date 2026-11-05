@@ -1,5 +1,7 @@
 package com.flashdrop.auth.integration;
 
+import com.flashdrop.auth.application.dto.AssignUserRolesCommand;
+import com.flashdrop.auth.application.port.inbound.AssignUserRolesUseCase;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
 import com.flashdrop.auth.application.port.outbound.PasswordResetTokenStore;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
@@ -73,6 +75,7 @@ class AuthPostgresIT {
     @Autowired UserRepository users;
     @Autowired CredentialStore credentials;
     @Autowired RoleRepository roles;
+    @Autowired AssignUserRolesUseCase assignUserRoles;
     @Autowired RefreshTokenStore refreshTokens;
     @Autowired PasswordResetTokenStore resetTokens;
 
@@ -104,10 +107,26 @@ class AuthPostgresIT {
     @Test
     void elSeedCargaLosDatosDemoConSusIdsFijos() {
         assertEquals(5, jdbc.queryForObject("select count(*) from users", Integer.class));
-        assertEquals(3, jdbc.queryForObject("select count(*) from roles", Integer.class));
+        // Los tres roles demo más `Soporte`, agregado por la migración V4.
+        assertEquals(4, jdbc.queryForObject("select count(*) from roles", Integer.class));
         assertEquals(7, jdbc.queryForObject("select count(*) from user_has_roles", Integer.class));
         assertEquals("cliente@demo.cl",
                 jdbc.queryForObject("select email from users where id = 1", String.class));
+    }
+
+    @Test
+    void elRolSoporteExisteYPuedeAsignarse() {
+        var usuario = users.save(new com.flashdrop.auth.domain.model.User(
+                null, new Email("soporte-asignable@test.cl"), null, "Soporte", "Prueba",
+                "+56988887777", null, List.of(), Instant.now()));
+
+        var resultado = assignUserRoles.assign(new AssignUserRolesCommand(
+                usuario.id(), List.of("Soporte"), "127.0.0.1"));
+
+        assertEquals(List.of("Soporte"),
+                resultado.roles().stream().map(r -> r.name()).toList());
+        assertEquals(List.of("Soporte"),
+                users.findById(usuario.id()).orElseThrow().roleNames());
     }
 
     /**

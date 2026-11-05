@@ -16,7 +16,8 @@ public enum Role {
 
     CLIENTE("Cliente"),
     RESTAURANTE("Restaurante"),
-    REPARTIDOR("Repartidor");
+    REPARTIDOR("Repartidor"),
+    SOPORTE("Soporte");
 
     private final String claimValue;
 

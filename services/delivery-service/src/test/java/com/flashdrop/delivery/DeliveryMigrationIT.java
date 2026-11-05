@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("delivery")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("DeliveryMigrationIT — KAN-45: BDD-style migration scenario")
 class DeliveryMigrationIT {
 

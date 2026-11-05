@@ -6,6 +6,7 @@ import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
 import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
+import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import com.flashdrop.delivery.domain.exception.RouteAccessDeniedException;
 import com.flashdrop.delivery.domain.exception.RouteDeliveryRequiresCodeException;
 import org.slf4j.Logger;
@@ -87,6 +88,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRouteAlreadyAssigned(
             RouteAlreadyAssignedException ex) {
         log.error("Route already assigned: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(RouteReleaseConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleRouteReleaseConflict(
+            RouteReleaseConflictException ex) {
+        log.warn("Route release conflict: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
