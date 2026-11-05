@@ -49,4 +49,13 @@ public interface DeliveryPort {
      * Contrato interno: POST /api/internal/routes/order/{orderId}/release.
      */
     void releaseRoute(UUID orderId, UUID expectedDeliveryId);
+
+    /**
+     * Cierra la ruta en Delivery Service con un estado terminal (Cancelado o Rechazado).
+     * Llama a PATCH /api/internal/routes/order/{orderId}/status con validación estricta y reintentos idempotentes.
+     *
+     * @param orderId UUID del pedido
+     * @param targetStatus Estado final ("Cancelado" o "Rechazado")
+     */
+    void closeRoute(UUID orderId, String targetStatus);
 }
