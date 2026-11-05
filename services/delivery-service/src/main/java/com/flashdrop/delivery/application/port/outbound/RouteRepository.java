@@ -1,6 +1,7 @@
 package com.flashdrop.delivery.application.port.outbound;
 
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
+import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,4 +38,17 @@ public interface RouteRepository {
      * </ul>
      */
     DeliveryRoute assignDeliveryPerson(Long orderId, Long deliveryPersonId);
+
+    /**
+     * Releases a route only when it is still assigned to the expected courier.
+     * Repeating an already completed release is a successful no-op.
+     */
+    DeliveryRoute releaseDeliveryPerson(Long orderId, Long expectedDeliveryId);
+
+    /**
+     * Closes an active route with an authorized cancellation state. Repeating
+     * the same target is a successful no-op; changing a terminal route is a
+     * conflict.
+     */
+    DeliveryRoute closeRoute(Long routeId, RouteStatus targetStatus);
 }

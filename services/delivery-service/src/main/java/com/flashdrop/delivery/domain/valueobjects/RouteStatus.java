@@ -8,7 +8,9 @@ public enum RouteStatus {
     ASSIGNED("Asignado"),
     RETIRAR_PEDIDO("Listo para retiro"),
     EN_CAMINO("En camino"),
-    ENTREGADO("Entregado");
+    ENTREGADO("Entregado"),
+    CANCELADO("Cancelado"),
+    RECHAZADO("Rechazado");
 
     private static final Logger log = LoggerFactory.getLogger(RouteStatus.class);
 
@@ -20,6 +22,16 @@ public enum RouteStatus {
 
     public String getDbValue() {
         return dbValue;
+    }
+
+    /** The two authorized terminal states used after a route is closed. */
+    public boolean isCancellation() {
+        return this == CANCELADO || this == RECHAZADO;
+    }
+
+    /** A terminal route cannot be changed again. */
+    public boolean isTerminal() {
+        return this == ENTREGADO || isCancellation();
     }
 
     /**

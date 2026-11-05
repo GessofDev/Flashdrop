@@ -3,6 +3,8 @@ package com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
+import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
+import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
@@ -122,6 +124,66 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
                     orderId, deliveryPersonId, ex.getMostSpecificCause().getMessage());
             throw new RouteAlreadyAssignedException(orderId);
         }
+    }
+
+    /**
+     * Releases a claimed route only while it still belongs to the expected
+     * courier and has not been picked up. The row lock makes the assignment
+     * check and the clear atomic with a concurrent claim or cancellation.
+     */
+    @Override
+    public DeliveryRoute releaseDeliveryPerson(Long orderId, Long expectedDeliveryId) {
+        if (expectedDeliveryId == null) {
+            throw new IllegalArgumentException("expectedDeliveryId is required");
+        }
+
+        DeliveryRouteJpaEntity entity = jpaRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new RouteNotPrecreatedException(orderId));
+        RouteStatus currentStatus = RouteStatus.fromDbValue(entity.getStatus());
+
+        // A completed release is a successful no-op. Any other shape without
+        // a courier is inconsistent and must not be silently overwritten.
+        if (entity.getDeliveryPersonId() == null && currentStatus == RouteStatus.PENDIENTE) {
+            return toDomain(entity);
+        }
+        if (!expectedDeliveryId.equals(entity.getDeliveryPersonId())
+                || (currentStatus != RouteStatus.ASSIGNED
+                && currentStatus != RouteStatus.RETIRAR_PEDIDO)) {
+            throw new RouteReleaseConflictException(orderId);
+        }
+
+        entity.setDeliveryPersonId(null);
+        entity.setStatus(RouteStatus.PENDIENTE.getDbValue());
+        entity.setUpdatedAt(Instant.now());
+        return toDomain(jpaRepository.save(entity));
+    }
+
+    /**
+     * Closes an active route with an authorized cancellation state. Keeping
+     * the courier id preserves who handled the route; the operation history
+     * lives in orders-service.
+     */
+    @Override
+    public DeliveryRoute closeRoute(Long routeId, RouteStatus targetStatus) {
+        if (targetStatus == null || !targetStatus.isCancellation()) {
+            throw new IllegalArgumentException("targetStatus must be Cancelado or Rechazado");
+        }
+
+        DeliveryRouteJpaEntity entity = jpaRepository.findByIdForUpdate(routeId)
+                .orElseThrow(() -> new RouteNotFoundException(routeId));
+        RouteStatus currentStatus = RouteStatus.fromDbValue(entity.getStatus());
+
+        if (currentStatus == targetStatus) {
+            return toDomain(entity);
+        }
+        if (currentStatus != null && currentStatus.isTerminal()) {
+            throw new RouteReleaseConflictException(routeId,
+                    "terminal state is " + currentStatus.getDbValue());
+        }
+
+        entity.setStatus(targetStatus.getDbValue());
+        entity.setUpdatedAt(Instant.now());
+        return toDomain(jpaRepository.save(entity));
     }
 
     private DeliveryRoute toDomain(DeliveryRouteJpaEntity entity) {

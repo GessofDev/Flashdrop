@@ -3,6 +3,7 @@ package com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotPrecreatedException;
+import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -330,6 +332,157 @@ class JpaRouteRepositoryAdapterTest {
             assertThat(result.getOrderId()).isEqualTo(604L);
             assertThat(result.getDeliveryPersonId()).isEqualTo(7L);
             assertThat(result.getStatus()).isEqualTo(RouteStatus.ASSIGNED);
+        }
+    }
+
+    @Nested
+    @DisplayName("releaseDeliveryPerson")
+    class ReleaseDeliveryPerson {
+
+        @Test
+        @DisplayName("libera la ruta del repartidor esperado y vuelve a PENDIENTE")
+        void expectedCourier_releasesRoute() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 701L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Asignado", Instant.now());
+            when(jpaRepository.findByOrderIdForUpdate(701L)).thenReturn(Optional.of(existing));
+            when(jpaRepository.save(any(DeliveryRouteJpaEntity.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            DeliveryRoute result = adapter.releaseDeliveryPerson(701L, 42L);
+
+            assertThat(result.getDeliveryPersonId()).isNull();
+            assertThat(result.getStatus()).isEqualTo(RouteStatus.PENDIENTE);
+        }
+
+        @Test
+        @DisplayName("no libera una ruta asignada a otro repartidor")
+        void differentCourier_throwsConflict() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 702L, 99L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Asignado", Instant.now());
+            when(jpaRepository.findByOrderIdForUpdate(702L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            assertThatThrownBy(() -> adapter.releaseDeliveryPerson(702L, 42L))
+                    .isInstanceOf(RouteReleaseConflictException.class)
+                    .hasMessageContaining("702");
+            verify(jpaRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("repetir una liberación ya aplicada es idempotente")
+        void alreadyReleased_isIdempotent() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 703L, null, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Pendiente", Instant.now());
+            when(jpaRepository.findByOrderIdForUpdate(703L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            DeliveryRoute result = adapter.releaseDeliveryPerson(703L, 42L);
+
+            assertThat(result.getStatus()).isEqualTo(RouteStatus.PENDIENTE);
+            verify(jpaRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("no libera una ruta que ya estaba en camino")
+        void routeInTransit_throwsConflict() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 704L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "En camino", Instant.now());
+            when(jpaRepository.findByOrderIdForUpdate(704L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            assertThatThrownBy(() -> adapter.releaseDeliveryPerson(704L, 42L))
+                    .isInstanceOf(RouteReleaseConflictException.class);
+        }
+
+        @Test
+        @DisplayName("una ruta inexistente no puede liberarse")
+        void missingRoute_throwsRouteNotPrecreated() {
+            when(jpaRepository.findByOrderIdForUpdate(705L)).thenReturn(Optional.empty());
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            assertThatThrownBy(() -> adapter.releaseDeliveryPerson(705L, 42L))
+                    .isInstanceOf(RouteNotPrecreatedException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("closeRoute")
+    class CloseRoute {
+
+        @Test
+        @DisplayName("cierra una ruta activa con el estado solicitado")
+        void activeRoute_closesWithTargetStatus() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 801L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "En camino", Instant.now());
+            when(jpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+            when(jpaRepository.save(any(DeliveryRouteJpaEntity.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            DeliveryRoute result = adapter.closeRoute(1L, RouteStatus.CANCELADO);
+
+            assertThat(result.getStatus()).isEqualTo(RouteStatus.CANCELADO);
+            assertThat(result.getDeliveryPersonId()).isEqualTo(42L);
+        }
+
+        @Test
+        @DisplayName("repetir el mismo cierre es idempotente")
+        void sameTerminalStatus_isIdempotent() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 802L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Cancelado", Instant.now());
+            when(jpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            DeliveryRoute result = adapter.closeRoute(1L, RouteStatus.CANCELADO);
+
+            assertThat(result.getStatus()).isEqualTo(RouteStatus.CANCELADO);
+            verify(jpaRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("no se puede reemplazar un estado terminal diferente")
+        void differentTerminalStatus_throwsConflict() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 803L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Cancelado", Instant.now());
+            when(jpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            assertThatThrownBy(() -> adapter.closeRoute(1L, RouteStatus.RECHAZADO))
+                    .isInstanceOf(RouteReleaseConflictException.class);
+        }
+
+        @Test
+        @DisplayName("no se puede anular una ruta ya entregada")
+        void deliveredRoute_throwsConflict() {
+            DeliveryRouteJpaEntity existing = new DeliveryRouteJpaEntity(
+                    1L, 804L, 42L, "Pickup", "Delivery",
+                    new java.math.BigDecimal("3.0"), 20,
+                    "Entregado", Instant.now());
+            when(jpaRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+
+            assertThatThrownBy(() -> adapter.closeRoute(1L, RouteStatus.CANCELADO))
+                    .isInstanceOf(RouteReleaseConflictException.class);
         }
     }
 }
