@@ -8,14 +8,17 @@ import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.model.RoleTransitionPolicy;
+import cl.flashdrop.orders.domain.model.DeliveryOperation;
+import cl.flashdrop.orders.domain.model.DeliveryOperationType;
 import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryCodePort;
+import cl.flashdrop.orders.domain.port.DeliveryOperationRepositoryPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
 import cl.flashdrop.orders.infrastructure.messaging.event.OrderStatusUpdatedEvent;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,7 +43,6 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class VerifyDeliveryCodeUseCase {
 
     private final OrderRepositoryPort orderRepository;
@@ -48,6 +50,32 @@ public class VerifyDeliveryCodeUseCase {
     private final ClientPort clientPort;
     private final DeliveryCodePort deliveryCodePort;
     private final EventPublisherPort eventPublisher;
+    private final DeliveryOperationRepositoryPort deliveryOperationRepository;
+
+    @Autowired
+    public VerifyDeliveryCodeUseCase(
+            OrderRepositoryPort orderRepository,
+            DeliveryPort deliveryPort,
+            ClientPort clientPort,
+            DeliveryCodePort deliveryCodePort,
+            EventPublisherPort eventPublisher,
+            @Autowired(required = false) DeliveryOperationRepositoryPort deliveryOperationRepository) {
+        this.orderRepository = orderRepository;
+        this.deliveryPort = deliveryPort;
+        this.clientPort = clientPort;
+        this.deliveryCodePort = deliveryCodePort;
+        this.eventPublisher = eventPublisher;
+        this.deliveryOperationRepository = deliveryOperationRepository;
+    }
+
+    public VerifyDeliveryCodeUseCase(
+            OrderRepositoryPort orderRepository,
+            DeliveryPort deliveryPort,
+            ClientPort clientPort,
+            DeliveryCodePort deliveryCodePort,
+            EventPublisherPort eventPublisher) {
+        this(orderRepository, deliveryPort, clientPort, deliveryCodePort, eventPublisher, null);
+    }
 
     @Value("${orders.rabbitmq.routing-key.order-status-updated:order.status.updated}")
     private String statusUpdatedRoutingKey;
@@ -69,12 +97,12 @@ public class VerifyDeliveryCodeUseCase {
             throw new StatusTransitionForbiddenException("No puedes entregarte tu propio pedido");
         }
 
-        // 409 si el pedido no esta RETIRADO/EN_CAMINO (incluye el ya ENTREGADO: codigo de un solo uso)
-        order.validateStatusTransition(OrderStatus.ENTREGADO);
-
         if (order.isDeliveryCodeLocked()) {
             return new DeliveryCodeVerification(Outcome.LOCKED, 0);
         }
+
+        // 409 si el pedido no esta RETIRADO/EN_CAMINO (incluye el ya ENTREGADO: codigo de un solo uso)
+        order.validateStatusTransition(OrderStatus.ENTREGADO);
 
         if (matches(deliveryCodePort.currentCodeFor(order), providedCode)) {
             order.setDeliveryCodeVerifiedAt(OffsetDateTime.now());
@@ -102,7 +130,16 @@ public class VerifyDeliveryCodeUseCase {
         orderRepository.recordDeliveryCodeAttempt(orderId, currentDeliveryId, failedVersion, false);
 
         if (order.isDeliveryCodeLocked()) {
-            log.warn("Pedido {} BLOQUEADO para entrega: se agotaron los intentos de todos sus codigos", orderId);
+            log.warn("Pedido {} BLOQUEADO para entrega: se agotaron los intentos de todos sus codigos. Cancelando automaticamente.", orderId);
+            order.cancelDueToFailedDeliveryCode();
+            orderRepository.updateStatus(orderId, OrderStatus.CANCELADO);
+            deliveryPort.closeRoute(orderId, OrderStatus.CANCELADO.getValue());
+            eventPublisher.publish(statusUpdatedRoutingKey, OrderStatusUpdatedEvent.builder()
+                    .orderId(orderId)
+                    .previousStatus(OrderStatus.RETIRADO.getValue())
+                    .newStatus(OrderStatus.CANCELADO.getValue())
+                    .build());
+            recordCancellationOperation(orderId, currentUserId, currentDeliveryId);
             return new DeliveryCodeVerification(Outcome.LOCKED, 0);
         }
         if (renewed) {
@@ -111,6 +148,31 @@ public class VerifyDeliveryCodeUseCase {
             return new DeliveryCodeVerification(Outcome.CODE_RENEWED, order.remainingCodeAttempts());
         }
         return new DeliveryCodeVerification(Outcome.WRONG_CODE, order.remainingCodeAttempts());
+    }
+
+    private void recordCancellationOperation(UUID orderId, UUID currentUserId, UUID currentDeliveryId) {
+        if (deliveryOperationRepository == null) {
+            return;
+        }
+        try {
+            DeliveryOperation pending = DeliveryOperation.pending(
+                    orderId,
+                    DeliveryOperationType.CANCEL_AFTER_PICKUP,
+                    currentUserId,
+                    Role.REPARTIDOR,
+                    Order.CANCEL_REASON_IDENTITY_UNVERIFIED,
+                    OrderStatus.CANCELADO,
+                    currentDeliveryId,
+                    OrderStatus.RETIRADO,
+                    UUID.randomUUID().toString(),
+                    OffsetDateTime.now()
+            );
+            DeliveryOperation created = deliveryOperationRepository.create(pending);
+            deliveryOperationRepository.save(
+                    created.succeed(currentDeliveryId, OrderStatus.CANCELADO, OffsetDateTime.now()));
+        } catch (Exception e) {
+            log.error("Error al registrar operacion de auditoria para cancelacion automatica de pedido {}", orderId, e);
+        }
     }
 
     /** Comparación en tiempo constante, para no filtrar por tiempo cuántos dígitos acertó. */

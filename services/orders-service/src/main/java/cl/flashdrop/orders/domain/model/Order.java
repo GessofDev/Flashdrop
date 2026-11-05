@@ -155,11 +155,18 @@ public class Order {
         return receptionMode == ReceptionMode.SEGURO;
     }
 
-    /** Bloqueado: se agotaron los intentos del último código permitido. Solo soporte lo resuelve. */
+    public static final String CANCEL_REASON_IDENTITY_UNVERIFIED =
+            "No se pudo verificar la identidad de quien recibe el pedido";
+
+    /** Bloqueado: se agotaron los intentos del último código permitido. */
     public boolean isDeliveryCodeLocked() {
         return isSecureReception()
                 && deliveryCodeVersion >= MAX_CODE_VERSIONS
                 && deliveryCodeAttempts >= MAX_CODE_ATTEMPTS;
+    }
+
+    public void cancelDueToFailedDeliveryCode() {
+        this.status = OrderStatus.CANCELADO;
     }
 
     public int remainingCodeAttempts() {
