@@ -23,7 +23,8 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login",
-                        "/auth/refresh", "/auth/logout").permitAll()
+                        "/auth/refresh", "/auth/logout",
+                        "/auth/password/forgot", "/auth/password/reset").permitAll()
                 .requestMatchers(HttpMethod.GET, "/auth/validate", "/auth/profile",
                         "/auth/.well-known/jwks.json").permitAll()
                 // Igual que el GET: el token lo valida AuthController, no esta

@@ -8,4 +8,5 @@ public interface RefreshTokenStore {
     void save(RefreshToken token);
     Optional<RefreshToken> findByTokenHash(String tokenHash);
     void revoke(RefreshToken token);
+    void revokeAllForUser(Long userId);
 }

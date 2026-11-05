@@ -1,9 +1,11 @@
 package com.flashdrop.auth.integration;
 
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.PasswordResetTokenStore;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
+import com.flashdrop.auth.domain.model.PasswordResetToken;
 import com.flashdrop.auth.domain.model.RefreshToken;
 import com.flashdrop.auth.domain.valueobject.Email;
 import com.jayway.jsonpath.JsonPath;
@@ -20,6 +22,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -71,17 +74,19 @@ class AuthPostgresIT {
     @Autowired CredentialStore credentials;
     @Autowired RoleRepository roles;
     @Autowired RefreshTokenStore refreshTokens;
+    @Autowired PasswordResetTokenStore resetTokens;
 
     // ------------------------------------------------------------ migraciones
 
     @Test
-    void flywayCreaLasCincoTablasPropietarias() {
+    void flywayCreaLasTablasPropietarias() {
         List<String> tablas = jdbc.queryForList(
                 "select table_name from information_schema.tables "
                         + "where table_schema = 'public' and table_name <> 'flyway_schema_history' "
                         + "order by table_name", String.class);
 
-        assertEquals(List.of("login", "refresh_tokens", "roles", "user_has_roles", "users"), tablas);
+        assertEquals(List.of("login", "password_reset_tokens", "refresh_tokens", "roles",
+                "user_has_roles", "users"), tablas);
     }
 
     @Test
@@ -267,6 +272,40 @@ class AuthPostgresIT {
 
         assertEquals("+56955556666", jdbc.queryForObject(
                 "select phone from users where email = 'choque@flashdrop.cl'", String.class));
+    }
+
+    // ------------------------------------------------- recuperación de clave
+
+    /** El UPDATE condicional es lo que hace de un solo uso al enlace. */
+    @Test
+    void elTokenDeRecuperacionSirveUnaSolaVezYRespetaElVencimiento() throws Exception {
+        altaYLogin("recupera@flashdrop.cl", "+56977778888");
+        Long id = jdbc.queryForObject(
+                "select id from users where email = 'recupera@flashdrop.cl'", Long.class);
+        Instant ahora = Instant.now();
+
+        resetTokens.save(new PasswordResetToken(id, "hash-vigente", ahora.plus(Duration.ofMinutes(30))));
+        resetTokens.save(new PasswordResetToken(id, "hash-vencido", ahora.minus(Duration.ofMinutes(1))));
+
+        assertTrue(resetTokens.consume("hash-vencido", ahora).isEmpty());
+        assertEquals(id, resetTokens.consume("hash-vigente", ahora).orElseThrow());
+        assertTrue(resetTokens.consume("hash-vigente", ahora).isEmpty());
+    }
+
+    @Test
+    void cambiarLaClaveReemplazaElHashYCierraLasSesiones() throws Exception {
+        altaYLogin("cambia@flashdrop.cl", "+56966667777");
+        Long id = jdbc.queryForObject(
+                "select id from users where email = 'cambia@flashdrop.cl'", Long.class);
+
+        credentials.updatePassword(id, "hash-nuevo");
+        refreshTokens.revokeAllForUser(id);
+
+        assertEquals("hash-nuevo", jdbc.queryForObject(
+                "select password from login where id_users = ?", String.class, id));
+        assertEquals(0, jdbc.queryForObject(
+                "select count(*) from refresh_tokens where user_id = ? and revoked = false",
+                Integer.class, id));
     }
 
     private String altaYLogin(String email, String phone) throws Exception {

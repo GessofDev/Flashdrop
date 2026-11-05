@@ -3,6 +3,7 @@ package com.flashdrop.auth;
 import org.junit.jupiter.api.Test;
 import com.flashdrop.auth.application.dto.TokenClaims;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.PasswordResetTokenStore;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.TokenService;
@@ -21,7 +22,9 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @MockBean({UserRepository.class, CredentialStore.class,
-           RoleRepository.class, RefreshTokenStore.class})
+           RoleRepository.class, RefreshTokenStore.class, PasswordResetTokenStore.class})
 class ApplicationStartupTest {
 
     @Autowired
@@ -138,6 +141,16 @@ class ApplicationStartupTest {
                         }
                     });
         }
+    }
+
+    /** Sin sesión: si faltaran en SecurityConfig, caerían en el denyAll. */
+    @Test
+    void lasRutasDeRecuperacionDeClaveSonPublicas() throws Exception {
+        mvc.perform(post("/auth/password/forgot").contentType(APPLICATION_JSON)
+                        .content("{\"email\":\"quien-sea@flashdrop.cl\"}"))
+                .andExpect(status().isAccepted());
+        mvc.perform(post("/auth/password/reset").contentType(APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     /**

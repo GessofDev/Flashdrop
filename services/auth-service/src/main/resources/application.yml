@@ -67,6 +67,19 @@ auth:
   ratelimit:
     max-attempts: ${AUTH_RL_MAX:5}
     window-seconds: ${AUTH_RL_WINDOW:300}
+  password-reset:
+    token-ttl-minutes: ${PASSWORD_RESET_TTL_MIN:30}
+    # Pagina de la web que recibe el enlace, sin el fragmento #token=.
+    link-base-url: ${PASSWORD_RESET_URL:}
+  # Apagado por defecto: sin SMTP el servicio arranca y solo deja de enviar el
+  # correo de recuperacion (lo avisa en el log).
+  mail:
+    enabled: ${AUTH_MAIL_ENABLED:false}
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${SMTP_FROM:}
 
 services:
   # Sin valor por defecto: si falta, /api/internal/** queda cerrado (403).
@@ -81,6 +94,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Un SMTP caido no debe marcar a auth como no saludable.
+    mail:
+      enabled: false
   metrics:
     tags:
       service: ${spring.application.name}

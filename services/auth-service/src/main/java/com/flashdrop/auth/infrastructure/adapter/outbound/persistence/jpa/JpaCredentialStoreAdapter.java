@@ -40,4 +40,10 @@ public class JpaCredentialStoreAdapter implements CredentialStore {
                 e.getId(), e.getUserId(), e.getLogin(), e.getPassword(),
                 Integer.valueOf(1).equals(e.getStatus()) ? ACTIVO : "INACTIVE"));
     }
+
+    @Override
+    @Transactional
+    public void updatePassword(Long userId, String passwordHash) {
+        logins.updatePassword(userId, passwordHash);
+    }
 }

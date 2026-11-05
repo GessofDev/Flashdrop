@@ -7,4 +7,5 @@ import java.util.Optional;
 public interface CredentialStore {
     void save(Credentials credentials);
     Optional<Credentials> findByLogin(String login);
+    void updatePassword(Long userId, String passwordHash);
 }

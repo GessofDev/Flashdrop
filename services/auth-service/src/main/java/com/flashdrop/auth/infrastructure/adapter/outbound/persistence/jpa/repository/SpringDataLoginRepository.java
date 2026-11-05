@@ -2,9 +2,17 @@ package com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.repos
 
 import com.flashdrop.auth.infrastructure.adapter.outbound.persistence.jpa.entity.LoginEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
 public interface SpringDataLoginRepository extends JpaRepository<LoginEntity, Long> {
     Optional<LoginEntity> findByLogin(String login);
+
+    @Modifying
+    @Query(value = "update login set password = :hash, updated_at = now() where id_users = :userId",
+            nativeQuery = true)
+    int updatePassword(@Param("userId") Long userId, @Param("hash") String hash);
 }

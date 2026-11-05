@@ -40,4 +40,10 @@ public class JpaRefreshTokenStoreAdapter implements RefreshTokenStore {
         // misma fila, que se localiza por su id.
         save(token.revokedCopy());
     }
+
+    @Override
+    @Transactional
+    public void revokeAllForUser(Long userId) {
+        tokens.revokeAllForUser(userId);
+    }
 }

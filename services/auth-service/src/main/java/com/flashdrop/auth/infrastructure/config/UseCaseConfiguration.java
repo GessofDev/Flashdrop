@@ -6,7 +6,9 @@ import com.flashdrop.auth.application.usecase.*;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.time.Clock;
 import java.time.Duration;
 
 /**
@@ -68,5 +70,25 @@ public class UseCaseConfiguration {
     AssignUserRolesUseCase assignUserRolesUseCase(UserRepository users, RoleRepository roles,
                                                   AuditLogger audit) {
         return new AssignUserRolesService(users, roles, audit);
+    }
+
+    @Bean
+    RequestPasswordResetUseCase requestPasswordResetUseCase(CredentialStore credentials, UserRepository users,
+                                                            PasswordResetTokenStore resetTokens,
+                                                            OpaqueTokenService opaque, PasswordResetMailer mailer,
+                                                            RateLimiter rateLimiter, AuditLogger audit,
+                                                            ThreadPoolTaskExecutor passwordResetExecutor,
+                                                            PasswordResetProperties props) {
+        return new RequestPasswordResetService(credentials, users, resetTokens, opaque, mailer, rateLimiter,
+                audit, passwordResetExecutor, Clock.systemUTC(),
+                Duration.ofMinutes(props.getTokenTtlMinutes()), props.getLinkBaseUrl());
+    }
+
+    @Bean
+    ResetPasswordUseCase resetPasswordUseCase(PasswordResetTokenStore resetTokens, OpaqueTokenService opaque,
+                                              CredentialStore credentials, RefreshTokenStore refreshTokens,
+                                              PasswordHasher hasher, RateLimiter rateLimiter, AuditLogger audit) {
+        return new ResetPasswordService(resetTokens, opaque, credentials, refreshTokens, hasher,
+                rateLimiter, audit, Clock.systemUTC());
     }
 }
