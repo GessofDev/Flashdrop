@@ -63,3 +63,7 @@ L8 — 2026-11-05 — Approved consistency model: durable `PENDING|SUCCEEDED|FAI
 L9 — 2026-11-05 — Approved transition rules: release is allowed only for `LISTO_PARA_RETIRO` and the owning courier; post-pickup cancellation is allowed only for `RETIRADO` or legacy `EN_CAMINO`, by the owning courier or `Soporte`, ending in `CANCELADO` or `RECHAZADO`.
 
 L10 — 2026-11-05 — Risk: item 2 (security) because a new privileged role and ownership checks are introduced; item 4 (concurrency) because claim, release, and state transitions must remain coherent under races. Independent verification is required after implementation.
+
+L11 — 2026-11-05 — T1 completed in commit `2a6b9e3` (`docs(design): document delivery release and cancellation`). The approved design is `docs/plans/2026-11-05-delivery-release-cancellation-design.md`.
+
+L12 — 2026-11-05 — Implementation plan created at `docs/plans/2026-11-05-delivery-release-cancellation-implementation.md` with WU-1 through WU-7, focused checks, differential checks, and review-workload boundaries.
