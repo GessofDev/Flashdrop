@@ -125,7 +125,8 @@ public class Order {
      * quedaron en ese estado deben poder terminar su ciclo.
      */
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-            OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+            OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO,
+                    OrderStatus.CANCELADO, OrderStatus.RECHAZADO),
             OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO),
             OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO),
             OrderStatus.RETIRADO, EnumSet.of(OrderStatus.ENTREGADO, OrderStatus.EN_CAMINO),

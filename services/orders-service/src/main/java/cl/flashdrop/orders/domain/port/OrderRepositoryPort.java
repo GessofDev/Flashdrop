@@ -46,6 +46,9 @@ public interface OrderRepositoryPort {
      */
     void updateStatus(UUID orderId, OrderStatus status);
 
+    /** Actualiza solo si el estado no cambio desde la lectura. */
+    boolean updateStatusIfCurrent(UUID orderId, OrderStatus expected, OrderStatus status);
+
     /**
      * Busca un pedido bloqueando su fila hasta el fin de la transaccion en curso. Se usa al
      * verificar el codigo de entrega para que intentos simultaneos se procesen de a uno.

@@ -15,7 +15,9 @@ public enum OrderStatus {
     LISTO_PARA_RETIRO("Listo para retiro"),
     RETIRADO("Retirado"),
     EN_CAMINO("En camino"),
-    ENTREGADO("Entregado");
+    ENTREGADO("Entregado"),
+    CANCELADO("Cancelado"),
+    RECHAZADO("Rechazado");
 
     private final String value;
 
@@ -50,6 +52,7 @@ public enum OrderStatus {
      * Indica si el pedido ya fue finalizado y no puede volver a ser tomado.
      */
     public boolean isClosed() {
-        return this == ENTREGADO || this == EN_CAMINO || this == RETIRADO;
+        return this == ENTREGADO || this == EN_CAMINO || this == RETIRADO
+                || this == CANCELADO || this == RECHAZADO;
     }
 }

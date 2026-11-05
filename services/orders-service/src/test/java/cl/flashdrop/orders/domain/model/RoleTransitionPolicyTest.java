@@ -35,9 +35,9 @@ class RoleTransitionPolicyTest {
     }
 
     @Test
-    void shouldNotLetClienteSetAnyStatus() {
+    void shouldLetClienteSetOnlyCancelled() {
         for (OrderStatus target : OrderStatus.values()) {
-            assertFalse(RoleTransitionPolicy.canSet(Set.of(Role.CLIENTE), target), target.name());
+            assertEquals(target == OrderStatus.CANCELADO, RoleTransitionPolicy.canSet(Set.of(Role.CLIENTE), target), target.name());
         }
     }
 
@@ -79,6 +79,8 @@ class RoleTransitionPolicyTest {
                 List.of(Role.REPARTIDOR, OrderStatus.EN_CAMINO, OrderStatus.RETIRADO),
                 List.of(Role.REPARTIDOR, OrderStatus.EN_CAMINO, OrderStatus.ENTREGADO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO),
+                List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO),
+                List.of(Role.CLIENTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
                 List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO)
         );

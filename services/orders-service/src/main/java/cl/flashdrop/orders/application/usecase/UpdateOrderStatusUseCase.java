@@ -7,6 +7,7 @@ import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.model.RoleTransitionPolicy;
 import cl.flashdrop.orders.domain.port.CatalogPort;
+import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -55,6 +56,7 @@ public class UpdateOrderStatusUseCase {
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
     private final CatalogPort catalogPort;
+    private final ClientPort clientPort;
 
     @Value("${orders.rabbitmq.routing-key.order-status-updated:order.status.updated}")
     private String statusUpdatedRoutingKey;
@@ -83,6 +85,11 @@ public class UpdateOrderStatusUseCase {
         if (grantingRoles.contains(Role.REPARTIDOR)) {
             validateDeliveryAssignment(order, currentUserId);
         }
+        if (grantingRoles.contains(Role.CLIENTE)
+                && clientPort.findClientIdByUserId(currentUserId)
+                    .filter(order.getClientId()::equals).isEmpty()) {
+            throw new StatusTransitionForbiddenException("No puedes cancelar pedidos de otro cliente");
+        }
 
         // En modo SEGURO ENTREGADO solo se alcanza con el codigo de verificacion
         // (VerifyDeliveryCodeUseCase). En modo NORMAL el codigo es publico (000000), asi que
@@ -95,11 +102,20 @@ public class UpdateOrderStatusUseCase {
         // Validar transición de estado según reglas de dominio
         order.validateStatusTransition(newStatus);
 
+        if ((newStatus == OrderStatus.CANCELADO || newStatus == OrderStatus.RECHAZADO)
+                && order.getDeliveryId() != null) {
+            throw new OrderDomainException("Transicion de estado no permitida: pedido asignado a un repartidor; contacta a soporte");
+        }
+
         // Persistir el nuevo estado
-        orderRepository.updateStatus(orderId, newStatus);
+        if (!orderRepository.updateStatusIfCurrent(orderId, order.getStatus(), newStatus)) {
+            throw new OrderDomainException("Transicion de estado no permitida: el pedido cambio de estado. Actualiza e intenta nuevamente");
+        }
 
         // Sincronizar la ruta de entrega con el mismo estado
-        deliveryPort.updateRouteStatusByOrder(orderId, newStatus.getValue());
+        if (newStatus != OrderStatus.CANCELADO && newStatus != OrderStatus.RECHAZADO) {
+            deliveryPort.updateRouteStatusByOrder(orderId, newStatus.getValue());
+        }
 
         // Publicar evento
         eventPublisher.publish(statusUpdatedRoutingKey, OrderStatusUpdatedEvent.builder()

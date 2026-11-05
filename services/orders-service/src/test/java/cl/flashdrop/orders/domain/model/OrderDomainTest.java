@@ -92,6 +92,8 @@ class OrderDomainTest {
     void shouldAllowOnlyTheTransitionsOfTheStatusMatrix() {
         Set<List<OrderStatus>> allowed = Set.of(
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO),
+                List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
+                List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO),
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO),
                 List.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
                 List.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO),

@@ -65,6 +65,7 @@ class OrderControllerStatusAuthzIT {
     @Mock private DeliveryPort deliveryPort;
     @Mock private EventPublisherPort eventPublisher;
     @Mock private CatalogPort catalogPort;
+    @Mock private cl.flashdrop.orders.domain.port.ClientPort clientPort;
 
     private MockMvc mockMvc;
 
@@ -76,7 +77,8 @@ class OrderControllerStatusAuthzIT {
     @BeforeEach
     void setUp() {
         UpdateOrderStatusUseCase updateOrderStatusUseCase =
-                new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort);
+                new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort);
+        org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
@@ -123,6 +125,39 @@ class OrderControllerStatusAuthzIT {
     // --------------------------- 200 ---------------------------
 
     @Test
+    void clientePropietario_cancelaPedidoNuevo_200() throws Exception {
+        UUID clientId = IdConverter.toUuid(8L);
+        autenticadoComo("Cliente");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(
+                Order.builder().id(ORDER_ID).clientId(clientId).restaurantId(RESTAURANT_ID)
+                        .status(OrderStatus.NUEVO_PEDIDO).build()));
+        when(clientPort.findClientIdByUserId(IdConverter.toUuid(USER_ID))).thenReturn(Optional.of(clientId));
+        cambiarEstadoA("Cancelado").andExpect(status().isOk());
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO);
+    }
+
+    @Test
+    void clienteAjeno_noPuedeCancelar_403() throws Exception {
+        autenticadoComo("Cliente");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(
+                Order.builder().id(ORDER_ID).clientId(IdConverter.toUuid(8L)).restaurantId(RESTAURANT_ID)
+                        .status(OrderStatus.NUEVO_PEDIDO).build()));
+        when(clientPort.findClientIdByUserId(IdConverter.toUuid(USER_ID))).thenReturn(Optional.of(IdConverter.toUuid(9L)));
+        cambiarEstadoA("Cancelado").andExpect(status().isForbidden());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
+    }
+
+    @Test
+    void restaurantePropietario_rechazaPedidoNuevo_200() throws Exception {
+        autenticadoComo("Restaurante");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(
+                Order.builder().id(ORDER_ID).restaurantId(RESTAURANT_ID).status(OrderStatus.NUEVO_PEDIDO).build()));
+        usuarioEsDuenoDe(RESTAURANT_ID);
+        cambiarEstadoA("Rechazado").andExpect(status().isOk());
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO);
+    }
+
+    @Test
     void repartidor_retiraPedidoListo_200() throws Exception {
         autenticadoComo("Repartidor");
         pedidoEnEstado(OrderStatus.LISTO_PARA_RETIRO);
@@ -130,7 +165,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Retirado").andExpect(status().isOk());
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.RETIRADO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
     }
 
     @Test
@@ -141,7 +176,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Preparando").andExpect(status().isOk());
 
-        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.PREPARANDO);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO);
     }
 
     // --------------------------- 403 rol ---------------------------
@@ -155,7 +190,7 @@ class OrderControllerStatusAuthzIT {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("FORBIDDEN"));
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -165,7 +200,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Retirado").andExpect(status().isForbidden());
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -175,7 +210,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Entregado").andExpect(status().isForbidden());
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     // --------------------------- 403 ownership (IDOR) ---------------------------
@@ -190,7 +225,7 @@ class OrderControllerStatusAuthzIT {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("No puedes modificar pedidos de otro restaurante"));
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     /** Acuerdo con delivery-service: el repartidor solo cambia pedidos asignados a él. */
@@ -204,7 +239,7 @@ class OrderControllerStatusAuthzIT {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("No puedes modificar pedidos asignados a otro repartidor"));
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     // --------------------------- 409 transición ---------------------------
@@ -219,7 +254,7 @@ class OrderControllerStatusAuthzIT {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("CONFLICT"));
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -230,7 +265,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Entregado").andExpect(status().isConflict());
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     @Test
@@ -241,7 +276,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Preparando").andExpect(status().isConflict());
 
-        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     // --------------------------- 400 / 404 ---------------------------
@@ -250,7 +285,7 @@ class OrderControllerStatusAuthzIT {
     void estadoNoReconocido_400() throws Exception {
         autenticadoComo("Restaurante");
 
-        cambiarEstadoA("Cancelado").andExpect(status().isBadRequest());
+        cambiarEstadoA("Estado inexistente").andExpect(status().isBadRequest());
     }
 
     @Test
