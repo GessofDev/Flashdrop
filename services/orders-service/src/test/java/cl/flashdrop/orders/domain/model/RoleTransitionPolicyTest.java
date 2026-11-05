@@ -48,6 +48,13 @@ class RoleTransitionPolicyTest {
     }
 
     @Test
+    void shouldNotLetSoporteUseTheGenericStatusEndpoint() {
+        for (OrderStatus target : OrderStatus.values()) {
+            assertFalse(RoleTransitionPolicy.canSet(Set.of(Role.SOPORTE), target), target.name());
+        }
+    }
+
+    @Test
     void shouldNotLetUserWithoutRolesSetAnyStatus() {
         assertFalse(RoleTransitionPolicy.canSet(Set.of(), OrderStatus.PREPARANDO));
     }
