@@ -27,12 +27,12 @@ S7 — Orquestación
 
 ## Tasks
 
-T1 | S1-S7 | inline | `docs(design): document delivery release and cancellation`
-T2 | S4 | worker | `feat(auth): add support role`
+T1 | S1-S7 | inline | `docs(design): document delivery release and cancellation` (`2a6b9e3`)
+T2 | S4 | inline | `feat(auth): add support role` (`2fe5c35`)
 T3 | S5-S6 | worker | `feat(orders): add durable delivery operations`
 T4 | S1,S6 | worker | `feat(orders): release assigned orders before pickup`
 T5 | S4-S6 | worker | `feat(orders): cancel picked-up orders with authorized support`
-T6 | S1,S5 | worker | `feat(delivery): expose idempotent route release and cancellation`
+T6 | S1,S5 | inline | `feat(delivery): add conditional route release and cancellation` (`6038b62`); `feat(delivery): expose internal route release endpoint` (`6bc46fc`)
 T7 | S2,S6 | worker | `feat(orders): expose delivery operation history`
 T8 | S1-S7 | inline | `test(delivery): verify release cancellation and concurrency`
 
@@ -67,3 +67,11 @@ L10 — 2026-11-05 — Risk: item 2 (security) because a new privileged role and
 L11 — 2026-11-05 — T1 completed in commit `2a6b9e3` (`docs(design): document delivery release and cancellation`). The approved design is `docs/plans/2026-11-05-delivery-release-cancellation-design.md`.
 
 L12 — 2026-11-05 — Implementation plan created at `docs/plans/2026-11-05-delivery-release-cancellation-implementation.md` with WU-1 through WU-7, focused checks, differential checks, and review-workload boundaries.
+
+L13 — 2026-11-05 — WU-1 completed in commit `2fe5c35` (`feat(auth): add support role`). Verification: Auth unit suite passed; `AuthPostgresIT` was skipped because Docker/Testcontainers was unavailable. The migration is additive (`V4__add_support_role.sql`) and the merged seed was not edited.
+
+L14 — 2026-11-05 — WU-2 RED observed: focused `compileTestJava` failed with the expected missing release/close symbols (exit 1). GREEN observed after implementation: focused WU-2 tests passed (exit 0), then the complete Delivery unit suite (`*Test`) passed with `BUILD SUCCESSFUL` in 37 s.
+
+L15 — 2026-11-05 — WU-2 completed in two reviewable commits: `6038b62` (`feat(delivery): add conditional route release and cancellation`) and `6bc46fc` (`feat(delivery): expose internal route release endpoint`). The split keeps each authored slice below the 400-line review budget while preserving tests with behavior.
+
+L16 — 2026-11-05 — Delivery Testcontainers verification was unavailable because no Docker environment was detected (`Could not find a valid Docker environment`). The four failing classes were `DeliveryServiceApplicationIT`, `DeliveryMigrationIT`, `JpaDeliveryPersonRepositoryIT`, and `JpaRouteRepositoryIT`; the failure is environmental and unrelated to the changed unit behavior. No retry was attempted after the root cause was confirmed.
