@@ -119,7 +119,7 @@ class DeliveryCodeConcurrencyTest extends PostgresIntegrationTestSupport {
             OrderEntity finalState = orderRepository.findById(order.getId()).orElseThrow();
             assertEquals(2, finalState.getDeliveryCodeVersion());
             assertEquals(3, finalState.getDeliveryCodeAttempts());
-            assertEquals("Retirado", finalState.getStatus());
+            assertEquals("Cancelado", finalState.getStatus());
             assertTrue(finalState.getDeliveryCodeVerifiedAt() == null);
         } finally {
             attemptRepository.deleteAll(attemptRepository.findAll().stream()

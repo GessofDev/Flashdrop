@@ -226,7 +226,7 @@ public class OrderController {
                             + attemptsLeft(result.remainingAttempts()),
                     result.remainingAttempts(), true);
             case LOCKED -> codeError(HttpStatus.LOCKED, "LOCKED",
-                    "Entrega bloqueada por intentos agotados. Contacta a soporte", 0, false);
+                    "Entrega bloqueada por intentos agotados. El pedido fue cancelado: no se pudo verificar la identidad de quien recibe el pedido", 0, false);
         };
     }
 

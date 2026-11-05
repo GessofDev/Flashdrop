@@ -369,7 +369,7 @@ paths:
         **Modo `SEGURO` — intentos**: 3 intentos por código. Al fallar el tercero el código se
         anula y se emite uno nuevo (el cliente lo ve en el detalle del pedido; `codeRenewed` =
         true). Un pedido tiene como máximo 2 códigos: agotados los intentos del segundo, el
-        pedido queda **bloqueado** (`423`) y solo soporte lo resuelve. El repartidor nunca ve el
+        pedido queda **bloqueado** (`423`) y se cancela automáticamente al no poder verificar la identidad de quien recibe. El repartidor nunca ve el
         código.
       operationId: deliverOrder
       security:
@@ -435,7 +435,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeliveryCodeErrorResponse'
         '423':
-          description: Pedido bloqueado por intentos agotados; requiere soporte.
+          description: Pedido bloqueado por intentos agotados; cancelado automáticamente por falta de verificación de identidad.
           content:
             application/json:
               schema:

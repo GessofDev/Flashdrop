@@ -4,12 +4,16 @@ import cl.flashdrop.orders.application.dto.DeliveryCodeVerification;
 import cl.flashdrop.orders.application.dto.DeliveryCodeVerification.Outcome;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
+import cl.flashdrop.orders.domain.model.DeliveryOperation;
+import cl.flashdrop.orders.domain.model.DeliveryOperationState;
+import cl.flashdrop.orders.domain.model.DeliveryOperationType;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryCodePort;
+import cl.flashdrop.orders.domain.port.DeliveryOperationRepositoryPort;
 import cl.flashdrop.orders.domain.port.DeliveryPort;
 import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
@@ -21,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -164,6 +169,42 @@ class VerifyDeliveryCodeUseCaseTest {
 
         assertEquals(Outcome.LOCKED, result.outcome());
         assertTrue(order.isDeliveryCodeLocked());
+        assertEquals(OrderStatus.CANCELADO, order.getStatus());
+        verify(orderRepository).updateStatus(ORDER_ID, OrderStatus.CANCELADO);
+        verify(deliveryPort).closeRoute(ORDER_ID, "Cancelado");
+        verify(eventPublisher).publish(eq("order.status.updated"), any());
+    }
+
+    @Test
+    void agotadoElSegundoCodigo_registraOperacionDeAuditoriaConMotivo() {
+        DeliveryOperationRepositoryPort opRepo = mock(DeliveryOperationRepositoryPort.class);
+        VerifyDeliveryCodeUseCase customUseCase = new VerifyDeliveryCodeUseCase(
+                orderRepository, deliveryPort, clientPort, deliveryCodePort, eventPublisher, opRepo);
+        ReflectionTestUtils.setField(customUseCase, "statusUpdatedRoutingKey", "order.status.updated");
+
+        Order order = givenOrder(ReceptionMode.SEGURO, OrderStatus.RETIRADO);
+        order.setDeliveryCodeVersion(2);
+        order.setDeliveryCodeAttempts(2);
+        givenCourier();
+        givenCodeIs(SECRET_CODE);
+
+        DeliveryOperation pendingOp = DeliveryOperation.pending(
+                ORDER_ID, DeliveryOperationType.CANCEL_AFTER_PICKUP, USER_ID, Role.REPARTIDOR,
+                Order.CANCEL_REASON_IDENTITY_UNVERIFIED, OrderStatus.CANCELADO, DELIVERY_ID,
+                OrderStatus.RETIRADO, "corr", OffsetDateTime.now()
+        ).withId(99L);
+        when(opRepo.create(any())).thenReturn(pendingOp);
+
+        DeliveryCodeVerification result = customUseCase.execute(ORDER_ID, "111111", REPARTIDOR, USER_ID);
+
+        assertEquals(Outcome.LOCKED, result.outcome());
+        verify(opRepo).create(argThat(op ->
+                op.reason().equals("No se pudo verificar la identidad de quien recibe el pedido")
+                        && op.targetStatus() == OrderStatus.CANCELADO
+                        && op.operationType() == DeliveryOperationType.CANCEL_AFTER_PICKUP));
+        verify(opRepo).save(argThat(op ->
+                op.state() == DeliveryOperationState.SUCCEEDED
+                        && op.resultingStatus() == OrderStatus.CANCELADO));
     }
 
     @Test
