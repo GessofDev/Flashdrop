@@ -88,6 +88,16 @@ export function MarketplacePage() {
     return names;
   }, [restaurants.data]);
 
+  const closedRestaurantIds = useMemo(
+    () =>
+      new Set(
+        (restaurants.data ?? [])
+          .filter((restaurant) => restaurant.open === false)
+          .map((restaurant) => restaurant.id),
+      ),
+    [restaurants.data],
+  );
+
   const handleAdd = (product: ProductResponse): void => {
     addItem(product);
     setNotice(`Añadido: ${product.name}`);
@@ -143,6 +153,7 @@ export function MarketplacePage() {
             loading={products.loading}
             error={products.error}
             restaurantNames={restaurantNames}
+            closedRestaurantIds={closedRestaurantIds}
             onAdd={handleAdd}
           />
 

@@ -14,6 +14,8 @@ export interface ProductCardProps {
    * itself.
    */
   restaurantName?: string;
+  /** Whether the local of the dish is closed: it can be seen, not ordered. */
+  closed?: boolean;
   /** Add the dish to the cart. */
   onAdd: (product: ProductResponse) => void;
 }
@@ -25,7 +27,7 @@ export interface ProductCardProps {
  * the card shows exactly those. The price is in Chilean pesos, with the
  * tabular figures the design system asks for.
  */
-export function ProductCard({ product, restaurantName, onAdd }: ProductCardProps) {
+export function ProductCard({ product, restaurantName, closed = false, onAdd }: ProductCardProps) {
   return (
     <article className="flex flex-col justify-between gap-3 rounded-container border border-border bg-surface p-4 shadow-card">
       <div className="flex flex-col gap-3">
@@ -49,9 +51,10 @@ export function ProductCard({ product, restaurantName, onAdd }: ProductCardProps
         <Button
           size="sm"
           aria-label={`Añadir ${product.name} al carrito`}
+          disabled={closed}
           onClick={() => onAdd(product)}
         >
-          Añadir
+          {closed ? 'Cerrado' : 'Añadir'}
         </Button>
       </div>
     </article>

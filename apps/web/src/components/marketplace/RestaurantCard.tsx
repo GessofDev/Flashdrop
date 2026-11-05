@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import type { RestaurantResponse } from '@/api';
 import { restaurantPath } from '@/app/routePaths';
+import { Badge } from '@/components/ui';
 
 import { CatalogImage } from './CatalogImage';
 
@@ -13,8 +14,8 @@ export interface RestaurantCardProps {
 /**
  * Card of a restaurant.
  *
- * The catalog only sends the name, the address and the picture, so the card
- * shows exactly those three things: the backend sends no customer score, no
+ * The catalog sends the name, the address, the picture and whether the local
+ * takes orders now, so the card shows exactly those: the backend sends no customer score, no
  * delivery time and no shipping cost, so the card cannot show them.
  *
  * The card is the way into the local: it links to the page where the
@@ -30,7 +31,10 @@ export function RestaurantCard({ restaurant }: RestaurantCardProps) {
         <CatalogImage src={restaurant.image} alt={restaurant.name} />
       </div>
       <div className="flex flex-col gap-1 p-4">
-        <h3 className="font-display text-base font-bold text-foreground">{restaurant.name}</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display text-base font-bold text-foreground">{restaurant.name}</h3>
+          {restaurant.open === false ? <Badge variant="destructive">Cerrado</Badge> : null}
+        </div>
         <p className="text-sm text-foreground-secondary">{restaurant.address}</p>
       </div>
     </Link>
