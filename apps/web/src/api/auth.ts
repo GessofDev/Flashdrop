@@ -62,6 +62,28 @@ export const authApi = {
     });
   },
 
+  /** `POST /auth/password/forgot` — answers 202 whether or not the account exists. */
+  async forgotPassword(email: string): Promise<void> {
+    await request<null>({
+      path: '/auth/password/forgot',
+      method: 'POST',
+      body: { email },
+      responseShape: 'bare',
+      session: 'public',
+    });
+  },
+
+  /** `POST /auth/password/reset` — sets the new password with the emailed token; answers 204. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await request<null>({
+      path: '/auth/password/reset',
+      method: 'POST',
+      body: { token, newPassword },
+      responseShape: 'bare',
+      session: 'public',
+    });
+  },
+
   /** `GET /auth/validate` — the claims of the access token. */
   validate(): Promise<TokenClaims> {
     return request<TokenClaims>({

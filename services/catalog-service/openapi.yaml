@@ -338,6 +338,79 @@ paths:
                 items:
                   $ref: '#/components/schemas/CategoryResponse'
 
+  /api/catalog/my/restaurant:
+    get:
+      tags: [Restaurants]
+      summary: Obtener el local del usuario autenticado, con su apertura
+      operationId: getMyRestaurant
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Local del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestaurantResponse'
+        '404':
+          description: El usuario no tiene local
+  /api/catalog/my/restaurant/open-status:
+    put:
+      tags: [Restaurants]
+      summary: Encender o apagar la recepcion de pedidos del local
+      operationId: updateMyRestaurantOpenStatus
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acceptingOrders]
+              properties:
+                acceptingOrders:
+                  type: boolean
+      responses:
+        '200':
+          description: Local actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestaurantResponse'
+  /api/catalog/my/restaurant/hours:
+    put:
+      tags: [Restaurants]
+      summary: Reemplazar el horario semanal del local
+      description: >-
+        Un tramo por dia. Una lista vacia deja al local sin horario definido, y
+        entonces depende solo de acceptingOrders.
+      operationId: updateMyRestaurantHours
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hours]
+              properties:
+                hours:
+                  type: array
+                  maxItems: 7
+                  items:
+                    $ref: '#/components/schemas/OpeningHours'
+      responses:
+        '200':
+          description: Local actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestaurantResponse'
+        '400':
+          description: Horario invalido
+
   /catalog/restaurants:
     get:
       tags: [Restaurants]
@@ -758,6 +831,33 @@ components:
         image:
           type: string
           example: "https://supabase.storage/fotos/restaurants/urban.jpg"
+        open:
+          type: boolean
+          description: Si el local recibe pedidos en este momento (interruptor y horario).
+        acceptingOrders:
+          type: boolean
+          description: Interruptor manual del local.
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpeningHours'
+
+    OpeningHours:
+      type: object
+      required: [day, opensAt, closesAt]
+      properties:
+        day:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: Dia ISO, 1 es lunes.
+        opensAt:
+          type: string
+          example: "09:00"
+        closesAt:
+          type: string
+          description: Si es anterior a opensAt, el local cierra al dia siguiente.
+          example: "18:00"
 
     ErrorResponse:
       type: object
@@ -816,6 +916,9 @@ components:
           type: string
           nullable: true
           example: Av. Providencia 1200
+        open:
+          type: boolean
+          description: Si el local recibe pedidos en este momento.
 
     AssignRestaurantOwnerRequest:
       type: object

@@ -47,6 +47,7 @@ export type {
   RefreshRequest,
   RegisterRequest,
   RegisterUserResult,
+  OpeningHours,
   RestaurantResponse,
   SalesRange,
   SalesSummaryResponse,

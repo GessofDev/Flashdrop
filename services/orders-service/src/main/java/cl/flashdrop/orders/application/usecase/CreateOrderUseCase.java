@@ -91,6 +91,13 @@ public class CreateOrderUseCase {
         Order.validateSingleRestaurant(products);
         UUID restaurantId = products.get(0).getRestaurantId();
 
+        // 2b. Con el local cerrado se rechaza antes de guardar nada. Si Catalog no conoce el
+        // local se conserva el comportamiento de siempre: el pedido sigue con dirección genérica.
+        RestaurantInfo restaurant = catalogPort.findRestaurantById(restaurantId).orElse(null);
+        if (restaurant != null && !restaurant.isOpen()) {
+            throw new OrderDomainException("El local está cerrado en este momento");
+        }
+
         // 3. Mapear productos por ID para lookup rápido
         Map<UUID, ProductInfo> productById = products.stream()
                 .collect(Collectors.toMap(ProductInfo::getId, p -> p));
@@ -150,7 +157,6 @@ public class CreateOrderUseCase {
         String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
 
         // 8. Crear ruta de entrega
-        RestaurantInfo restaurant = catalogPort.findRestaurantById(restaurantId).orElse(null);
         BigDecimal distanceKm = normalizeDistance(command.getDistanceKm());
         int estimatedMinutes = normalizeMinutes(command.getEstimatedMinutes());
 

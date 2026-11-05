@@ -9,10 +9,13 @@ import com.flashdrop.auth.application.port.inbound.GetUserProfileUseCase;
 import com.flashdrop.auth.application.port.inbound.LogoutUseCase;
 import com.flashdrop.auth.application.port.inbound.RefreshTokenUseCase;
 import com.flashdrop.auth.application.port.inbound.RegisterUserUseCase;
+import com.flashdrop.auth.application.port.inbound.RequestPasswordResetUseCase;
+import com.flashdrop.auth.application.port.inbound.ResetPasswordUseCase;
 import com.flashdrop.auth.application.port.inbound.UpdateUserProfileUseCase;
 import com.flashdrop.auth.application.port.inbound.ValidateTokenUseCase;
 import com.flashdrop.auth.domain.exception.EmailAlreadyRegisteredException;
 import com.flashdrop.auth.domain.exception.InvalidCredentialsException;
+import com.flashdrop.auth.domain.exception.InvalidResetTokenException;
 import com.flashdrop.auth.domain.exception.InvalidTokenException;
 import com.flashdrop.auth.domain.exception.InvalidUserException;
 import com.flashdrop.auth.domain.exception.UserNotFoundException;
@@ -64,16 +67,59 @@ class AuthControllerTest {
     private final LogoutUseCase logout = mock(LogoutUseCase.class);
     private final GetUserProfileUseCase getUserProfile = mock(GetUserProfileUseCase.class);
     private final UpdateUserProfileUseCase updateUserProfile = mock(UpdateUserProfileUseCase.class);
+    private final RequestPasswordResetUseCase requestPasswordReset = mock(RequestPasswordResetUseCase.class);
+    private final ResetPasswordUseCase resetPassword = mock(ResetPasswordUseCase.class);
 
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         var controller = new AuthController(registerUser, authenticateUser, validateToken,
-                refreshToken, logout, getUserProfile, updateUserProfile);
+                refreshToken, logout, getUserProfile, updateUserProfile, requestPasswordReset, resetPassword);
         mvc = standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void recuperarClaveResponde202SinCuerpo() throws Exception {
+        mvc.perform(post("/auth/password/forgot")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"email":"quien-sea@flashdrop.cl"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(""));
+    }
+
+    @Test
+    void recuperarClaveSinCorreoResponde400() throws Exception {
+        mvc.perform(post("/auth/password/forgot")
+                        .contentType(APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void restablecerClaveResponde204() throws Exception {
+        mvc.perform(post("/auth/password/reset")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"abc","newPassword":"NuevaClave123"}
+                                """))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void restablecerConEnlaceInvalidoResponde400ConSuCodigo() throws Exception {
+        org.mockito.Mockito.doThrow(new InvalidResetTokenException()).when(resetPassword).reset(any());
+
+        mvc.perform(post("/auth/password/reset")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"abc","newPassword":"NuevaClave123"}
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

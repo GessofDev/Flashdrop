@@ -1,5 +1,7 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -41,6 +43,7 @@ public class InternalCatalogController {
     private final CreateProductUseCase createProductUseCase;
     private final UpdateProductUseCase updateProductUseCase;
     private final AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase;
+    private final Clock clock;
 
     public InternalCatalogController(
             GetProductsByIdsUseCase getProductsByIdsUseCase,
@@ -48,7 +51,8 @@ public class InternalCatalogController {
             GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
             CreateProductUseCase createProductUseCase,
             UpdateProductUseCase updateProductUseCase,
-            AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase
+            AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase,
+            Clock clock
     ) {
         this.getProductsByIdsUseCase = getProductsByIdsUseCase;
         this.getRestaurantByIdUseCase = getRestaurantByIdUseCase;
@@ -56,6 +60,7 @@ public class InternalCatalogController {
         this.createProductUseCase = createProductUseCase;
         this.updateProductUseCase = updateProductUseCase;
         this.assignRestaurantOwnerUseCase = assignRestaurantOwnerUseCase;
+        this.clock = clock;
     }
 
     @GetMapping("/products")
@@ -101,12 +106,14 @@ public class InternalCatalogController {
 
     @GetMapping("/restaurants/{restaurantId}")
     public InternalRestaurantResponse getRestaurantById(@PathVariable Long restaurantId) {
-        return InternalRestaurantResponse.fromDomain(getRestaurantByIdUseCase.execute(restaurantId));
+        return InternalRestaurantResponse.fromDomain(
+                getRestaurantByIdUseCase.execute(restaurantId), LocalDateTime.now(clock));
     }
 
     @GetMapping(value = "/restaurants", params = "userId")
     public InternalRestaurantResponse getRestaurantByUserId(@RequestParam Long userId) {
-        return InternalRestaurantResponse.fromDomain(getRestaurantByUserIdUseCase.execute(userId));
+        return InternalRestaurantResponse.fromDomain(
+                getRestaurantByUserIdUseCase.execute(userId), LocalDateTime.now(clock));
     }
 
     @PutMapping("/restaurants/{restaurantId}/owner")
@@ -115,7 +122,7 @@ public class InternalCatalogController {
             @Valid @RequestBody AssignRestaurantOwnerRequest request
     ) {
         return InternalRestaurantResponse.fromDomain(
-                assignRestaurantOwnerUseCase.execute(restaurantId, request.userId()));
+                assignRestaurantOwnerUseCase.execute(restaurantId, request.userId()), LocalDateTime.now(clock));
     }
 
     private List<Long> parseIds(String ids) {

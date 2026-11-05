@@ -2,6 +2,7 @@ export { AuthBrandPanel } from './AuthBrandPanel';
 export { LoginForm } from './LoginForm';
 export type { LoginFormProps } from './LoginForm';
 export { LoginPage } from './LoginPage';
+export { PasswordRecoveryPage } from './PasswordRecoveryPage';
 export { RegisterForm } from './RegisterForm';
 export type { RegisterFormProps } from './RegisterForm';
 export { RoleDestinationPicker } from './RoleDestinationPicker';

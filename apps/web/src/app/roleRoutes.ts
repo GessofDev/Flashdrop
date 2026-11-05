@@ -34,6 +34,7 @@ export const ROLE_NAVIGATION: Record<Role, readonly NavigationItem[]> = {
   RESTAURANTE: [
     { label: 'KDS Pantalla Cocina', path: routePaths.storeKds },
     { label: 'Catálogo & Menú', path: routePaths.storeCatalog },
+    { label: 'Horario & Apertura', path: routePaths.storeHours },
     { label: 'Historial Despachos', path: routePaths.storeDispatchHistory },
     { label: 'Analíticas & Ventas', path: routePaths.storeAnalytics },
   ],

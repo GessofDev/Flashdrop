@@ -59,6 +59,7 @@ export function RestaurantPage() {
   };
 
   const availableProducts = (products.data ?? []).filter((product) => product.available);
+  const closed = restaurant?.open === false;
 
   return (
     <div className="mx-auto w-full max-w-app px-4 py-6 md:px-8">
@@ -93,6 +94,12 @@ export function RestaurantPage() {
             </header>
           )}
 
+          {closed ? (
+            <p className="rounded-container border border-border bg-surface p-4 text-sm text-foreground">
+              Este local está cerrado. Puedes ver sus platos, pero no recibe pedidos en este momento.
+            </p>
+          ) : null}
+
           <section
             aria-labelledby="restaurant-products-title"
             className="flex flex-col gap-4"
@@ -115,7 +122,12 @@ export function RestaurantPage() {
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {availableProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} onAdd={handleAdd} />
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    closed={closed}
+                    onAdd={handleAdd}
+                  />
                 ))}
               </div>
             )}

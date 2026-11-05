@@ -13,6 +13,8 @@ export interface PopularProductsProps {
   error: ApiError | null;
   /** Name of every restaurant, to say which local each dish belongs to. */
   restaurantNames: Map<number, string>;
+  /** Locals that do not take orders right now. */
+  closedRestaurantIds: Set<number>;
   /** Add a dish to the cart. */
   onAdd: (product: ProductResponse) => void;
 }
@@ -29,6 +31,7 @@ export function PopularProducts({
   loading,
   error,
   restaurantNames,
+  closedRestaurantIds,
   onAdd,
 }: PopularProductsProps) {
   return (
@@ -55,6 +58,7 @@ export function PopularProducts({
               key={product.id}
               product={product}
               restaurantName={restaurantNames.get(product.restaurantId)}
+              closed={closedRestaurantIds.has(product.restaurantId)}
               onAdd={onAdd}
             />
           ))}

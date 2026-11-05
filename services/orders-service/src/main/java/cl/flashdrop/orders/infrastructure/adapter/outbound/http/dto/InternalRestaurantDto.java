@@ -9,6 +9,7 @@ public record InternalRestaurantDto(
         Long id,
         String name,
         String address,
-        Long userId
+        Long userId,
+        Boolean open
 ) {
 }

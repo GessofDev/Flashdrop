@@ -48,6 +48,10 @@ jwtOverrides:
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
   - path: /auth/logout
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/password/forgot
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
+  - path: /auth/password/reset
+    jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
   - path: /auth/.well-known/jwks.json
     jwt: { enabled: false, mode: jwks, issuer: flashdrop-auth }
 routes:

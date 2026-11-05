@@ -14,6 +14,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.domain.model.OpeningHours;
 import com.flashdrop.catalog.domain.model.Restaurant;
 import com.flashdrop.catalog.infrastructure.config.EnvironmentValues;
 
@@ -107,6 +108,17 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
             return Optional.empty();
         }
         return Optional.of(rows[0].toDomain());
+    }
+
+    // Perfil legado: la apertura solo existe en el perfil postgres.
+    @Override
+    public Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders) {
+        throw new UnsupportedOperationException("La apertura del local requiere el perfil postgres");
+    }
+
+    @Override
+    public Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours) {
+        throw new UnsupportedOperationException("La apertura del local requiere el perfil postgres");
     }
 
     private List<RestaurantRow> fetchRestaurants(String url) {

@@ -1,6 +1,11 @@
 import { asList } from './asList';
 import { request } from './client';
-import type { ProductImageUpload, ProductResponse } from './types';
+import type {
+  OpeningHours,
+  ProductImageUpload,
+  ProductResponse,
+  RestaurantResponse,
+} from './types';
 
 /**
  * Body of the owner endpoints of the catalog.
@@ -33,6 +38,35 @@ export interface OwnerProductPayload {
  * the session: the owner is resolved from the token, never from the body.
  */
 export const storeCatalogApi = {
+  /** `GET /api/catalog/my/restaurant` — the local of the token, with its opening. */
+  getMyRestaurant(): Promise<RestaurantResponse> {
+    return request<RestaurantResponse>({
+      path: '/api/catalog/my/restaurant',
+      method: 'GET',
+      responseShape: 'bare',
+    });
+  },
+
+  /** `PUT /api/catalog/my/restaurant/open-status` — the manual switch of the local. */
+  setOpenStatus(acceptingOrders: boolean): Promise<RestaurantResponse> {
+    return request<RestaurantResponse>({
+      path: '/api/catalog/my/restaurant/open-status',
+      method: 'PUT',
+      body: { acceptingOrders },
+      responseShape: 'bare',
+    });
+  },
+
+  /** `PUT /api/catalog/my/restaurant/hours` — replaces the whole week of the local. */
+  setHours(hours: OpeningHours[]): Promise<RestaurantResponse> {
+    return request<RestaurantResponse>({
+      path: '/api/catalog/my/restaurant/hours',
+      method: 'PUT',
+      body: { hours },
+      responseShape: 'bare',
+    });
+  },
+
   /**
    * `GET /api/catalog/my/products` — the products of the restaurant of the
    * token, including the ones that are not available.

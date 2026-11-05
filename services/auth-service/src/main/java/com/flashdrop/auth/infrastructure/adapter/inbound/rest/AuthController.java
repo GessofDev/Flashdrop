@@ -3,9 +3,11 @@ package com.flashdrop.auth.infrastructure.adapter.inbound.rest;
 import com.flashdrop.auth.application.dto.*;
 import com.flashdrop.auth.application.port.inbound.*;
 import com.flashdrop.auth.domain.exception.InvalidTokenException;
+import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.ForgotPasswordRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.LoginRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RefreshRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RegisterRequest;
+import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.ResetPasswordRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.UpdateProfileRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -24,11 +26,15 @@ public class AuthController {
     private final LogoutUseCase logout;
     private final GetUserProfileUseCase getUserProfile;
     private final UpdateUserProfileUseCase updateUserProfile;
+    private final RequestPasswordResetUseCase requestPasswordReset;
+    private final ResetPasswordUseCase resetPassword;
 
     public AuthController(RegisterUserUseCase registerUser, AuthenticateUserUseCase authenticateUser,
                           ValidateTokenUseCase validateToken, RefreshTokenUseCase refreshToken,
                           LogoutUseCase logout, GetUserProfileUseCase getUserProfile,
-                          UpdateUserProfileUseCase updateUserProfile) {
+                          UpdateUserProfileUseCase updateUserProfile,
+                          RequestPasswordResetUseCase requestPasswordReset,
+                          ResetPasswordUseCase resetPassword) {
         this.registerUser = registerUser;
         this.authenticateUser = authenticateUser;
         this.validateToken = validateToken;
@@ -36,6 +42,8 @@ public class AuthController {
         this.logout = logout;
         this.getUserProfile = getUserProfile;
         this.updateUserProfile = updateUserProfile;
+        this.requestPasswordReset = requestPasswordReset;
+        this.resetPassword = resetPassword;
     }
 
     @PostMapping("/register")
@@ -87,6 +95,19 @@ public class AuthController {
         TokenClaims claims = validateToken.validate(bearer(authorization));
         return updateUserProfile.updateProfile(claims.userId(), new UpdateUserProfileCommand(
                 req.name(), req.lastName(), req.phone(), req.photo()));
+    }
+
+    /** Responde 202 exista o no el correo: el resultado no se puede distinguir (S-07). */
+    @PostMapping("/password/forgot")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void forgotPassword(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest http) {
+        requestPasswordReset.requestReset(new RequestPasswordResetCommand(req.email(), clientIp(http)));
+    }
+
+    @PostMapping("/password/reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resetPassword(@Valid @RequestBody ResetPasswordRequest req, HttpServletRequest http) {
+        resetPassword.reset(new ResetPasswordCommand(req.token(), req.newPassword(), clientIp(http)));
     }
 
     private static String bearer(String authorization) {

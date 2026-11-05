@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
-import { LoginPage } from '@/components/auth';
+import { LoginPage, PasswordRecoveryPage } from '@/components/auth';
 import {
   CourierAvailablePage,
   CourierConsolePage,
@@ -10,7 +10,7 @@ import { KitchenBoardPage } from '@/components/kitchen';
 import { MarketplacePage, RestaurantPage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
 import { ProfilePage } from '@/components/profile';
-import { StoreAnalyticsPage, StoreCatalogPage } from '@/components/store';
+import { StoreAnalyticsPage, StoreCatalogPage, StoreHoursPage } from '@/components/store';
 
 import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
@@ -35,13 +35,14 @@ const ROUTE_PLACEHOLDERS = [
 /**
  * Routes of the app.
  *
- * The login route is public; every other screen lives inside the protected
+ * The login and the password recovery are public; every other screen lives inside the protected
  * layout, which holds the guard and the canonical shell.
  */
 export function AppRoutes() {
   return (
     <Routes>
       <Route path={routePaths.login} element={<LoginPage />} />
+      <Route path={routePaths.passwordRecovery} element={<PasswordRecoveryPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path={routePaths.marketplace} element={<MarketplacePage />} />
         <Route path={routePaths.restaurant} element={<RestaurantPage />} />
@@ -50,6 +51,7 @@ export function AppRoutes() {
         <Route path={routePaths.storeCatalog} element={<StoreCatalogPage />} />
         <Route path={routePaths.storeKds} element={<KitchenBoardPage />} />
         <Route path={routePaths.storeAnalytics} element={<StoreAnalyticsPage />} />
+        <Route path={routePaths.storeHours} element={<StoreHoursPage />} />
         <Route path={routePaths.courier} element={<CourierConsolePage />} />
         <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
         <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />

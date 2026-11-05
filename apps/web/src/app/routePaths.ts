@@ -18,11 +18,13 @@ export const routePaths = {
   storeCatalog: '/tienda/catalogo',
   storeDispatchHistory: '/tienda/despachos',
   storeAnalytics: '/tienda/analiticas',
+  storeHours: '/tienda/horario',
   courier: '/repartidor',
   courierAvailable: '/repartidor/pedidos',
   courierHistory: '/repartidor/historial',
   profile: '/perfil',
   login: '/login',
+  passwordRecovery: '/recuperar-clave',
 } as const;
 
 export type RoutePath = (typeof routePaths)[keyof typeof routePaths];

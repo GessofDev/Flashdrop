@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +37,28 @@ class CatalogHttpClientAdapterTest {
                 .defaultHeader("Accept", "application/json")
                 .build();
         adapter = new CatalogHttpClientAdapter(restClient);
+    }
+
+    @Test
+    void restaurantOpenStateComesFromCatalog() {
+        stubRestaurant("""
+                {"id":7,"userId":2,"name":"Local","address":"Calle 1","open":false}
+                """);
+
+        assertFalse(adapter.findRestaurantById(toUuid(7L)).orElseThrow().isOpen());
+    }
+
+    @Test
+    void catalogWithoutOpenFieldIsTreatedAsOpen() {
+        stubRestaurant("""
+                {"id":7,"userId":2,"name":"Local","address":"Calle 1"}
+                """);
+
+        assertTrue(adapter.findRestaurantById(toUuid(7L)).orElseThrow().isOpen());
+    }
+
+    private void stubRestaurant(String body) {
+        wireMock.stubFor(get(urlPathEqualTo("/api/internal/restaurants/7")).willReturn(okJson(body)));
     }
 
     @Test

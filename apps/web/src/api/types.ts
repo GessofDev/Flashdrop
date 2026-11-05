@@ -107,6 +107,25 @@ export interface RestaurantResponse {
   phone: string | null;
   /** The catalog may answer without a picture. */
   image: string | null;
+  /**
+   * Whether the local takes orders right now. The web and the catalog deploy
+   * apart, so only an explicit `false` means closed.
+   */
+  open?: boolean;
+  /** Manual switch of the local. */
+  acceptingOrders?: boolean;
+  /** Week of the local; empty when it depends only on the switch. */
+  hours?: OpeningHours[];
+}
+
+/** One day of the week of a local. `closesAt` before `opensAt` ends the next day. */
+export interface OpeningHours {
+  /** ISO day: 1 is Monday. */
+  day: number;
+  /** `HH:mm`, local time. */
+  opensAt: string;
+  /** `HH:mm`, local time. */
+  closesAt: string;
 }
 
 /** `catalog-service` — `ProductResponse`, the answer of `GET /catalog/products`. */

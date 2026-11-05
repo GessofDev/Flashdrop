@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 
 import type { LoginRequest } from '@/api';
+import { routePaths } from '@/app/routePaths';
 import { isRememberSessionEnabled } from '@/session/rememberSession';
 import { Button } from '@/components/ui';
 
@@ -120,9 +122,12 @@ export function LoginForm({ onSubmit, submitting }: LoginFormProps) {
           <label className="text-sm font-semibold text-foreground" htmlFor="login-password">
             Contraseña
           </label>
-          <a className="text-xs font-semibold text-primary hover:text-primary-hover" href="#">
+          <Link
+            className="text-xs font-semibold text-primary hover:text-primary-hover"
+            to={routePaths.passwordRecovery}
+          >
             ¿Olvidaste tu contraseña?
-          </a>
+          </Link>
         </div>
         <input
           id="login-password"
