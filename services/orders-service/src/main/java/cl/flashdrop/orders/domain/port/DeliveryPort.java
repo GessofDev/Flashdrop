@@ -43,4 +43,10 @@ public interface DeliveryPort {
      * PATCH /api/internal/routes/order/{orderId}/status por cada orderId (C-7).
      */
     void updateRouteStatus(List<UUID> orderIds, String status);
+
+    /**
+     * Libera la ruta asociada a un pedido en Delivery Service condicionado al repartidor esperado.
+     * Contrato interno: POST /api/internal/routes/order/{orderId}/release.
+     */
+    void releaseRoute(UUID orderId, UUID expectedDeliveryId);
 }
