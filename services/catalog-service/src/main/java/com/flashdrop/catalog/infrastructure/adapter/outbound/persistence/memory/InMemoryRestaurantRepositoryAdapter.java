@@ -4,11 +4,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
+import java.util.function.UnaryOperator;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.domain.model.OpeningHours;
 import com.flashdrop.catalog.domain.model.Restaurant;
 
 @Repository
@@ -47,14 +49,32 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
 
     @Override
     public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
+        return replace(restaurantId, restaurant -> new Restaurant(
+                restaurant.getId(), userId, restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours()));
+    }
+
+    @Override
+    public Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders) {
+        return replace(restaurantId, restaurant -> new Restaurant(
+                restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), acceptingOrders, restaurant.getHours()));
+    }
+
+    @Override
+    public Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours) {
+        return replace(restaurantId, restaurant -> new Restaurant(
+                restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), hours));
+    }
+
+    private Optional<Restaurant> replace(Long restaurantId, UnaryOperator<Restaurant> change) {
         for (int index = 0; index < restaurants.size(); index++) {
             Restaurant restaurant = restaurants.get(index);
             if (restaurant.getId().equals(restaurantId)) {
-                Restaurant reassigned = new Restaurant(
-                        restaurant.getId(), userId, restaurant.getName(), restaurant.getAddress(),
-                        restaurant.getCreatedAt());
-                restaurants.set(index, reassigned);
-                return Optional.of(reassigned);
+                Restaurant updated = change.apply(restaurant);
+                restaurants.set(index, updated);
+                return Optional.of(updated);
             }
         }
         return Optional.empty();

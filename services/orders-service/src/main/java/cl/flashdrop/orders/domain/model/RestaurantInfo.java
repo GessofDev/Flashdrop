@@ -18,4 +18,7 @@ public class RestaurantInfo {
     private final UUID restaurantId;
     private final String name;
     private final String address;
+
+    @Builder.Default
+    private final boolean open = true;
 }

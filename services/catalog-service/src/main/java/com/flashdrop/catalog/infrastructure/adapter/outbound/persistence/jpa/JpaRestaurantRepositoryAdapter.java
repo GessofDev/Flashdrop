@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.domain.model.OpeningHours;
 import com.flashdrop.catalog.domain.model.Restaurant;
 import com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataRestaurantRepository;
 
@@ -52,6 +53,26 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
         return repository.findById(restaurantId)
                 .map(entity -> {
                     entity.changeOwner(userId);
+                    return entity.toDomain();
+                });
+    }
+
+    @Override
+    @Transactional
+    public Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders) {
+        return repository.findById(restaurantId)
+                .map(entity -> {
+                    entity.changeAcceptingOrders(acceptingOrders);
+                    return entity.toDomain();
+                });
+    }
+
+    @Override
+    @Transactional
+    public Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours) {
+        return repository.findById(restaurantId)
+                .map(entity -> {
+                    entity.replaceHours(hours);
                     return entity.toDomain();
                 });
     }

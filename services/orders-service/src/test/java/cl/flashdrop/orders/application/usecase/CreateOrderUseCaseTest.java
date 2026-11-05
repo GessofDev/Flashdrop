@@ -261,6 +261,27 @@ class CreateOrderUseCaseTest {
         verify(clientPort, never()).findOrCreateClientIdByUserId(any());
     }
 
+    // ------------------- Local cerrado -------------------
+
+    @Test
+    void closedStore_rejectsTheOrder_beforeSavingAnything() {
+        UUID userId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID restaurantId = UUID.randomUUID();
+        stubCatalogForOneProduct(productId, restaurantId);
+        when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(
+                RestaurantInfo.builder().restaurantId(restaurantId).name("Burgers House")
+                        .address("Los Leones 300").open(false).build()));
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> createOrderUseCase.execute(commandFor(userId, productId, true)));
+
+        assertEquals("El local está cerrado en este momento", ex.getMessage());
+        verify(orderRepository, never()).save(any());
+        verify(deliveryPort, never()).saveRoute(any());
+        verify(clientPort, never()).findOrCreateClientIdByUserId(any());
+    }
+
     // ------------------- Modo de recepcion / codigo de entrega -------------------
 
     private void stubCatalogAndClient(UUID userId, UUID productId, UUID restaurantId, UUID clientId) {
