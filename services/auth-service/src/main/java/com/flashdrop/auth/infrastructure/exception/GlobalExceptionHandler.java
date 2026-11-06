@@ -64,6 +64,11 @@ public class GlobalExceptionHandler {
                 "Ya existe un registro con esos datos");
     }
 
+    @ExceptionHandler(AccessForbiddenException.class)
+    public ResponseEntity<ApiError> handleForbidden(AccessForbiddenException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.code(), ex.getMessage());
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<ApiError> handleRateLimit(RateLimitExceededException ex) {
         return build(HttpStatus.TOO_MANY_REQUESTS, ex.code(), ex.getMessage());

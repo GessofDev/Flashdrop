@@ -212,6 +212,67 @@ class AuthRoleAssignmentIT {
                 "select count(*) from user_has_roles where id_user = ?", Integer.class, id));
     }
 
+    /**
+     * F6: un administrador (los tres roles) busca a una persona registrada por correo y le asigna el
+     * rol Restaurante; quien no es administrador no puede, y Soporte no es asignable por esta via.
+     */
+    @Test
+    void elAdministradorAsignaRolesPorCorreoYLosDemasNoPueden() throws Exception {
+        long adminId = alta("admin-f6@flashdrop.cl");
+        asignarInterno(adminId, "[\"Cliente\",\"Restaurante\",\"Repartidor\"]");
+        String adminToken = login("admin-f6@flashdrop.cl");
+        long dueno = alta("dueno-f6@flashdrop.cl");
+        String clienteToken = login("dueno-f6@flashdrop.cl");
+
+        mvc.perform(get("/auth/admin/users").param("email", "dueno-f6@flashdrop.cl"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/auth/admin/users").param("email", "dueno-f6@flashdrop.cl")
+                        .header("Authorization", "Bearer " + clienteToken))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/auth/admin/users").param("email", "dueno-f6@flashdrop.cl")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(dueno))
+                .andExpect(jsonPath("$.roles[0]").value("Cliente"));
+
+        mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
+                        .header("Authorization", "Bearer " + clienteToken)
+                        .contentType("application/json").content("{\"roles\":[\"Restaurante\"]}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json").content("{\"roles\":[\"Soporte\"]}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/auth/admin/users/" + adminId + "/roles")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json").content("{\"roles\":[\"Cliente\"]}"))
+                .andExpect(status().isForbidden());
+        assertEquals(List.of("Cliente"), rolesEnBase(dueno));
+
+        mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json").content("{\"roles\":[\"Cliente\",\"Restaurante\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles.length()").value(2));
+        assertEquals(List.of("Cliente", "Restaurante"), rolesEnBase(dueno));
+    }
+
+    private void asignarInterno(long userId, String rolesJson) throws Exception {
+        mvc.perform(put("/api/internal/users/" + userId + "/roles")
+                        .header("X-Internal-Api-Key", API_KEY)
+                        .contentType("application/json").content("{\"roles\":" + rolesJson + "}"))
+                .andExpect(status().isOk());
+    }
+
+    private String login(String email) throws Exception {
+        String body = mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("{\"login\":\"" + email + "\",\"password\":\"Segura1234\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).get("accessToken").asText();
+    }
+
     private long alta(String email) throws Exception {
         mvc.perform(post("/auth/register").contentType("application/json")
                         .content("""

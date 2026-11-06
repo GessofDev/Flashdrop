@@ -266,6 +266,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/admin/users:
+    get:
+      tags: [Admin]
+      summary: Buscar un usuario por correo (administrador)
+      description: >-
+        Solo administradores: usuarios con los roles Cliente, Restaurante y Repartidor a la vez
+        (no existe un rol Admin aparte). Devuelve identidad minima y roles, sin datos sensibles.
+      operationId: adminFindUserByEmail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usuario con sus roles
+        '401':
+          description: Token invalido o ausente
+        '403':
+          description: El token no es de un administrador
+        '404':
+          description: No existe un usuario con ese correo
+  /auth/admin/users/{userId}/roles:
+    put:
+      tags: [Admin]
+      summary: Reemplazar los roles de un usuario (administrador)
+      description: >-
+        Solo administradores. Roles asignables: Cliente, Restaurante y Repartidor (Soporte solo por el
+        endpoint interno). Un administrador no puede cambiar sus propios roles. La accion queda
+        auditada con el administrador como actor.
+      operationId: adminAssignRoles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roles]
+              properties:
+                roles:
+                  type: array
+                  items:
+                    type: string
+                    enum: [Cliente, Restaurante, Repartidor]
+      responses:
+        '200':
+          description: Roles asignados
+        '400':
+          description: Rol no asignable o lista ausente
+        '401':
+          description: Token invalido o ausente
+        '403':
+          description: No es administrador, o intenta cambiar sus propios roles
+        '404':
+          description: El usuario no existe
+
   /api/internal/users:
     get:
       tags: [Internal]

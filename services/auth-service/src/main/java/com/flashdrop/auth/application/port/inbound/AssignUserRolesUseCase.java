@@ -12,4 +12,7 @@ import com.flashdrop.auth.application.dto.AssignUserRolesResult;
 public interface AssignUserRolesUseCase {
 
     AssignUserRolesResult assign(AssignUserRolesCommand command);
+
+    /** Igual que {@link #assign(AssignUserRolesCommand)} pero auditando a quien ejecuta la accion. */
+    AssignUserRolesResult assign(AssignUserRolesCommand command, String actor);
 }

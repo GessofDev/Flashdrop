@@ -61,17 +61,22 @@ public class AssignUserRolesService implements AssignUserRolesUseCase {
      */
     @Override
     public AssignUserRolesResult assign(AssignUserRolesCommand command) {
+        return assign(command, ACTOR);
+    }
+
+    @Override
+    public AssignUserRolesResult assign(AssignUserRolesCommand command, String actor) {
         Long userId = command.userId();
         String target = userId == null ? null : String.valueOf(userId);
         try {
-            return asignar(command);
+            return asignar(command, actor);
         } catch (RuntimeException e) {
-            audit.record(new AuditLogger.AuditEvent(ACTION, ACTOR, "FAIL", command.clientIp(), target));
+            audit.record(new AuditLogger.AuditEvent(ACTION, actor, "FAIL", command.clientIp(), target));
             throw e;
         }
     }
 
-    private AssignUserRolesResult asignar(AssignUserRolesCommand command) {
+    private AssignUserRolesResult asignar(AssignUserRolesCommand command, String actor) {
         Long userId = command.userId();
         if (userId == null) {
             throw new InvalidUserException("El usuario es obligatorio para asignar roles");
@@ -97,7 +102,7 @@ public class AssignUserRolesService implements AssignUserRolesUseCase {
         users.assignRoles(userId, resueltos);
 
         audit.record(new AuditLogger.AuditEvent(
-                ACTION, ACTOR, "SUCCESS", command.clientIp(), String.valueOf(userId)));
+                ACTION, actor, "SUCCESS", command.clientIp(), String.valueOf(userId)));
         return new AssignUserRolesResult(userId, resueltos.stream()
                 .map(rol -> new InternalRoleResponse(rol.id(), rol.name()))
                 .toList());
