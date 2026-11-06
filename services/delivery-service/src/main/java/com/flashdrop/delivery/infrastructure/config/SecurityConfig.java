@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -69,6 +71,11 @@ public class SecurityConfig {
                 // by shared-observability). Spring Security must NOT demand
                 // JWT here — the X-Internal-Api-Key header is sufficient.
                 .requestMatchers("/api/internal/**").permitAll()
+                // Administrador = usuario con los tres roles a la vez (no existe un rol Admin).
+                .requestMatchers("/api/delivery/admin/**").access(AuthorizationManagers.allOf(
+                        AuthorityAuthorizationManager.hasRole("Cliente"),
+                        AuthorityAuthorizationManager.hasRole("Restaurante"),
+                        AuthorityAuthorizationManager.hasRole("Repartidor")))
                 .requestMatchers("/api/delivery/**", "/delivery/**").hasRole("Repartidor")
                 .anyRequest().hasRole("Repartidor")
             )
