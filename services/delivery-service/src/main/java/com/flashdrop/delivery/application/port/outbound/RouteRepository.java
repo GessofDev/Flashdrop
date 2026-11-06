@@ -51,4 +51,10 @@ public interface RouteRepository {
      * conflict.
      */
     DeliveryRoute closeRoute(Long routeId, RouteStatus targetStatus);
+
+    /** Borra la direccion de entrega (dato personal del cliente) de las rutas de esos pedidos. Idempotente. */
+    int anonymizeDeliveryAddresses(List<Long> orderIds);
+
+    /** Deshace el vinculo de las rutas con un repartidor (por eliminacion de su cuenta). Idempotente. */
+    int clearDeliveryPerson(Long deliveryPersonId);
 }

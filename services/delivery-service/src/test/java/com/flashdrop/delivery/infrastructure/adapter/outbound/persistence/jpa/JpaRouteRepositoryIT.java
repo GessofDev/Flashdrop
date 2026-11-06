@@ -53,6 +53,41 @@ class JpaRouteRepositoryIT {
     }
 
     @Test
+    @DisplayName("F5: anonymizeDeliveryAddresses blanks only the given orders and keeps the pickup address")
+    void anonymizeDeliveryAddressesBlanksOnlyTheGivenOrders() {
+        DeliveryRouteJpaEntity mine = jpaRouteRepository.save(new DeliveryRouteJpaEntity(
+                null, 5001L, "Local A", "Casa de Ana 123", BigDecimal.ONE, 10, "Entregado", Instant.now()));
+        DeliveryRouteJpaEntity other = jpaRouteRepository.save(new DeliveryRouteJpaEntity(
+                null, 5002L, "Local B", "Casa de Luis 456", BigDecimal.ONE, 10, "Entregado", Instant.now()));
+
+        assertThat(adapter.anonymizeDeliveryAddresses(List.of(5001L))).isEqualTo(1);
+        assertThat(adapter.anonymizeDeliveryAddresses(List.of(5001L))).isZero();
+        assertThat(adapter.anonymizeDeliveryAddresses(List.of())).isZero();
+
+        assertThat(adapter.findById(mine.getId()).orElseThrow().getDeliveryAddress()).isEmpty();
+        assertThat(adapter.findById(mine.getId()).orElseThrow().getPickupAddress()).isEqualTo("Local A");
+        assertThat(adapter.findById(other.getId()).orElseThrow().getDeliveryAddress()).isEqualTo("Casa de Luis 456");
+    }
+
+    @Test
+    @DisplayName("F5: clearDeliveryPerson unlinks every route of that courier and no other")
+    void clearDeliveryPersonUnlinksOnlyThatCourier() {
+        DeliveryRouteJpaEntity a = new DeliveryRouteJpaEntity(
+                null, 5101L, "P", "D", BigDecimal.ONE, 10, "Entregado", Instant.now());
+        a.setDeliveryPersonId(901L);
+        DeliveryRouteJpaEntity b = new DeliveryRouteJpaEntity(
+                null, 5102L, "P", "D", BigDecimal.ONE, 10, "Entregado", Instant.now());
+        b.setDeliveryPersonId(902L);
+        a = jpaRouteRepository.save(a);
+        b = jpaRouteRepository.save(b);
+
+        assertThat(adapter.clearDeliveryPerson(901L)).isEqualTo(1);
+
+        assertThat(jpaRouteRepository.findById(a.getId()).orElseThrow().getDeliveryPersonId()).isNull();
+        assertThat(jpaRouteRepository.findById(b.getId()).orElseThrow().getDeliveryPersonId()).isEqualTo(902L);
+    }
+
+    @Test
     @DisplayName("TC1: Flyway ran on boot — internal schema tables exist")
     void flywayCreatedTablesOnBoot() {
         List<DeliveryRouteJpaEntity> all = jpaRouteRepository.findAll();

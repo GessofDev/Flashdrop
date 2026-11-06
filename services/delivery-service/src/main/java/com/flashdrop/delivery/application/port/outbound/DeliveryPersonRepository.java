@@ -13,4 +13,7 @@ public interface DeliveryPersonRepository {
     DeliveryPerson save(DeliveryPerson deliveryPerson);
 
     boolean existsByUserId(String userId);
+
+    /** Elimina el perfil del repartidor. Devuelve false si no existia (idempotente). */
+    boolean deleteByUserId(String userId);
 }

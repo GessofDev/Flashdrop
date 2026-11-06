@@ -5,6 +5,7 @@ import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa.entity.DeliveryPersonJpaEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -31,6 +32,17 @@ public class JpaDeliveryPersonRepositoryAdapter implements DeliveryPersonReposit
     @Override
     public boolean existsByUserId(String userId) {
         return jpaRepository.findByUserId(userId).isPresent();
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteByUserId(String userId) {
+        return jpaRepository.findByUserId(userId)
+                .map(entity -> {
+                    jpaRepository.delete(entity);
+                    return true;
+                })
+                .orElse(false);
     }
 
     @Override
