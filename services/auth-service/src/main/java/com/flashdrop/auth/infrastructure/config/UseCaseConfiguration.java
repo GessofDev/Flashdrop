@@ -73,6 +73,11 @@ public class UseCaseConfiguration {
     }
 
     @Bean
+    AdminUserUseCase adminUserUseCase(UserRepository users, AssignUserRolesUseCase assignUserRoles) {
+        return new AdminUserService(users, assignUserRoles);
+    }
+
+    @Bean
     RequestPasswordResetUseCase requestPasswordResetUseCase(CredentialStore credentials, UserRepository users,
                                                             PasswordResetTokenStore resetTokens,
                                                             OpaqueTokenService opaque, PasswordResetMailer mailer,

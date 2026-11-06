@@ -43,7 +43,7 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     @Override
     public Optional<Restaurant> findByUserId(Long userId) {
         return restaurants.stream()
-                .filter(restaurant -> restaurant.getUserId().equals(userId))
+                .filter(restaurant -> java.util.Objects.equals(restaurant.getUserId(), userId))
                 .findFirst();
     }
 
@@ -52,6 +52,15 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), userId, restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours()));
+    }
+
+    @Override
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+        long nextId = restaurants.stream().mapToLong(Restaurant::getId).max().orElse(0L) + 1;
+        Restaurant created = new Restaurant(nextId, ownerUserId, name, address, LocalDateTime.now(),
+                acceptingOrders, List.of());
+        restaurants.add(created);
+        return created;
     }
 
     @Override

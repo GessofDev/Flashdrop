@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
 import com.flashdrop.catalog.domain.model.OpeningHours;
 import com.flashdrop.catalog.domain.model.Restaurant;
+import com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.entity.RestaurantEntity;
 import com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.repository.SpringDataRestaurantRepository;
 
 @Repository
@@ -55,6 +56,12 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
                     entity.changeOwner(userId);
                     return entity.toDomain();
                 });
+    }
+
+    @Override
+    @Transactional
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+        return repository.save(RestaurantEntity.create(name, address, ownerUserId, acceptingOrders)).toDomain();
     }
 
     @Override

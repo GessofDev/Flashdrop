@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -55,6 +57,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/catalog/my/**").hasRole("Restaurante")
+                        // Administrador = usuario con los tres roles a la vez (no existe un rol Admin).
+                        .requestMatchers("/api/catalog/admin/**").access(AuthorizationManagers.allOf(
+                                AuthorityAuthorizationManager.hasRole("Cliente"),
+                                AuthorityAuthorizationManager.hasRole("Restaurante"),
+                                AuthorityAuthorizationManager.hasRole("Repartidor")))
                         .requestMatchers(
                                 "/catalog/**",
                                 "/api/internal/**",

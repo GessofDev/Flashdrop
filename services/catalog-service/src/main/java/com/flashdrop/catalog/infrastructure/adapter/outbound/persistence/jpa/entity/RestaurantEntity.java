@@ -15,6 +15,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
@@ -24,9 +26,10 @@ import jakarta.persistence.Table;
 public class RestaurantEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     @Column(nullable = false)
@@ -48,6 +51,16 @@ public class RestaurantEntity {
     private List<RestaurantHoursEmbeddable> hours = new ArrayList<>();
 
     protected RestaurantEntity() {
+    }
+
+    public static RestaurantEntity create(String name, String address, Long userId, boolean acceptingOrders) {
+        RestaurantEntity entity = new RestaurantEntity();
+        entity.name = name;
+        entity.address = address;
+        entity.userId = userId;
+        entity.acceptingOrders = acceptingOrders;
+        entity.createdAt = LocalDateTime.now();
+        return entity;
     }
 
     public void changeOwner(Long userId) {

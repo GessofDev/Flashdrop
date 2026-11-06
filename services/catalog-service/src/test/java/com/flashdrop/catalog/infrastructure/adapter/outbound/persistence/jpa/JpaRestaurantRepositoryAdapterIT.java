@@ -69,6 +69,37 @@ class JpaRestaurantRepositoryAdapterIT {
         jdbc.update("insert into restaurant (id, user_id, name, address) values (1, 10, 'Local', 'Calle')");
     }
 
+    @Test
+    void create_withoutOwner_persistsAClosedRestaurantWithNullOwner() {
+        jdbc.queryForObject("select setval(pg_get_serial_sequence('restaurant', 'id'), 100)", Long.class);
+
+        Restaurant created = repository.create("Nueva", "Calle 1", null, false);
+        entityManager.flush();
+        entityManager.clear();
+
+        Restaurant reloaded = repository.findById(created.getId()).orElseThrow();
+        assertThat(created.getId()).isGreaterThan(100L);
+        assertThat(reloaded.getUserId()).isNull();
+        assertThat(reloaded.isAcceptingOrders()).isFalse();
+        assertThat(reloaded.getName()).isEqualTo("Nueva");
+    }
+
+    @Test
+    void create_withOwner_isFoundByUserId_andOwnerCanBeReassigned() {
+        jdbc.queryForObject("select setval(pg_get_serial_sequence('restaurant', 'id'), 100)", Long.class);
+
+        Restaurant created = repository.create("Con dueno", null, 77L, true);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.findByUserId(77L)).map(Restaurant::getId).contains(created.getId());
+        repository.assignOwner(created.getId(), 78L);
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(repository.findByUserId(77L)).isEmpty();
+        assertThat(repository.findByUserId(78L)).isPresent();
+    }
+
     private Restaurant reload() {
         entityManager.flush();
         entityManager.clear();

@@ -30,6 +30,10 @@ public class SecurityConfig {
                 // Igual que el GET: el token lo valida AuthController, no esta
                 // cadena. Sin esta linea el PUT cae en el denyAll del final (403).
                 .requestMatchers(HttpMethod.PUT, "/auth/profile").permitAll()
+                // Administracion (F6): el token y el rol de administrador (los tres roles a la vez)
+                // los valida AdminUserController, igual que /auth/profile.
+                .requestMatchers(HttpMethod.GET, "/auth/admin/**").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/auth/admin/**").permitAll()
                 // La autenticacion real de estas rutas la realiza InternalApiKeyFilter.
                 .requestMatchers("/api/internal/**").permitAll()
                 // El gateway hace polling de /health en cada servicio para la

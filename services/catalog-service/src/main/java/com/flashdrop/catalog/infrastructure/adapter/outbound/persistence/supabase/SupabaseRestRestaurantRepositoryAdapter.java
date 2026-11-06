@@ -110,6 +110,12 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
         return Optional.of(rows[0].toDomain());
     }
 
+    // Perfil legado: el alta administrativa requiere el perfil postgres.
+    @Override
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+        throw new UnsupportedOperationException("El alta de locales requiere el perfil postgres");
+    }
+
     // Perfil legado: la apertura solo existe en el perfil postgres.
     @Override
     public Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders) {
