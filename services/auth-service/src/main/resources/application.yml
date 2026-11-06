@@ -80,10 +80,18 @@ auth:
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
     from: ${SMTP_FROM:}
+  account-deletion:
+    enabled: ${ACCOUNT_DELETION_ENABLED:true}
+    poll-ms: ${ACCOUNT_DELETION_POLL_MS:30000}
+    max-attempts: ${ACCOUNT_DELETION_MAX_ATTEMPTS:20}
 
 services:
   # Sin valor por defecto: si falta, /api/internal/** queda cerrado (403).
   internal-api-key: ${INTERNAL_API_KEY:}
+  # Eliminacion de cuenta (F5): los demas servicios se resuelven por nombre en la red de FloCI.
+  orders-url: ${ORDERS_SERVICE_URL:http://orders-service:8083}
+  delivery-url: ${DELIVERY_SERVICE_URL:http://delivery-service:8084}
+  catalog-url: ${CATALOG_SERVICE_URL:http://catalog-service:8082}
 
 management:
   endpoints:

@@ -43,6 +43,18 @@ public class JpaCredentialStoreAdapter implements CredentialStore {
 
     @Override
     @Transactional
+    public void setActive(Long userId, boolean active) {
+        logins.updateStatus(userId, active ? 1 : 0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isActive(Long userId) {
+        return logins.findByUserId(userId).map(e -> Integer.valueOf(1).equals(e.getStatus())).orElse(false);
+    }
+
+    @Override
+    @Transactional
     public void updatePassword(Long userId, String passwordHash) {
         logins.updatePassword(userId, passwordHash);
     }

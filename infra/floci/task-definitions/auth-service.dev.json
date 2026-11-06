@@ -34,6 +34,18 @@
         {
           "name": "FLYWAY_LOCATIONS",
           "value": "classpath:db/migration,classpath:db/seed"
+        },
+        {
+          "name": "ORDERS_SERVICE_URL",
+          "value": "http://orders-service:8083"
+        },
+        {
+          "name": "DELIVERY_SERVICE_URL",
+          "value": "http://delivery-service:8084"
+        },
+        {
+          "name": "CATALOG_SERVICE_URL",
+          "value": "http://catalog-service:8082"
         }
       ],
       "secrets": [

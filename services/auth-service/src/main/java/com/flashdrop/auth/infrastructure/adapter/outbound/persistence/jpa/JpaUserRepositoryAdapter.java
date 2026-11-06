@@ -42,6 +42,14 @@ public class JpaUserRepositoryAdapter implements UserRepository {
 
     @Override
     @Transactional
+    public void deleteById(Long userId) {
+        if (users.existsById(userId)) {
+            users.deleteById(userId);
+        }
+    }
+
+    @Override
+    @Transactional
     public User save(User user) {
         UserEntity guardado = users.save(new UserEntity(
                 user.id(), user.email().value(), user.rut(), user.name(),
