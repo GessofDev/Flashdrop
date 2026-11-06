@@ -216,7 +216,7 @@ class InternalCatalogControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":2}"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("El usuario ya tiene asignado otro comercio"));
     }
 

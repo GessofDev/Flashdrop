@@ -19,6 +19,8 @@ public interface RestaurantRepositoryPort {
 
     Optional<Restaurant> assignOwner(Long restaurantId, Long userId);
 
+    Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders);
+
     Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders);
 
     Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours);

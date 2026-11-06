@@ -338,6 +338,91 @@ paths:
                 items:
                   $ref: '#/components/schemas/CategoryResponse'
 
+  /api/catalog/admin/restaurants:
+    get:
+      tags: [Admin]
+      summary: Listar los restaurantes con su dueno (administrador)
+      description: >-
+        Solo administradores: usuarios con los roles Cliente, Restaurante y Repartidor a la vez
+        (no existe un rol Admin aparte).
+      operationId: adminListRestaurants
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de restaurantes
+        '401':
+          description: Token invalido o ausente
+        '403':
+          description: El token no es de un administrador
+    post:
+      tags: [Admin]
+      summary: Crear un restaurante (administrador)
+      description: >-
+        Nace cerrado (acceptingOrders=false) hasta que su dueno configure el horario. El dueno es
+        opcional; si se indica, no puede tener ya otro restaurante. Asignar antes el rol Restaurante
+        al dueno en auth-service.
+      operationId: adminCreateRestaurant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+                ownerUserId:
+                  type: integer
+                  format: int64
+      responses:
+        '201':
+          description: Restaurante creado
+        '400':
+          description: Datos invalidos
+        '403':
+          description: El token no es de un administrador
+        '409':
+          description: El usuario ya tiene asignado otro comercio
+  /api/catalog/admin/restaurants/{restaurantId}/owner:
+    put:
+      tags: [Admin]
+      summary: Asignar el dueno de un restaurante (administrador)
+      operationId: adminAssignRestaurantOwner
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: restaurantId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+      responses:
+        '200':
+          description: Dueno asignado
+        '403':
+          description: El token no es de un administrador
+        '404':
+          description: El restaurante no existe
+        '409':
+          description: El usuario ya tiene asignado otro comercio
   /api/catalog/my/restaurant:
     get:
       tags: [Restaurants]

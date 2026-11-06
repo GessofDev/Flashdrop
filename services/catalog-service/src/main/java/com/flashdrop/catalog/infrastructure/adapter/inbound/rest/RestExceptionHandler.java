@@ -14,6 +14,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.exception.ImageStorageException;
+import com.flashdrop.catalog.domain.exception.OwnerAlreadyAssignedException;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.exception.PayloadTooLargeException;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.ErrorResponse;
@@ -25,6 +26,11 @@ public class RestExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
         return error(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
                 "El parametro '" + exception.getName() + "' tiene un formato invalido");
+    }
+
+    @ExceptionHandler(OwnerAlreadyAssignedException.class)
+    public ResponseEntity<ErrorResponse> handleOwnerConflict(OwnerAlreadyAssignedException exception) {
+        return error(HttpStatus.CONFLICT, "CONFLICT", exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

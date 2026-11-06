@@ -3,6 +3,7 @@ package com.flashdrop.catalog.application.usecase;
 import org.springframework.stereotype.Service;
 
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.domain.exception.OwnerAlreadyAssignedException;
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.model.Restaurant;
 
@@ -26,7 +27,7 @@ public class AssignRestaurantOwnerUseCase {
         restaurants.findByUserId(userId)
                 .filter(owned -> !owned.getId().equals(restaurantId))
                 .ifPresent(owned -> {
-                    throw new IllegalArgumentException("El usuario ya tiene asignado otro comercio");
+                    throw new OwnerAlreadyAssignedException("El usuario ya tiene asignado otro comercio");
                 });
 
         return restaurants.assignOwner(restaurant.getId(), userId)
