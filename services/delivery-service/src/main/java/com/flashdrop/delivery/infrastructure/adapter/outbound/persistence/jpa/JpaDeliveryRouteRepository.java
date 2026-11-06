@@ -4,6 +4,7 @@ import com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa.en
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -41,4 +42,13 @@ public interface JpaDeliveryRouteRepository extends JpaRepository<DeliveryRouteJ
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM DeliveryRouteJpaEntity r WHERE r.id = :id")
     Optional<DeliveryRouteJpaEntity> findByIdForUpdate(@Param("id") Long id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE DeliveryRouteJpaEntity r SET r.deliveryAddress = '' "
+            + "WHERE r.orderId IN :orderIds AND r.deliveryAddress IS NOT NULL AND r.deliveryAddress <> ''")
+    int anonymizeDeliveryAddresses(@Param("orderIds") List<Long> orderIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE DeliveryRouteJpaEntity r SET r.deliveryPersonId = NULL WHERE r.deliveryPersonId = :deliveryPersonId")
+    int clearDeliveryPerson(@Param("deliveryPersonId") Long deliveryPersonId);
 }

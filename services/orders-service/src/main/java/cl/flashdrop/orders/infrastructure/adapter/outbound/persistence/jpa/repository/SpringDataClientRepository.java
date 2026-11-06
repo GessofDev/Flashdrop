@@ -13,6 +13,10 @@ import java.util.Optional;
 public interface SpringDataClientRepository extends JpaRepository<ClientEntity, Long> {
     Optional<ClientEntity> findByUserId(Long userId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE ClientEntity c SET c.userId = NULL, c.endDate = CURRENT_TIMESTAMP WHERE c.userId = :userId")
+    int anonymizeByUserId(@Param("userId") Long userId);
+
     /** Alta idempotente: si el usuario ya tiene perfil (user_id único) no hace nada. */
     @Modifying
     @Query(value = "INSERT INTO client (user_id, created_at) VALUES (:userId, now()) ON CONFLICT (user_id) DO NOTHING",

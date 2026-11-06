@@ -120,6 +120,52 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
         throw new UnsupportedOperationException("Entrega con codigo no soportada en el perfil supabase");
     }
 
+    private int countActive(String column, UUID id) {
+        if (id == null) return 0;
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam(column, "eq." + IdConverter.toLong(id))
+                        .queryParam("status", "not.in.(Entregado,Cancelado,Rechazado)")
+                        .queryParam("select", "id")
+                        .queryParam("limit", "1000")
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        return rows == null ? 0 : rows.length;
+    }
+
+    @Override
+    public int countActiveByClient(UUID clientId) {
+        return countActive("client_id", clientId);
+    }
+
+    @Override
+    public int countActiveByRestaurant(UUID restaurantId) {
+        return countActive("restaurant_id", restaurantId);
+    }
+
+    @Override
+    public int countActiveByDeliveryPerson(UUID deliveryId) {
+        return countActive("delivery_id", deliveryId);
+    }
+
+    @Override
+    public int anonymizeAddressesByClient(UUID clientId) {
+        if (clientId == null) return 0;
+        OrderRow[] updated = supabaseRestClient.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("client_id", "eq." + IdConverter.toLong(clientId))
+                        .queryParam("select", "id")
+                        .build())
+                .header("Prefer", "return=representation")
+                .body(Map.of("address", ""))
+                .retrieve()
+                .body(OrderRow[].class);
+        return updated == null ? 0 : updated.length;
+    }
+
     @Override
     public void updateStatus(UUID orderId, OrderStatus status) {
         long rawId = IdConverter.toLong(orderId);

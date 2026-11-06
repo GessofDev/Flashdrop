@@ -112,6 +112,37 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
         return mapWithItems(orderRepository.findByClientId(IdConverter.toLong(clientId)));
     }
 
+    private static final List<String> TERMINAL_STATUSES = List.of(
+            OrderStatus.ENTREGADO.getValue(), OrderStatus.CANCELADO.getValue(), OrderStatus.RECHAZADO.getValue());
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countActiveByClient(UUID clientId) {
+        if (clientId == null) return 0;
+        return (int) orderRepository.countByClientIdAndStatusNotIn(IdConverter.toLong(clientId), TERMINAL_STATUSES);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countActiveByRestaurant(UUID restaurantId) {
+        if (restaurantId == null) return 0;
+        return (int) orderRepository.countByRestaurantIdAndStatusNotIn(IdConverter.toLong(restaurantId), TERMINAL_STATUSES);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countActiveByDeliveryPerson(UUID deliveryId) {
+        if (deliveryId == null) return 0;
+        return (int) orderRepository.countByDeliveryIdAndStatusNotIn(IdConverter.toLong(deliveryId), TERMINAL_STATUSES);
+    }
+
+    @Override
+    @Transactional
+    public int anonymizeAddressesByClient(UUID clientId) {
+        if (clientId == null) return 0;
+        return orderRepository.anonymizeAddressesByClient(IdConverter.toLong(clientId));
+    }
+
     @Override
     @Transactional
     public void updateStatus(UUID orderId, OrderStatus status) {

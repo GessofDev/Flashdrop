@@ -27,6 +27,12 @@ public interface ClientPort {
     UUID findOrCreateClientIdByUserId(UUID userId);
 
     /**
+     * Eliminacion de cuenta: borra el vinculo del perfil con el usuario y lo marca con end_date. Idempotente
+     * (devuelve false si el usuario ya no tiene perfil).
+     */
+    boolean anonymizeByUserId(UUID userId);
+
+    /**
      * Obtiene la información completa de un cliente por su id de perfil.
      */
     Optional<ClientInfo> findClientById(UUID clientId);

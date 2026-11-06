@@ -11,6 +11,13 @@ import java.util.Optional;
 public interface SpringDataLoginRepository extends JpaRepository<LoginEntity, Long> {
     Optional<LoginEntity> findByLogin(String login);
 
+    Optional<LoginEntity> findByUserId(Long userId);
+
+    @Modifying
+    @Query(value = "update login set status = :status, updated_at = now() where id_users = :userId",
+            nativeQuery = true)
+    int updateStatus(@Param("userId") Long userId, @Param("status") int status);
+
     @Modifying
     @Query(value = "update login set password = :hash, updated_at = now() where id_users = :userId",
             nativeQuery = true)

@@ -55,6 +55,13 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     }
 
     @Override
+    public Optional<Restaurant> clearOwner(Long userId) {
+        return findByUserId(userId).flatMap(owned -> replace(owned.getId(), restaurant -> new Restaurant(
+                restaurant.getId(), null, restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), false, restaurant.getHours())));
+    }
+
+    @Override
     public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
         long nextId = restaurants.stream().mapToLong(Restaurant::getId).max().orElse(0L) + 1;
         Restaurant created = new Restaurant(nextId, ownerUserId, name, address, LocalDateTime.now(),

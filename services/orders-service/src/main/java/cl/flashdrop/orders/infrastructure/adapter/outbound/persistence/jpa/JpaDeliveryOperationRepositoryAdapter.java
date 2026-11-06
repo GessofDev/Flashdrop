@@ -33,6 +33,12 @@ public class JpaDeliveryOperationRepositoryAdapter implements DeliveryOperationR
 
     @Override
     @Transactional
+    public int anonymizeActor(UUID userId) {
+        return repository.anonymizeActor(IdConverter.toLong(userId));
+    }
+
+    @Override
+    @Transactional
     public DeliveryOperation create(DeliveryOperation operation) {
         OrderDeliveryOperationEntity entity = toEntity(operation);
         OrderDeliveryOperationEntity saved = repository.save(entity);

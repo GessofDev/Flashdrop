@@ -96,6 +96,10 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-}
+      # Eliminacion de cuenta (F5): Auth coordina el borrado de datos en los demas servicios.
+      - ORDERS_SERVICE_URL=http://orders-service:8083
+      - DELIVERY_SERVICE_URL=http://delivery-service:8084
+      - CATALOG_SERVICE_URL=http://catalog-service:8082
     ports:
       - '127.0.0.1:8081:8081'
     healthcheck:

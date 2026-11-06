@@ -22,6 +22,16 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     List<OrderEntity> findByDeliveryId(Long deliveryId);
     List<OrderEntity> findByIdIn(Collection<Long> ids);
 
+    long countByClientIdAndStatusNotIn(Long clientId, Collection<String> statuses);
+
+    long countByRestaurantIdAndStatusNotIn(Long restaurantId, Collection<String> statuses);
+
+    long countByDeliveryIdAndStatusNotIn(Long deliveryId, Collection<String> statuses);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.address = '' WHERE o.clientId = :clientId AND o.address <> ''")
+    int anonymizeAddressesByClient(@Param("clientId") Long clientId);
+
     /**
      * Lee el pedido con bloqueo de fila ({@code SELECT ... FOR UPDATE}): serializa los intentos
      * de código simultáneos sobre el mismo pedido para que nunca se superen los permitidos.

@@ -100,6 +100,21 @@ class JpaRestaurantRepositoryAdapterIT {
         assertThat(repository.findByUserId(78L)).isPresent();
     }
 
+    @Test
+    void clearOwner_unlinksTheOwnerAndClosesTheRestaurant_keepingTheRestaurant() {
+        Restaurant cleared = repository.clearOwner(10L).orElseThrow();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(cleared.getUserId()).isNull();
+        Restaurant reloaded = repository.findById(1L).orElseThrow();
+        assertThat(reloaded.getUserId()).isNull();
+        assertThat(reloaded.isAcceptingOrders()).isFalse();
+        assertThat(reloaded.getName()).isEqualTo("Local");
+        assertThat(repository.findByUserId(10L)).isEmpty();
+        assertThat(repository.clearOwner(10L)).isEmpty();
+    }
+
     private Restaurant reload() {
         entityManager.flush();
         entityManager.clear();

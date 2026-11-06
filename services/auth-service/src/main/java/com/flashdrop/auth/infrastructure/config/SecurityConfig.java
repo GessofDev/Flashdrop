@@ -30,6 +30,8 @@ public class SecurityConfig {
                 // Igual que el GET: el token lo valida AuthController, no esta
                 // cadena. Sin esta linea el PUT cae en el denyAll del final (403).
                 .requestMatchers(HttpMethod.PUT, "/auth/profile").permitAll()
+                // Eliminar la cuenta propia (F5): el token y la contrasena los valida AccountController.
+                .requestMatchers(HttpMethod.DELETE, "/auth/account").permitAll()
                 // Administracion (F6): el token y el rol de administrador (los tres roles a la vez)
                 // los valida AdminUserController, igual que /auth/profile.
                 .requestMatchers(HttpMethod.GET, "/auth/admin/**").permitAll()

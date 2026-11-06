@@ -47,8 +47,9 @@ public class UseCaseConfiguration {
     }
 
     @Bean
-    ValidateTokenUseCase validateTokenUseCase(TokenService tokens) {
-        return new ValidateTokenService(tokens);
+    ValidateTokenUseCase validateTokenUseCase(TokenService tokens, CredentialStore credentials) {
+        // Un token firmado no basta: la cuenta debe seguir activa (F5: cuentas en eliminacion quedan fuera).
+        return new ActiveAccountTokenValidator(new ValidateTokenService(tokens), credentials);
     }
 
     @Bean

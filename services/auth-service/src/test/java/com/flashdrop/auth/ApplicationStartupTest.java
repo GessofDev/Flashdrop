@@ -2,6 +2,7 @@ package com.flashdrop.auth;
 
 import org.junit.jupiter.api.Test;
 import com.flashdrop.auth.application.dto.TokenClaims;
+import com.flashdrop.auth.application.port.outbound.AccountDeletionStore;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
 import com.flashdrop.auth.application.port.outbound.PasswordResetTokenStore;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
@@ -61,7 +62,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @MockBean({UserRepository.class, CredentialStore.class,
-           RoleRepository.class, RefreshTokenStore.class, PasswordResetTokenStore.class})
+           RoleRepository.class, RefreshTokenStore.class, PasswordResetTokenStore.class,
+           AccountDeletionStore.class})
 class ApplicationStartupTest {
 
     @Autowired
@@ -75,6 +77,10 @@ class ApplicationStartupTest {
      *  resuelve contra este doble. */
     @Autowired
     UserRepository users;
+
+    /** Doble del puerto de credenciales: el validador de tokens consulta si la cuenta sigue activa (F5). */
+    @Autowired
+    CredentialStore credentials;
 
     /** Si algún bean no resuelve, este test falla antes que ningún otro. */
     @Test
@@ -160,6 +166,7 @@ class ApplicationStartupTest {
      */
     @Test
     void validateAceptaUnJwtRealYDevuelveSusClaims() throws Exception {
+        when(credentials.isActive(42L)).thenReturn(true);
         String jwt = tokens.issue(new TokenClaims(42L, "real@flashdrop.cl", List.of("Cliente")));
 
         mvc.perform(get("/auth/validate").header("Authorization", "Bearer " + jwt))
@@ -167,6 +174,17 @@ class ApplicationStartupTest {
                 .andExpect(jsonPath("$.userId").value(42))
                 .andExpect(jsonPath("$.email").value("real@flashdrop.cl"))
                 .andExpect(jsonPath("$.roles[0]").value("Cliente"));
+    }
+
+    /** F5: una cuenta inhabilitada o eliminada no valida aunque el token tenga firma vigente. */
+    @Test
+    void validateRechazaElTokenDeUnaCuentaInhabilitada() throws Exception {
+        when(credentials.isActive(43L)).thenReturn(false);
+        String jwt = tokens.issue(new TokenClaims(43L, "baja@flashdrop.cl", List.of("Cliente")));
+
+        mvc.perform(get("/auth/validate").header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
     }
 
     @Test
@@ -200,6 +218,7 @@ class ApplicationStartupTest {
                 1L, new Email("cliente@demo.cl"), null, "Cliente", "Demo",
                 "+56911111111", null, List.of(), Instant.now())));
         when(users.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
+        when(credentials.isActive(1L)).thenReturn(true);
         String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
 
         mvc.perform(put("/auth/profile").header("Authorization", "Bearer " + jwt)

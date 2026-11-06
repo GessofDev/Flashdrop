@@ -64,6 +64,16 @@ public class GlobalExceptionHandler {
                 "Ya existe un registro con esos datos");
     }
 
+    @ExceptionHandler({AccountDeletionBlockedException.class, AccountDeletionInProgressException.class})
+    public ResponseEntity<ApiError> handleAccountDeletionConflict(DomainException ex) {
+        return build(HttpStatus.CONFLICT, ex.code(), ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountErasureUnavailableException.class)
+    public ResponseEntity<ApiError> handleErasureUnavailable(AccountErasureUnavailableException ex) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), ex.getMessage());
+    }
+
     @ExceptionHandler(AccessForbiddenException.class)
     public ResponseEntity<ApiError> handleForbidden(AccessForbiddenException ex) {
         return build(HttpStatus.FORBIDDEN, ex.code(), ex.getMessage());

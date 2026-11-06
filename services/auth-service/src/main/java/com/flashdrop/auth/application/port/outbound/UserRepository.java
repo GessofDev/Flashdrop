@@ -29,4 +29,7 @@ public interface UserRepository {
      * usuario no existe, no se escribe nada.
      */
     void assignRoles(Long userId, List<Role> roles);
+
+    /** Elimina al usuario; la base borra en cascada login, roles y tokens. Idempotente. */
+    void deleteById(Long userId);
 }
