@@ -84,6 +84,14 @@ agregadas a `gateway/docker/docker-compose.stack.yml` y a `infra/floci/task-defi
   rechazo, aceptacion, reintento, aborto, cascada), `JpaOrderRepositoryAdapterTest`, `JpaClientAdapterTest`,
   `JpaRouteRepositoryIT`, `JpaRestaurantRepositoryAdapterIT`, `InternalErasureControllerIT` (Catalog).
 
+## Verificacion de punta a punta (2026-11-06)
+
+`qa/e2e/f23_f24.py` se ejecuto a traves del gateway contra los cuatro servicios reales y bases PostgreSQL nuevas
+(contenedores descartables, sin tocar datos existentes): **50 de 50 comprobaciones correctas** (F24 y F23). Ademas,
+con Orders apagado, `DELETE /auth/account` respondio 503 y la cuenta quedo intacta. El reintento tras un fallo posterior
+a la aceptacion (202) se verifica en `AuthAccountDeletionIT`, no en este recorrido. Guia para web y app:
+`docs/integracion-web-f5-f6.md`.
+
 ## Caso F23 (punta a punta por API, con una cuenta creada por la prueba; nunca las cuentas demo)
 
 1. Registrar un usuario nuevo U; login; crear un pedido en curso.
