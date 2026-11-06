@@ -267,7 +267,7 @@ public class OrderController {
     // =========================================================================
 
     private OrderListResponse toListResponse(Order order) {
-        String clientName = order.getClientInfo() != null ? order.getClientInfo().fullName() : "Cliente";
+        String clientName = order.getClientInfo() != null ? order.getClientInfo().fullName() : "";
         String clientPhone = order.getClientInfo() != null ? order.getClientInfo().getPhone() : "";
         String clientEmail = order.getClientInfo() != null ? order.getClientInfo().getEmail() : "";
         String restaurantName = order.getRestaurantInfo() != null ? order.getRestaurantInfo().getName() : "";
@@ -302,7 +302,7 @@ public class OrderController {
         String pickupAddress = restaurantAddress == null || restaurantAddress.isBlank()
                 ? restaurantName
                 : restaurantName + ", " + restaurantAddress;
-        String clientName = order.getClientInfo() != null ? order.getClientInfo().fullName() : "Cliente";
+        String clientName = order.getClientInfo() != null ? order.getClientInfo().fullName() : "";
 
         return new AvailableDeliveryOrderResponse(
                 IdConverter.toLong(order.getId()),

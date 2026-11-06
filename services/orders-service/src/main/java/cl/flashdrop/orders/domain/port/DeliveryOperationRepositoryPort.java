@@ -18,4 +18,7 @@ public interface DeliveryOperationRepositoryPort {
     DeliveryOperation save(DeliveryOperation operation);
 
     List<DeliveryOperation> findByState(DeliveryOperationState state, int limit);
+
+    /** Eliminacion de cuenta: borra la identidad y el motivo (texto libre) de las operaciones de ese actor. */
+    int anonymizeActor(UUID userId);
 }

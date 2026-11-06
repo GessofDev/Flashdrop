@@ -176,6 +176,33 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         }
     }
 
+    @Override
+    public int anonymizeClientRoutes(List<UUID> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return 0;
+        }
+        List<Long> rawIds = orderIds.stream().map(IdConverter::toLong).toList();
+        try {
+            AnonymizeEnvelope response = deliveryInternalRestClient.post()
+                    .uri("/api/internal/erasure/routes/anonymize")
+                    .body(Map.of("orderIds", rawIds))
+                    .retrieve()
+                    .body(AnonymizeEnvelope.class);
+            return response == null || response.data() == null || response.data().updated() == null
+                    ? 0 : response.data().updated();
+        } catch (HttpStatusCodeException e) {
+            throw InternalHttpSupport.httpError(SERVICE, e);
+        } catch (ResourceAccessException e) {
+            throw InternalHttpSupport.connectionFailure(SERVICE, e);
+        }
+    }
+
+    private record AnonymizeEnvelope(boolean success, String message, AnonymizeData data) {
+    }
+
+    private record AnonymizeData(Integer updated) {
+    }
+
     /** No existe endpoint bulk en Delivery todavia (ver nota arriba): una llamada por orderId,
      *  cada una con su propio manejo de errores para que una falla no corte las demas. */
     private void patchRouteStatus(long rawOrderId, String routeToken) {

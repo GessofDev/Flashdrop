@@ -90,6 +90,29 @@ class JpaClientAdapterTest extends PostgresIntegrationTestSupport {
     }
 
     @Test
+    void anonymizeByUserId_shouldUnlinkTheProfile_keepItsRow_andBeIdempotent() {
+        ClientEntity saved = persistClient(603L);
+        UUID userId = IdConverter.toUuid(603L);
+
+        assertTrue(adapter.anonymizeByUserId(userId));
+        assertFalse(adapter.anonymizeByUserId(userId));
+
+        ClientEntity reloaded = clientRepository.findById(saved.getId()).orElseThrow();
+        assertNull(reloaded.getUserId());
+        assertNotNull(reloaded.getEndDate());
+        assertTrue(adapter.findClientIdByUserId(userId).isEmpty());
+    }
+
+    @Test
+    void findClientById_shouldReturnEmptyForAnAnonymizedClient_withoutAskingAuthForAnyone() {
+        ClientEntity saved = persistClient(604L);
+        adapter.anonymizeByUserId(IdConverter.toUuid(604L));
+
+        assertTrue(adapter.findClientById(IdConverter.toUuid(saved.getId())).isEmpty());
+        org.mockito.Mockito.verifyNoInteractions(userPort);
+    }
+
+    @Test
     void findClientIdByUserId_shouldReturnEmptyForNullUserId() {
         assertTrue(adapter.findClientIdByUserId(null).isEmpty());
     }
