@@ -108,8 +108,26 @@ class AdminUserServiceTest {
     }
 
     @Test
-    void assignRoles_supportAndUnknownRolesAreNotAssignableByAnAdmin() {
-        assertThrows(InvalidRoleException.class, () -> service.assignRoles(ADMIN, 9L, List.of("Soporte"), "ip"));
+    void assignRoles_supportIsAssignableByAnAdmin_andDoesNotMakeAnAdmin() {
+        AssignUserRolesResult expected = new AssignUserRolesResult(9L, List.of());
+        when(assign.assign(any(AssignUserRolesCommand.class), anyString())).thenReturn(expected);
+
+        assertEquals(expected, service.assignRoles(ADMIN, 9L, List.of("Cliente", "Soporte"), "ip"));
+
+        verify(assign).assign(any(AssignUserRolesCommand.class), eq("admin:4"));
+        assertEquals(false, AdminAccess.isAdmin(List.of("Cliente", "Soporte")));
+    }
+
+    @Test
+    void assignRoles_supportCannotBeAssignedByANonAdmin() {
+        TokenClaims soporte = new TokenClaims(8L, "soporte@demo.cl", List.of("Soporte"));
+
+        assertThrows(AccessForbiddenException.class, () -> service.assignRoles(soporte, 9L, List.of("Soporte"), "ip"));
+        verify(assign, never()).assign(any(), anyString());
+    }
+
+    @Test
+    void assignRoles_unknownRolesAreNotAssignableByAnAdmin() {
         assertThrows(InvalidRoleException.class, () -> service.assignRoles(ADMIN, 9L, List.of("Superman"), "ip"));
         assertThrows(InvalidRoleException.class, () -> service.assignRoles(ADMIN, 9L, null, "ip"));
         verify(assign, never()).assign(any(), anyString());

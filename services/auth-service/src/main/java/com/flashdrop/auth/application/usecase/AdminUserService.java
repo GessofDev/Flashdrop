@@ -20,8 +20,11 @@ import com.flashdrop.auth.domain.model.User;
 
 public class AdminUserService implements AdminUserUseCase {
 
-    /** Roles que un administrador puede dar. Soporte sigue asignandose solo por el endpoint interno. */
-    private static final Set<String> ASSIGNABLE = AdminAccess.ADMIN_ROLES;
+    /**
+     * Roles que un administrador puede dar: los tres operativos y Soporte (lo necesita F17, para intervenir
+     * pedidos ya retirados). Soporte NO es parte de la definicion de administrador (los tres operativos).
+     */
+    private static final Set<String> ASSIGNABLE = Set.of("Cliente", "Restaurante", "Repartidor", "Soporte");
 
     private final UserRepository users;
     private final AssignUserRolesUseCase assignUserRoles;
