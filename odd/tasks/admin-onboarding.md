@@ -23,7 +23,7 @@ en los enums de roles de Orders y Delivery (que rechazan roles desconocidos).
 | Servicio | Endpoint | Resultado |
 |---|---|---|
 | Auth | `GET /auth/admin/users?email=` | 200 `{id,name,lastName,email,roles}`; 401/403/404 |
-| Auth | `PUT /auth/admin/users/{id}/roles` `{roles}` | 200; solo Cliente/Restaurante/Repartidor; 400/401/403/404 |
+| Auth | `PUT /auth/admin/users/{id}/roles` `{roles}` | 200; Cliente, Restaurante, Repartidor y Soporte; 400/401/403/404 |
 | Catalog | `POST /api/catalog/admin/restaurants` `{name,address?,ownerUserId?}` | 201, nace **cerrado**; 400/403/409 |
 | Catalog | `PUT /api/catalog/admin/restaurants/{id}/owner` `{userId}` | 200; 403/404/409 |
 | Catalog | `GET /api/catalog/admin/restaurants` | 200 lista con dueno |

@@ -242,7 +242,7 @@ class AuthRoleAssignmentIT {
                 .andExpect(status().isForbidden());
         mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
                         .header("Authorization", "Bearer " + adminToken)
-                        .contentType("application/json").content("{\"roles\":[\"Soporte\"]}"))
+                        .contentType("application/json").content("{\"roles\":[\"Chef\"]}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(put("/auth/admin/users/" + adminId + "/roles")
                         .header("Authorization", "Bearer " + adminToken)
@@ -256,6 +256,18 @@ class AuthRoleAssignmentIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles.length()").value(2));
         assertEquals(List.of("Cliente", "Restaurante"), rolesEnBase(dueno));
+
+        // Soporte (F17) lo puede dar un administrador, pero no lo vuelve administrador.
+        mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json").content("{\"roles\":[\"Cliente\",\"Soporte\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles.length()").value(2));
+        assertEquals(List.of("Cliente", "Soporte"), rolesEnBase(dueno));
+        mvc.perform(put("/auth/admin/users/" + dueno + "/roles")
+                        .header("Authorization", "Bearer " + login("dueno-f6@flashdrop.cl"))
+                        .contentType("application/json").content("{\"roles\":[\"Soporte\"]}"))
+                .andExpect(status().isForbidden());
     }
 
     private void asignarInterno(long userId, String rolesJson) throws Exception {

@@ -296,9 +296,10 @@ paths:
       tags: [Admin]
       summary: Reemplazar los roles de un usuario (administrador)
       description: >-
-        Solo administradores. Roles asignables: Cliente, Restaurante y Repartidor (Soporte solo por el
-        endpoint interno). Un administrador no puede cambiar sus propios roles. La accion queda
-        auditada con el administrador como actor.
+        Solo administradores. Roles asignables: Cliente, Restaurante, Repartidor y Soporte. Soporte (intervencion
+        de pedidos ya retirados, F17) no vuelve administrador a nadie: el administrador sigue siendo quien tiene
+        Cliente, Restaurante y Repartidor a la vez. Un administrador no puede cambiar sus propios roles. La accion
+        queda auditada con el administrador como actor.
       operationId: adminAssignRoles
       security:
         - bearerAuth: []
@@ -321,7 +322,7 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [Cliente, Restaurante, Repartidor]
+                    enum: [Cliente, Restaurante, Repartidor, Soporte]
       responses:
         '200':
           description: Roles asignados
