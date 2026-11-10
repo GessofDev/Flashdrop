@@ -574,6 +574,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/internal/users/{userId}/deletion-blockers:
+    get:
+      tags: [Internal]
+      summary: Pedidos en curso de un usuario (eliminacion de cuenta)
+      description: |
+        Eliminacion de cuenta (F5). La llama Auth antes de aceptar la eliminacion. Cuenta los pedidos **en curso**
+        (ni `Entregado`, ni `Cancelado`, ni `Rechazado`) de la persona en cada uno de sus papeles: como cliente, como
+        dueno de tienda y como repartidor asignado. No cancela nada. Si Catalog o Delivery no responden, el error se
+        propaga (503): nunca se informa "sin pedidos en curso" por no haber podido comprobarlo.
+
+        `userId` es el id del usuario en Auth (Long).
+      operationId: internalDeletionBlockers
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Conteo por papel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blocked:
+                    type: boolean
+                    description: true si hay al menos un pedido en curso
+                  asClient:
+                    type: integer
+                  asRestaurant:
+                    type: integer
+                  asCourier:
+                    type: integer
+        '403':
+          description: X-Internal-Api-Key ausente o incorrecta
+        '503':
+          description: Catalog o Delivery no respondieron
+
+  /api/internal/users/{userId}/erase:
+    post:
+      tags: [Internal]
+      summary: Borrar los datos personales de un usuario (eliminacion de cuenta)
+      description: |
+        Eliminacion de cuenta (F5). La llama Auth en segundo plano, con reintentos. **No cancela nada**: si hay pedidos
+        en curso responde 409 y no toca nada.
+
+        Si no hay pedidos en curso: borra la direccion de todos los pedidos del cliente, pide a Delivery borrar la
+        direccion de sus rutas, anonimiza el actor y el motivo (texto libre) de las operaciones de entrega y, **al
+        final**, desvincula el perfil de cliente (`client.user_id = NULL`). Los pedidos terminados se conservan como
+        evidencia minima (id, estado, montos, fechas, tienda y productos) sin ningun dato del cliente.
+
+        Idempotente: todos los pasos se pueden repetir, y el vinculo del perfil se borra al final para que un reintento
+        tras un fallo parcial siga encontrando los pedidos.
+      operationId: internalEraseUser
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Lo que se anonimizo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ordersAnonymized:
+                    type: integer
+                  routesAnonymized:
+                    type: integer
+                  operationsAnonymized:
+                    type: integer
+                  profileErased:
+                    type: boolean
+        '403':
+          description: X-Internal-Api-Key ausente o incorrecta
+        '409':
+          description: Hay pedidos en curso; no se borro nada. El mensaje indica cuantos hay en cada papel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Delivery no respondio; se puede reintentar
+
 components:
   securitySchemes:
     bearerAuth:

@@ -6,6 +6,9 @@ import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
+import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.OrderStatus;
+import cl.flashdrop.orders.domain.model.PaymentMethod;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import cl.flashdrop.orders.infrastructure.exception.GlobalExceptionHandler;
@@ -72,6 +75,21 @@ class OrderControllerOwnershipTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 String.valueOf(USER_ID), null,
                 Arrays.stream(roles).map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList()));
+    }
+
+    /** F5: el cliente eliminado no existe mas; la lista no muestra ningun nombre sustituto. */
+    @Test
+    void misPedidos_deUnClienteEliminado_noMuestraNombreNiTextoSustituto() throws Exception {
+        autenticadoComo("Restaurante");
+        Order sinCliente = Order.builder().id(UUID.randomUUID()).clientId(UUID.randomUUID())
+                .restaurantId(UUID.randomUUID()).status(OrderStatus.ENTREGADO).address("")
+                .paymentMethod(PaymentMethod.TARJETA).build();
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE))).thenReturn(List.of(sinCliente));
+
+        mockMvc.perform(get("/api/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].clientName").value(""))
+                .andExpect(jsonPath("$.data[0].address").value(""));
     }
 
     @Test

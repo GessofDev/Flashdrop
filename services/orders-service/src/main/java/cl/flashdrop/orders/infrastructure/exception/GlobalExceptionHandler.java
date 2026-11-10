@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.infrastructure.exception;
 
+import cl.flashdrop.orders.domain.exception.AccountDeletionBlockedException;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.infrastructure.api.dto.response.ErrorResponse;
@@ -62,6 +63,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleForbiddenOperation(ForbiddenOperationException ex) {
         log.warn("Operacion no autorizada: {}", ex.getMessage());
         return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    /** Eliminacion de cuenta bloqueada por pedidos en curso (F5). */
+    @ExceptionHandler(AccountDeletionBlockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountDeletionBlocked(AccountDeletionBlockedException ex) {
+        log.warn("Eliminacion de cuenta bloqueada: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

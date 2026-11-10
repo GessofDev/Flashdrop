@@ -60,6 +60,17 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
 
     @Override
     @Transactional
+    public Optional<Restaurant> clearOwner(Long userId) {
+        return repository.findByUserId(userId)
+                .map(entity -> {
+                    entity.changeOwner(null);
+                    entity.changeAcceptingOrders(false);
+                    return entity.toDomain();
+                });
+    }
+
+    @Override
+    @Transactional
     public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
         return repository.save(RestaurantEntity.create(name, address, ownerUserId, acceptingOrders)).toDomain();
     }

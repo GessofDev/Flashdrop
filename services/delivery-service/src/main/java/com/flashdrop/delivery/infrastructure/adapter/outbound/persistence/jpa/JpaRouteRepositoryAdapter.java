@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +30,21 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
 
     public JpaRouteRepositoryAdapter(JpaDeliveryRouteRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
+    }
+
+    @Override
+    @Transactional
+    public int anonymizeDeliveryAddresses(List<Long> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return 0;
+        }
+        return jpaRepository.anonymizeDeliveryAddresses(orderIds);
+    }
+
+    @Override
+    @Transactional
+    public int clearDeliveryPerson(Long deliveryPersonId) {
+        return jpaRepository.clearDeliveryPerson(deliveryPersonId);
     }
 
     @Override

@@ -21,6 +21,12 @@ public interface RestaurantRepositoryPort {
 
     Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders);
 
+    /**
+     * Elimina el vinculo del restaurante con su dueno (cuenta eliminada) y lo deja cerrado. El restaurante
+     * y su catalogo se conservan. Devuelve vacio si el usuario no tenia restaurante (idempotente).
+     */
+    Optional<Restaurant> clearOwner(Long userId);
+
     Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders);
 
     Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours);

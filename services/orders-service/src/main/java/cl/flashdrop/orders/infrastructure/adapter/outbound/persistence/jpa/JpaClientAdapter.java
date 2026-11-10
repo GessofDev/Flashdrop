@@ -39,6 +39,12 @@ public class JpaClientAdapter implements ClientPort {
 
     @Override
     @Transactional
+    public boolean anonymizeByUserId(UUID userId) {
+        return clientRepository.anonymizeByUserId(IdConverter.toLong(userId)) > 0;
+    }
+
+    @Override
+    @Transactional
     public UUID findOrCreateClientIdByUserId(UUID userId) {
         long rawUserId = IdConverter.toLong(userId);
         clientRepository.insertIfAbsent(rawUserId);
@@ -60,6 +66,10 @@ public class JpaClientAdapter implements ClientPort {
             return Optional.empty();
         }
         ClientEntity entity = clientOpt.get();
+        if (entity.getUserId() == null) {
+            // Cliente anonimizado (cuenta eliminada): no hay datos personales que mostrar.
+            return Optional.empty();
+        }
         UUID userUuid = IdConverter.toUuid(entity.getUserId());
         Optional<UserInfo> user = userPort.findUserById(userUuid);
 

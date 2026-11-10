@@ -1,0 +1,503 @@
+openapi: 3.0.3
+info:
+  title: FlashDrop - Delivery Service API
+  description: |
+    Microservicio de rutas de reparto y perfiles de repartidor.
+
+    **Puerto:** 8084 (el gateway lo expone bajo `/api/delivery`).
+
+    ## Notas para quien integra
+    - Todas las respuestas de este servicio usan el sobre `{ "success": bool, "message": string|null, "data": ... }`.
+      Los errores traen `success=false` y el motivo en `message`.
+    - Los endpoints publicos (`/api/delivery/**`) exigen JWT con el rol **Repartidor**; sin token responden 401 y con
+      otro rol, 403. Las rutas `/api/delivery/admin/**` exigen ademas ser **administrador**: no existe un rol "Admin",
+      el administrador es el usuario que tiene a la vez los roles Cliente, Restaurante y Repartidor.
+    - Los endpoints `/api/internal/**` no usan JWT: exigen la cabecera `X-Internal-Api-Key` y solo los llaman otros
+      servicios de la red interna. No se exponen por el gateway.
+    - Los ids de usuario son los de Auth (numericos).
+  version: 1.0.0
+  contact:
+    name: FlashDrop Backend Team
+
+servers:
+  - url: http://localhost:8084
+    description: Desarrollo local
+
+tags:
+  - name: Routes
+    description: Rutas de reparto del repartidor
+  - name: Persons
+    description: Perfil de repartidor
+  - name: Admin
+    description: Alta de repartidores por un administrador (F6)
+  - name: Internal
+    description: Llamadas entre servicios (X-Internal-Api-Key)
+
+paths:
+  /api/delivery/routes:
+    get:
+      tags: [Routes]
+      summary: Rutas del repartidor autenticado
+      operationId: listMyRoutes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Rutas del repartidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/delivery/routes/{routeId}/status:
+    put:
+      tags: [Routes]
+      summary: Cambiar el estado de una ruta propia
+      operationId: updateRouteStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  description: Sin distinguir mayusculas.
+                  enum: [PENDIENTE, ASSIGNED, RETIRAR_PEDIDO, EN_CAMINO, ENTREGADO]
+      responses:
+        '200':
+          description: Ruta actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponseEnvelope'
+        '400':
+          description: Estado desconocido
+        '403':
+          description: La ruta no es del repartidor autenticado
+        '404':
+          description: La ruta no existe
+        '409':
+          description: Entregar exige el codigo de verificacion
+
+  /api/delivery/claim:
+    post:
+      tags: [Routes]
+      summary: Tomar pedidos para reparto
+      description: |
+        Asigna al repartidor autenticado las rutas de 1 a 3 pedidos y avisa a Orders. Si dos repartidores toman el
+        mismo pedido a la vez, solo uno lo consigue (el otro recibe 409).
+      operationId: claimOrders
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderIds]
+              properties:
+                orderIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items:
+                    type: integer
+                    format: int64
+      responses:
+        '200':
+          description: Pedidos tomados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonListResponse'
+        '400':
+          description: Lista vacia, con mas de 3 pedidos o de restaurantes distintos
+        '404':
+          description: El usuario no tiene perfil de repartidor
+        '409':
+          description: Otro repartidor ya tomo el pedido, o la ruta no esta lista
+
+  /api/delivery/persons:
+    post:
+      tags: [Persons]
+      summary: Crear mi propio perfil de repartidor
+      description: El usuario se toma de la sesion, nunca del cuerpo. El vehiculo es opcional.
+      operationId: createMyProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleRequest'
+      responses:
+        '201':
+          description: Perfil creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+        '409':
+          description: El perfil ya existe
+
+  /api/delivery/admin/persons:
+    post:
+      tags: [Admin]
+      summary: Crear el perfil de repartidor de un usuario (administrador)
+      description: |
+        Solo administradores (usuario con los roles Cliente, Restaurante y Repartidor a la vez). El usuario debe tener
+        ya el rol Repartidor, que se asigna antes con `PUT /auth/admin/users/{userId}/roles`. La accion queda en el
+        registro con el administrador como actor.
+      operationId: adminCreateDeliveryPerson
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                  minimum: 1
+                vehicle:
+                  $ref: '#/components/schemas/VehicleType'
+      responses:
+        '201':
+          description: Perfil creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+        '400':
+          description: userId ausente o no positivo
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: El token no es de un administrador
+        '409':
+          description: El usuario ya tiene perfil de repartidor
+
+  /api/internal/delivery-persons:
+    get:
+      tags: [Internal]
+      summary: Perfil de repartidor por usuario
+      operationId: internalGetPersonByUserId
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Perfil encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+        '404':
+          description: El usuario no tiene perfil
+
+  /api/internal/routes:
+    post:
+      tags: [Internal]
+      summary: Crear la ruta de un pedido (la llama Orders al crear el pedido)
+      operationId: internalCreateRoute
+      security:
+        - internalApiKey: []
+      responses:
+        '201':
+          description: Ruta creada
+
+  /api/internal/routes/{routeId}/status:
+    patch:
+      tags: [Internal]
+      summary: Cambiar el estado de una ruta por id
+      operationId: internalUpdateRouteStatus
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        $ref: '#/components/requestBodies/InternalStatus'
+      responses:
+        '200':
+          description: Ruta actualizada
+
+  /api/internal/routes/order/{orderId}/status:
+    patch:
+      tags: [Internal]
+      summary: Cambiar el estado de la ruta de un pedido
+      operationId: internalUpdateRouteStatusByOrder
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        $ref: '#/components/requestBodies/InternalStatus'
+      responses:
+        '200':
+          description: Ruta actualizada
+
+  /api/internal/routes/order/{orderId}/release:
+    post:
+      tags: [Internal]
+      summary: Liberar la ruta de un pedido antes del retiro
+      operationId: internalReleaseRoute
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedDeliveryId]
+              properties:
+                expectedDeliveryId:
+                  type: integer
+                  format: int64
+                  minimum: 1
+      responses:
+        '200':
+          description: Ruta otra vez disponible
+        '409':
+          description: La ruta ya no pertenece a ese repartidor o ya fue retirada
+
+  /api/internal/erasure/routes/anonymize:
+    post:
+      tags: [Internal]
+      summary: Borrar la direccion de entrega de las rutas de unos pedidos (eliminacion de cuenta)
+      description: |
+        Eliminacion de cuenta (F5). Orders informa los pedidos del cliente que elimina su cuenta y Delivery deja en
+        blanco la direccion de entrega de esas rutas (el resto de la ruta se conserva). Idempotente: repetirla no
+        cambia nada.
+      operationId: internalAnonymizeRoutes
+      security:
+        - internalApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderIds]
+              properties:
+                orderIds:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+      responses:
+        '200':
+          description: Cuantas rutas se modificaron
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      updated:
+                        type: integer
+
+  /api/internal/erasure/delivery-persons:
+    post:
+      tags: [Internal]
+      summary: Eliminar el perfil de repartidor de un usuario (eliminacion de cuenta)
+      description: |
+        Eliminacion de cuenta (F5). Desvincula las rutas del repartidor y borra su perfil. Idempotente: si no habia
+        perfil responde `erased=false` y no falla. No cancela nada: Orders ya comprobo que no hay pedidos en curso.
+      operationId: internalEraseCourier
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resultado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      erased:
+                        type: boolean
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Formato: Bearer <token>"
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+      description: Clave compartida entre los servicios. Sin ella, 403.
+
+  requestBodies:
+    InternalStatus:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                type: string
+                enum: [PENDIENTE, ASSIGNED, RETIRAR_PEDIDO, EN_CAMINO, ENTREGADO, CANCELADO, RECHAZADO]
+
+  responses:
+    Unauthorized:
+      description: Token ausente o invalido
+    Forbidden:
+      description: El usuario no tiene el rol requerido
+
+  schemas:
+    VehicleType:
+      type: string
+      enum: [MOTO, AUTO, BICICLETA, PIE]
+    VehicleRequest:
+      type: object
+      properties:
+        vehicle:
+          $ref: '#/components/schemas/VehicleType'
+    Person:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        vehicle:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    PersonEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        data:
+          $ref: '#/components/schemas/Person'
+    PersonListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Person'
+    Route:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderId:
+          type: integer
+          format: int64
+        pickupAddress:
+          type: string
+        deliveryAddress:
+          type: string
+          description: Vacia si el cliente elimino su cuenta.
+        distanceKm:
+          type: number
+        estimatedMinutes:
+          type: integer
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        code:
+          type: string
+          nullable: true
+        receptionMode:
+          type: string
+          enum: [NORMAL, SEGURO]
+        deliveryPinRequired:
+          type: boolean
+    RouteResponseEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        data:
+          $ref: '#/components/schemas/Route'
+    RouteListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'

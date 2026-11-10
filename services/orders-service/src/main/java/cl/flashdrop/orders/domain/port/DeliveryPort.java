@@ -58,4 +58,7 @@ public interface DeliveryPort {
      * @param targetStatus Estado final ("Cancelado" o "Rechazado")
      */
     void closeRoute(UUID orderId, String targetStatus);
+
+    /** Eliminacion de cuenta de un cliente: Delivery borra la direccion de entrega de las rutas de esos pedidos. */
+    int anonymizeClientRoutes(List<UUID> orderIds);
 }

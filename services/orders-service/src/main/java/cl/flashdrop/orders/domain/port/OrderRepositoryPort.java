@@ -41,6 +41,18 @@ public interface OrderRepositoryPort {
      */
     List<Order> findByClientId(UUID clientId);
 
+    /** Pedidos en curso (ni Entregado, ni Cancelado, ni Rechazado) hechos por ese cliente. */
+    int countActiveByClient(UUID clientId);
+
+    /** Pedidos en curso de ese restaurante. */
+    int countActiveByRestaurant(UUID restaurantId);
+
+    /** Pedidos en curso asignados a ese repartidor. */
+    int countActiveByDeliveryPerson(UUID deliveryId);
+
+    /** Borra la direccion (dato personal) de todos los pedidos de ese cliente. Idempotente. */
+    int anonymizeAddressesByClient(UUID clientId);
+
     /**
      * Actualiza \u00FAnicamente el estado de un pedido.
      */

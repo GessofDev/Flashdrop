@@ -167,6 +167,40 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
     }
 
     @Test
+    void countActive_shouldCountOnlyNonTerminalOrdersPerRole() {
+        UUID courier = IdConverter.toUuid(9L);
+        adapter.save(baseOrder().status(OrderStatus.NUEVO_PEDIDO).items(List.of()).build());
+        adapter.save(baseOrder().status(OrderStatus.RETIRADO).deliveryId(courier).items(List.of()).build());
+        adapter.save(baseOrder().status(OrderStatus.ENTREGADO).deliveryId(courier).items(List.of()).build());
+        adapter.save(baseOrder().status(OrderStatus.CANCELADO).items(List.of()).build());
+        adapter.save(baseOrder().status(OrderStatus.RECHAZADO).items(List.of()).build());
+
+        assertEquals(2, adapter.countActiveByClient(clientId));
+        assertEquals(2, adapter.countActiveByRestaurant(restaurantId));
+        assertEquals(1, adapter.countActiveByDeliveryPerson(courier));
+        assertEquals(0, adapter.countActiveByClient(IdConverter.toUuid(999_999L)));
+        assertEquals(0, adapter.countActiveByClient(null));
+    }
+
+    @Test
+    void anonymizeAddressesByClient_shouldBlankOnlyThatClientsAddresses_andBeIdempotent() {
+        Order mine = adapter.save(baseOrder().status(OrderStatus.ENTREGADO).items(List.of()).build());
+        ClientEntity other = clientRepository.save(ClientEntity.builder()
+                .userId(System.nanoTime() + 7).createdAt(OffsetDateTime.now()).build());
+        Order theirs = adapter.save(baseOrder().clientId(IdConverter.toUuid(other.getId()))
+                .status(OrderStatus.ENTREGADO).items(List.of()).build());
+
+        assertEquals(1, adapter.anonymizeAddressesByClient(clientId));
+        assertEquals(0, adapter.anonymizeAddressesByClient(clientId));
+
+        Order reloadedMine = adapter.findById(mine.getId()).orElseThrow();
+        assertEquals("", reloadedMine.getAddress());
+        assertEquals(OrderStatus.ENTREGADO, reloadedMine.getStatus());
+        assertEquals(0, mine.getTotal().compareTo(reloadedMine.getTotal()));
+        assertEquals(theirs.getAddress(), adapter.findById(theirs.getId()).orElseThrow().getAddress());
+    }
+
+    @Test
     void findAll_shouldReturnAllOrdersWhenRestaurantIdIsNull() {
         adapter.save(baseOrder().items(List.of()).build());
         adapter.save(baseOrder().restaurantId(IdConverter.toUuid(8L)).items(List.of()).build());

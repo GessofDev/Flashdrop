@@ -266,6 +266,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/account:
+    delete:
+      tags: [Users]
+      summary: Eliminar la cuenta propia
+      description: >-
+        Google Play y la Ley 21.719 exigen poder eliminar la cuenta. Requiere el token y la contrasena
+        del usuario. Si la persona tiene pedidos o rutas en curso (como cliente, tienda o repartidor) se
+        rechaza con 409: nada se cancela automaticamente, debe cancelarlos o esperar a que terminen.
+        Al aceptar (202) la cuenta queda inhabilitada al instante y sin sesiones; Auth completa en segundo
+        plano el borrado de datos en Orders, Delivery y Catalog con reintentos y al final borra al usuario.
+      operationId: deleteAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '202':
+          description: Eliminacion aceptada; se completa en segundo plano
+        '400':
+          description: Falta la contrasena
+        '401':
+          description: Token invalido o contrasena incorrecta
+        '409':
+          description: Pedidos en curso (ACCOUNT_HAS_ACTIVE_PROCESSES) o eliminacion ya en curso (ACCOUNT_DELETION_IN_PROGRESS)
+        '429':
+          description: Demasiados intentos con contrasena incorrecta
+        '503':
+          description: Orders no responde y no se pudo comprobar si hay pedidos en curso
+
   /auth/admin/users:
     get:
       tags: [Admin]

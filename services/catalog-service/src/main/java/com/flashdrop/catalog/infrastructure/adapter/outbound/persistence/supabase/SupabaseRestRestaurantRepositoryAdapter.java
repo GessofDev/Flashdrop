@@ -110,6 +110,12 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
         return Optional.of(rows[0].toDomain());
     }
 
+    // Perfil legado: la eliminacion de cuenta requiere el perfil postgres.
+    @Override
+    public Optional<Restaurant> clearOwner(Long userId) {
+        throw new UnsupportedOperationException("La eliminacion de cuenta requiere el perfil postgres");
+    }
+
     // Perfil legado: el alta administrativa requiere el perfil postgres.
     @Override
     public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {

@@ -71,6 +71,37 @@ public class SupabaseRestClientAdapter implements ClientPort {
     }
 
     @Override
+    public boolean anonymizeByUserId(UUID userId) {
+        long rawUserId = IdConverter.toLong(userId);
+        try {
+            ClientRow[] updated = supabaseRestClient.patch()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/" + TABLE)
+                            .queryParam("user_id", "eq." + rawUserId)
+                            .queryParam("select", "id")
+                            .build())
+                    .header("Prefer", "return=representation")
+                    .body(erasureBody())
+                    .retrieve()
+                    .body(ClientRow[].class);
+            return updated != null && updated.length > 0;
+        } catch (HttpStatusCodeException e) {
+            throw cl.flashdrop.orders.infrastructure.adapter.outbound.http.InternalHttpSupport
+                    .httpError("Client", e);
+        } catch (ResourceAccessException e) {
+            throw cl.flashdrop.orders.infrastructure.adapter.outbound.http.InternalHttpSupport
+                    .connectionFailure("Client", e);
+        }
+    }
+
+    private static java.util.Map<String, Object> erasureBody() {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("user_id", null);
+        body.put("end_date", java.time.OffsetDateTime.now().toString());
+        return body;
+    }
+
+    @Override
     public UUID findOrCreateClientIdByUserId(UUID userId) {
         long rawUserId = IdConverter.toLong(userId);
         try {
@@ -114,6 +145,9 @@ public class SupabaseRestClientAdapter implements ClientPort {
                 return Optional.empty();
             }
             ClientRow row = rows[0];
+            if (row.userId() == null) {
+                return Optional.empty();
+            }
             Optional<UserInfo> user = userPort.findUserById(IdConverter.toUuid(row.userId()));
             return Optional.of(ClientInfo.builder()
                     .clientId(clientId)

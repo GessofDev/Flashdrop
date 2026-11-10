@@ -88,7 +88,7 @@ class AuthPostgresIT {
                         + "where table_schema = 'public' and table_name <> 'flyway_schema_history' "
                         + "order by table_name", String.class);
 
-        assertEquals(List.of("login", "password_reset_tokens", "refresh_tokens", "roles",
+        assertEquals(List.of("account_deletions", "login", "password_reset_tokens", "refresh_tokens", "roles",
                 "user_has_roles", "users"), tablas);
     }
 

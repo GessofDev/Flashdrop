@@ -5,6 +5,7 @@ import cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa.entit
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +22,11 @@ public interface SpringDataDeliveryOperationRepository extends JpaRepository<Ord
     Optional<OrderDeliveryOperationEntity> findByIdForUpdate(@Param("id") Long id);
 
     List<OrderDeliveryOperationEntity> findByOrderIdOrderByCreatedAtAsc(Long orderId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderDeliveryOperationEntity o SET o.actorUserId = 0, o.reason = 'Dato eliminado' "
+            + "WHERE o.actorUserId = :userId")
+    int anonymizeActor(@Param("userId") Long userId);
 
     @Query("SELECT o FROM OrderDeliveryOperationEntity o WHERE o.state = :#{#state.name()} ORDER BY o.createdAt ASC")
     List<OrderDeliveryOperationEntity> findByStateOrderByCreatedAtAsc(@Param("state") DeliveryOperationState state, Pageable pageable);
