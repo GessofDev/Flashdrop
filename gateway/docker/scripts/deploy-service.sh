@@ -48,9 +48,12 @@ done
 
 service_config "$SERVICE"
 
-if [ -n "$COMPOSE_SERVICE" ] && [ "$COMPOSE_SERVICE" != "$SERVICE_COMPOSE" ]; then
+if [ -n "$COMPOSE_SERVICE" ] && [ -n "$SERVICE_COMPOSE" ] && [ "$COMPOSE_SERVICE" != "$SERVICE_COMPOSE" ]; then
   fail "compose service mismatch for '$SERVICE': configured '$SERVICE_COMPOSE', got '$COMPOSE_SERVICE'"
 fi
+# A service without a row in the configuration (the gateway has no database)
+# takes the compose service from the caller.
+[ -n "$SERVICE_COMPOSE" ] || SERVICE_COMPOSE="$COMPOSE_SERVICE"
 [ -n "$SERVICE_COMPOSE" ] || fail "service '$SERVICE' is not configured in $CONFIG_FILE"
 
 MIGRATION_DIR="${MIGRATION_DIR_ARG:-$SERVICE_MIGRATION_DIR}"
@@ -107,8 +110,11 @@ if [ "$PREVIOUS_SHA" = "$TARGET_SHA" ]; then
   PREVIOUS_SHA=""
 fi
 
-if [ -n "$MIGRATION_DIR" ] && [ "${MIGRATION_DIR:0:1}" != "/" ]; then
-  MIGRATION_DIR="$REPO_ROOT/$MIGRATION_DIR"
+if [ -n "$MIGRATION_DIR" ]; then
+  case "$MIGRATION_DIR" in
+    /*|[A-Za-z]:/*|~/*) ;;
+    *) MIGRATION_DIR="$REPO_ROOT/$MIGRATION_DIR" ;;
+  esac
 fi
 
 if [ "$MIGRATION_OWNER" = "cd" ] && [ -n "$MIGRATION_DIR" ]; then

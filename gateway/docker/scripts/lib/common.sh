@@ -99,7 +99,7 @@ db_credentials() {
       host="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_HOST=//p' | head -n 1)"
       port="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_PORT=//p' | head -n 1)"
       name="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_NAME=//p' | head -n 1)"
-      DB_URL="postgresql://${host}:${port}/${name}"
+      DB_URL="jdbc:postgresql://${host}:${port}/${name}"
       DB_USER="$(printf '%s\n' "$env_dump" | sed -n "s/^${DB_USER_ENV}=//p" | head -n 1)"
       DB_PASS="$(printf '%s\n' "$env_dump" | sed -n "s/^${DB_PASS_ENV}=//p" | head -n 1)"
       ;;
@@ -111,10 +111,12 @@ db_credentials() {
   [ -n "$DB_URL" ] || fail "could not resolve the database URL for '$SERVICE'"
   [ -n "$DB_USER" ] || fail "could not resolve the database user for '$SERVICE'"
 
-  DB_URL="${DB_URL#jdbc:}"
-
-  local rest hostport
-  rest="${DB_URL#*://}"
+  # The Flyway CLI expects a JDBC URL (Flyway 9 does not understand the short
+  # postgresql:// form), so DB_URL keeps the jdbc: prefix. psql needs the
+  # plain coordinates, which are read from the same URL.
+  local plain rest hostport
+  plain="${DB_URL#jdbc:}"
+  rest="${plain#*://}"
   hostport="${rest%%/*}"
   DB_NAME="${rest#*/}"
   DB_NAME="${DB_NAME%%\?*}"

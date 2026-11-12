@@ -46,8 +46,11 @@ service_config "$SERVICE"
 
 MIGRATION_DIR="${MIGRATION_DIR_ARG:-$SERVICE_MIGRATION_DIR}"
 FLYWAY_SCHEMA="${MIGRATION_SCHEMA_ARG:-$SERVICE_FLYWAY_SCHEMA}"
-if [ -n "$MIGRATION_DIR" ] && [ "${MIGRATION_DIR:0:1}" != "/" ]; then
-  MIGRATION_DIR="$REPO_ROOT/$MIGRATION_DIR"
+if [ -n "$MIGRATION_DIR" ]; then
+  case "$MIGRATION_DIR" in
+    /*|[A-Za-z]:/*|~/*) ;;
+    *) MIGRATION_DIR="$REPO_ROOT/$MIGRATION_DIR" ;;
+  esac
 fi
 
 [ -n "$MIGRATION_DIR" ] || fail "service '$SERVICE' has no migration directory configured"
@@ -61,21 +64,26 @@ case "$MODE" in
 
     docker pull "$FLYWAY_IMAGE" >/dev/null
 
+    # The baseline options are command line flags on purpose: Flyway 9 ignores
+    # the FLYWAY_BASELINEONMIGRATE environment variable (it only understands
+    # the FLYWAY_BASELINE_ON_MIGRATE form), and an ignored variable fails
+    # silently on a schema that already exists.
     flyway_cmd=(
       docker run --rm --network "$FLOCI_NETWORK"
       -v "$MIGRATION_DIR:/migrations:ro"
       -e "FLYWAY_URL=$DB_URL"
       -e "FLYWAY_USER=$DB_USER"
       -e "FLYWAY_PASSWORD=$DB_PASS"
-      -e "FLYWAY_LOCATIONS=filesystem:/migrations"
-      -e "FLYWAY_BASELINEONMIGRATE=true"
-      -e "FLYWAY_BASELINEVERSION=1"
       -e "FLYWAY_CONNECTRETRIES=3"
+      "$FLYWAY_IMAGE"
+      -locations=filesystem:/migrations
+      -baselineOnMigrate=true
+      -baselineVersion=1
     )
     if [ -n "$FLYWAY_SCHEMA" ]; then
-      flyway_cmd+=(-e "FLYWAY_SCHEMAS=$FLYWAY_SCHEMA")
+      flyway_cmd+=("-schemas=$FLYWAY_SCHEMA")
     fi
-    flyway_cmd+=("$FLYWAY_IMAGE" migrate)
+    flyway_cmd+=(migrate)
 
     "${flyway_cmd[@]}" || fail "the migrations of $SERVICE could not be applied"
 
