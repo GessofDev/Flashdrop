@@ -30,9 +30,13 @@ public class OrderReleaseController {
 
     @PostMapping("/{orderId}/release")
     public ResponseEntity<ApiResponse<Void>> release(
-            @PathVariable UUID orderId,
+            @PathVariable("orderId") String rawOrderId,
             @Valid @RequestBody ReleaseOrderRequest request,
             @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+
+        // F17: la app del repartidor tiene el id numérico en pantalla (lo que emite
+        // Delivery en RouteResponse.orderId), no el UUID interno. Se aceptan ambos.
+        UUID orderId = OrderIdResolver.resolve(rawOrderId);
 
         UUID currentUserId = currentUserResolver.requireCurrentUserId();
         Set<Role> currentRoles = currentUserResolver.requireCurrentRoles();
