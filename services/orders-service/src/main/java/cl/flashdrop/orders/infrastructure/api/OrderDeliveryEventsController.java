@@ -29,7 +29,10 @@ public class OrderDeliveryEventsController {
 
     @GetMapping("/{orderId}/delivery-events")
     public ResponseEntity<ApiResponse<List<DeliveryOperationResponse>>> getDeliveryEvents(
-            @PathVariable UUID orderId) {
+            @PathVariable("orderId") String rawOrderId) {
+
+        // F17: el id numérico público del pedido también es válido en la URL.
+        UUID orderId = OrderIdResolver.resolve(rawOrderId);
 
         currentUserResolver.requireCurrentUserId();
         Set<Role> currentRoles = currentUserResolver.requireCurrentRoles();

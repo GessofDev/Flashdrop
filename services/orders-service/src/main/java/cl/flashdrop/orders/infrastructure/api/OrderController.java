@@ -249,17 +249,12 @@ public class OrderController {
     /**
      * Public clients use the numeric order id emitted by Delivery and Catalog.
      * UUID remains accepted for backwards compatibility with older clients.
+     *
+     * <p>Delegates to {@link OrderIdResolver} so the rule has a single source: the
+     * same criterion applies to every endpoint that takes an order id in the path.</p>
      */
     private static UUID resolveOrderId(String rawOrderId) {
-        try {
-            return IdConverter.toUuid(Long.parseLong(rawOrderId));
-        } catch (NumberFormatException ignored) {
-            try {
-                return UUID.fromString(rawOrderId);
-            } catch (IllegalArgumentException ex) {
-                throw new OrderDomainException("Id de pedido invalido");
-            }
-        }
+        return OrderIdResolver.resolve(rawOrderId);
     }
 
     // =========================================================================
