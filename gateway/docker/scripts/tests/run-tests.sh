@@ -244,7 +244,7 @@ if [ "$?" -ne 0 ]; then pass "the verification fails"; else failure "the verific
 assert_contains "the missing history is reported" "$OUT" "flyway_schema_history"
 
 printf '\n%s passed, %s failed\n' "$PASSED" "$FAILED"
-if [ "$FAILED" -ne 0 ] && [ -n "${KEEP_WORK_DIR:-}" ]; then
+if [ "$FAILED" -ne 0 ]; then
   printf '\n--- last output ---\n'
   cat "$OUT"
 fi

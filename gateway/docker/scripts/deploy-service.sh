@@ -119,7 +119,7 @@ fi
 
 if [ "$MIGRATION_OWNER" = "cd" ] && [ -n "$MIGRATION_DIR" ]; then
   log "applying the migrations $SERVICE owns before starting the new version"
-  if ! "$SCRIPT_DIR/migrate.sh" apply --service "$SERVICE" \
+  if ! bash "$SCRIPT_DIR/migrate.sh" apply --service "$SERVICE" \
       --migration-dir "$MIGRATION_DIR" --migration-schema "$FLYWAY_SCHEMA"; then
     fail "the migrations of $SERVICE failed; the running version was left untouched"
   fi
@@ -146,7 +146,7 @@ if ! wait_for_health; then
 fi
 
 if [ -n "$MIGRATION_DIR" ]; then
-  if ! "$SCRIPT_DIR/migrate.sh" verify --service "$SERVICE" \
+  if ! bash "$SCRIPT_DIR/migrate.sh" verify --service "$SERVICE" \
       --migration-dir "$MIGRATION_DIR" --migration-schema "$FLYWAY_SCHEMA"; then
     log "the schema of $SERVICE is not in the expected state"
     rollback || true
