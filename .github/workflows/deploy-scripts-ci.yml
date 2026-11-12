@@ -1,0 +1,29 @@
+name: CD Scripts CI
+
+on:
+  push:
+    paths:
+      - 'gateway/docker/scripts/**'
+      - '.github/workflows/deploy-scripts-ci.yml'
+  pull_request:
+    paths:
+      - 'gateway/docker/scripts/**'
+      - '.github/workflows/deploy-scripts-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Deploy scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The deploy scripts run on the VPS. Their tests replace git, docker and
+      # curl with fakes, so they need no Docker, no database and no network.
+      - name: Run the deploy script tests
+        run: bash gateway/docker/scripts/tests/run-tests.sh
