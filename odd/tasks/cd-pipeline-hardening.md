@@ -146,3 +146,10 @@ the running containers are named `stack-auth`, `stack-catalog`, `stack-orders`,
 expects), the `floci_default` network exists, and the clone is not shallow with
 `origin` pointing at `https://github.com/GessofDev/Flashdrop.git`. The SSH
 user has to be `dev`, the owner of the repository and of the `.env`.
+
+L10. CI fix and PR publication: PR #95 is published at
+https://github.com/GessofDev/Flashdrop/pull/95. The Linux CI runner initially failed
+because `gateway/docker/scripts/migrate.sh` lacked executable permissions (mode 100644)
+in the git index and `deploy-service.sh` invoked it directly without `bash`. Pinned
+`chmod +x` (mode 100755) in the index and switched to `bash "$SCRIPT_DIR/migrate.sh"`;
+CI run passed all checks (25/25 assertions green).
