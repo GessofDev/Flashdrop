@@ -9,9 +9,12 @@ on:
       - '.github/workflows/gateway-cd.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-deploy:
-    name: Test, Build & Deploy Gateway
+  test:
+    name: Test & Build Gateway
     runs-on: ubuntu-latest
 
     steps:
@@ -42,35 +45,15 @@ jobs:
         run: pnpm build
         working-directory: gateway
 
-      - name: Deploy Gateway to VPS via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            REPO_DIR="$HOME/flashdrop_backend"
-            if [ ! -d "$REPO_DIR" ]; then
-              if [ -d "$HOME/Flashdrop" ]; then
-                REPO_DIR="$HOME/Flashdrop"
-              elif [ -d "$HOME/flashdrop" ]; then
-                REPO_DIR="$HOME/flashdrop"
-              fi
-            fi
-            cd "$REPO_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-            cd gateway/docker
-            docker compose -f docker-compose.stack.yml \
-              --env-file .env up -d --no-deps --build gateway
-            for i in {1..12}; do
-              if curl -sf http://127.0.0.1:3000/health > /dev/null; then
-                echo "Gateway is up and healthy!"
-                exit 0
-              fi
-              echo "Waiting for Gateway health check... ($i/12)"
-              sleep 5
-            done
-            echo "Gateway health check timed out"
-            exit 1
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service: gateway
+      compose-service: gateway
+      health-url: http://127.0.0.1:3000/health
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}

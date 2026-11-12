@@ -9,9 +9,12 @@ on:
       - '.github/workflows/catalog-service-cd.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-deploy:
-    name: Test, Build & Deploy catalog-service
+  test:
+    name: Test & Build catalog-service
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,42 +42,20 @@ jobs:
       - name: Run Catalog tests
         run: ./gradlew test --no-daemon
 
-      - name: Deploy catalog-service to VPS via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            REPO_DIR="$HOME/flashdrop_backend"
-            if [ ! -d "$REPO_DIR" ]; then
-              if [ -d "$HOME/Flashdrop" ]; then
-                REPO_DIR="$HOME/Flashdrop"
-              elif [ -d "$HOME/flashdrop" ]; then
-                REPO_DIR="$HOME/flashdrop"
-              fi
-            fi
-            cd "$REPO_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-            # Las imagenes de demo viven en el repo y en el bucket privado del
-            # catalogo: se suben antes de reiniciar el servicio, para que la
-            # migracion V4 apunte a objetos que ya existen.
-            if ! bash infra/demo-images/upload.sh; then
-              echo "::warning::no se pudieron subir las imagenes de demo; el catalogo se despliega igual"
-            fi
-            cd gateway/docker
-            docker compose -f docker-compose.stack.yml \
-              --env-file .env up -d --no-deps --build catalog-service
-            for i in {1..12}; do
-              if curl -sf http://127.0.0.1:8082/actuator/health \
-                > /dev/null; then
-                echo "catalog-service is up and healthy!"
-                exit 0
-              fi
-              echo "Waiting for catalog-service health check... ($i/12)"
-              sleep 5
-            done
-            echo "catalog-service health check timed out"
-            exit 1
+  # The demo images used to be uploaded by the inline deploy step before the
+  # service restarted, because migration V4 points to objects that must already
+  # exist. That upload is now the pre-deploy step of catalog, configured in
+  # gateway/docker/scripts/deploy-services.conf.
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service: catalog
+      compose-service: catalog-service
+      health-url: http://127.0.0.1:8082/actuator/health
+      migration-dir: services/catalog-service/src/main/resources/db/migration
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}

@@ -11,9 +11,12 @@ on:
       - '.github/workflows/auth-service-cd.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-deploy:
-    name: Test, Build & Deploy auth-service
+  test:
+    name: Test & Build auth-service
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,36 +48,16 @@ jobs:
       - name: Build y tests de auth-service
         run: ./gradlew :auth-service:build --configure-on-demand --no-daemon
 
-      - name: Deploy auth-service to VPS via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            REPO_DIR="$HOME/flashdrop_backend"
-            if [ ! -d "$REPO_DIR" ]; then
-              if [ -d "$HOME/Flashdrop" ]; then
-                REPO_DIR="$HOME/Flashdrop"
-              elif [ -d "$HOME/flashdrop" ]; then
-                REPO_DIR="$HOME/flashdrop"
-              fi
-            fi
-            cd "$REPO_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-            cd gateway/docker
-            docker compose -f docker-compose.stack.yml \
-              --env-file .env up -d --no-deps --build auth-service
-            for i in {1..12}; do
-              if curl -sf http://127.0.0.1:8081/actuator/health \
-                > /dev/null; then
-                echo "auth-service is up and healthy!"
-                exit 0
-              fi
-              echo "Waiting for auth-service health check... ($i/12)"
-              sleep 5
-            done
-            echo "auth-service health check timed out"
-            exit 1
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service: auth
+      compose-service: auth-service
+      health-url: http://127.0.0.1:8081/actuator/health
+      migration-dir: services/auth-service/src/main/resources/db/migration
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}

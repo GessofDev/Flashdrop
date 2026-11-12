@@ -11,9 +11,12 @@ on:
       - '.github/workflows/delivery-service-cd.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-deploy:
-    name: Test, Build & Deploy delivery-service
+  test:
+    name: Test & Build delivery-service
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,36 +46,17 @@ jobs:
       - name: Build y tests de delivery-service
         run: ./gradlew :delivery-service:build --configure-on-demand --no-daemon
 
-      - name: Deploy delivery-service to VPS via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            REPO_DIR="$HOME/flashdrop_backend"
-            if [ ! -d "$REPO_DIR" ]; then
-              if [ -d "$HOME/Flashdrop" ]; then
-                REPO_DIR="$HOME/Flashdrop"
-              elif [ -d "$HOME/flashdrop" ]; then
-                REPO_DIR="$HOME/flashdrop"
-              fi
-            fi
-            cd "$REPO_DIR"
-            git fetch origin main
-            git reset --hard origin/main
-            cd gateway/docker
-            docker compose -f docker-compose.stack.yml \
-              --env-file .env up -d --no-deps --build delivery-service
-            for i in {1..12}; do
-              if curl -sf http://127.0.0.1:8084/actuator/health \
-                > /dev/null; then
-                echo "delivery-service is up and healthy!"
-                exit 0
-              fi
-              echo "Waiting for delivery-service health check... ($i/12)"
-              sleep 5
-            done
-            echo "delivery-service health check timed out"
-            exit 1
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service: delivery
+      compose-service: delivery-service
+      health-url: http://127.0.0.1:8084/actuator/health
+      migration-dir: services/delivery-service/src/main/resources/db/migration
+      migration-schema: internal
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}
