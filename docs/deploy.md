@@ -195,6 +195,14 @@ reglas de protección: el job no espera a nadie y despliega directo al VPS. Es
 decir, el environment hay que crearlo y configurarlo **antes** del primer
 deploy.
 
+El environment creado de forma implícita es **el mismo** que después se
+configura a mano: cuando se le agreguen los required reviewers, rigen desde ese
+momento y el historial de deployments ya registrado se conserva. Ojo, eso sí:
+según la documentación de GitHub, **solo un admin del repositorio puede
+configurar las reglas de protección** de un environment. Si tu cuenta no es
+admin, el `dev` queda sin puerta de aprobación hasta que alguien con permisos
+la active.
+
 Sobre la disponibilidad de *Required reviewers*: en repositorios públicos está
 disponible en todos los planes; en repositorios privados o internos puede
 depender del plan (típicamente GitHub Pro, Team o Enterprise Cloud). Si el
