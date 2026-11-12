@@ -132,3 +132,17 @@ requiring it. The environment also records the deployment history from the
 first deploy, which is what the future `production` promotion will need. The
 human is the repository admin, so the rules can be configured whenever they
 are needed.
+
+L9. Server preflight (human, from the VPS console): the deploy target is
+`76.13.168.23` and its ED25519 host key fingerprint is
+`SHA256:yNPvpXWKCguBPf47pXLYIQp/mWT94HUQKStkN52y7eA`, confirmed three ways
+(network `ssh-keyscan`, the server's own `/etc/ssh/ssh_host_ed25519_key.pub`
+and `sshd -T | grep hostkey`). The repository on the server is
+`/home/dev/Flashdrop` (the workflow's fallback chain covers it), the stack
+`.env` exists at `gateway/docker/.env` with `ORDERS_FLYWAY_ENABLED`,
+`ORDERS_DB_PASSWORD`, `DELIVERY_DB_PASSWORD` and `INTERNAL_API_KEY` defined,
+the running containers are named `stack-auth`, `stack-catalog`, `stack-orders`,
+`stack-delivery` and `stack-gateway` (exactly what the deploy configuration
+expects), the `floci_default` network exists, and the clone is not shallow with
+`origin` pointing at `https://github.com/GessofDev/Flashdrop.git`. The SSH
+user has to be `dev`, the owner of the repository and of the `.env`.

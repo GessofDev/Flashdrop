@@ -372,6 +372,11 @@ Los nombres a cambiar según el servicio: `orders-service` /
 `catalog-service` / `:8082`, `delivery-service` / `:8084`, `gateway` /
 `http://127.0.0.1:3000/health`.
 
+> **Ojo con el repo del servidor después de un deploy.** El deploy deja el
+> working tree en *detached HEAD*, en el commit desplegado. Si después querés
+> actualizar el repo a mano, primero `git checkout main` (o la rama que
+> corresponda): en detached HEAD un `git pull` no hace lo que uno espera.
+
 Las migraciones **no** se revierten con el rollback manual: la base queda con el
 esquema de la versión que se despliega (aditivo, la versión anterior sigue
 funcionando).
