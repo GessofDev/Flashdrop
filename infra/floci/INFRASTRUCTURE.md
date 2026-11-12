@@ -150,10 +150,15 @@ arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key-
 
 **`DELIVERY_CODE_SECRET` (solo orders-service) va en `gateway/docker/.env`, no en Secrets Manager.** Es la clave con la que se derivan los códigos de entrega del modo de recepción SEGURO (el código no se guarda en la base de datos); `docker-compose.stack.yml` la pasa al contenedor de orders. Debe estar definida antes de desplegar. No rotarla con pedidos SEGURO en curso: cambiaría los códigos que los clientes ya tienen. Sin la clave, orders arranca igual pero rechaza (400) crear pedidos SEGURO; el modo NORMAL (código 000000) no la necesita.
 
-**Migración V3 de orders (código de entrega).** La task definition de orders corre con
-`FLYWAY_ENABLED=false`: la migración `V3__delivery_code.sql` no se aplica sola. Hay que
-ejecutarla a mano sobre `flashdrop_orders` (o habilitar Flyway) antes de desplegar la
-versión nueva, porque la entidad ya mapea las columnas nuevas.
+**Migraciones de orders.** La task definition de orders corre con
+`FLYWAY_ENABLED=false`, así que la aplicación no aplica sus propias migraciones.
+Eso ya no es un paso manual: el deploy aplica las migraciones pendientes de
+orders con la CLI de Flyway (`flyway/flyway:9.22.3-alpine`, la misma versión que
+usan los servicios) antes de levantar la versión nueva, y después las verifica
+contra `flyway_schema_history`. Si falta una migración —`V3__delivery_code.sql`,
+`V4__order_delivery_operations.sql`— el deploy falla y vuelve a la versión
+anterior en lugar de dejar el servicio roto. El runbook completo está en
+[`docs/deploy.md`](../../docs/deploy.md).
 
 **El par RSA de los JWT es nuevo.** El que estaba versionado en
 `gateway/docker/secrets/jwt-private.pem` quedó publicado y hay que darlo por
