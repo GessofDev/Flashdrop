@@ -441,6 +441,202 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeliveryCodeErrorResponse'
 
+  /api/orders/{orderId}/release:
+    post:
+      tags: [Orders]
+      summary: Liberar un pedido asignado
+      description: |
+        El repartidor suelta el pedido que tenía asignado para que otro pueda
+        tomarlo. La ruta en delivery-service se libera en el mismo paso.
+
+        **Quién**: rol `Repartidor` con el pedido asignado a él.
+
+        El motivo es obligatorio y queda registrado en la bitácora de
+        operaciones del pedido (`GET /api/orders/{orderId}/delivery-events`).
+      operationId: releaseAssignedOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: |
+            ID numérico (el que emite Delivery en `RouteResponse.orderId`, que
+            es el que la app del repartidor tiene en pantalla) o UUID legado.
+            Mismo criterio que `GET /api/orders/{id}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseOrderRequest'
+      responses:
+        '200':
+          description: Pedido liberado; la ruta quedó disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse Void'
+        '400':
+          description: |
+            Motivo vacío, id de pedido inválido o transición de estado no
+            permitida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: |
+            No es repartidor, o el pedido está asignado a otro repartidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El pedido no se puede liberar en su estado actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/orders/{orderId}/cancel-after-pickup:
+    post:
+      tags: [Orders]
+      summary: Anular un pedido ya retirado
+      description: |
+        Deja el pedido en un estado terminal (`Cancelado` o `Rechazado`) cuando
+        el repartidor ya lo retiró y la entrega no se puede completar.
+
+        **Quién**: rol `Soporte` o el `Repartidor` asignado. Si el usuario
+        tiene ambos roles, prevalece `Soporte`.
+
+        El motivo es obligatorio y queda registrado en la bitácora de
+        operaciones del pedido (`GET /api/orders/{orderId}/delivery-events`).
+      operationId: cancelPickedUpOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: |
+            ID numérico (el que emite Delivery en `RouteResponse.orderId`) o
+            UUID legado. Mismo criterio que `GET /api/orders/{id}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelAfterPickupRequest'
+      responses:
+        '200':
+          description: Pedido anulado; la ruta quedó cerrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse Void'
+        '400':
+          description: |
+            Motivo vacío, estado final inválido o id de pedido inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: No es Soporte ni el repartidor asignado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El pedido no se puede anular en su estado actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/orders/{orderId}/delivery-events:
+    get:
+      tags: [Orders]
+      summary: Bitácora de operaciones del pedido
+      description: |
+        Historial de las operaciones sobre el pedido en reparto: quién lo
+        liberó, quién lo anuló y con qué motivo.
+
+        **Quién**: solo rol `Soporte`.
+      operationId: getDeliveryEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                format: int64
+              - type: string
+                format: uuid
+          description: |
+            ID numérico (el que emite Delivery en `RouteResponse.orderId`) o
+            UUID legado. Mismo criterio que `GET /api/orders/{id}`.
+      responses:
+        '200':
+          description: |
+            Operaciones del pedido, de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse DeliveryOperationList'
+        '400':
+          description: Id de pedido inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: JWT ausente o inválido
+        '403':
+          description: No es Soporte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pedido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/delivery/routes:
     get:
       tags: [Delivery]
@@ -1110,6 +1306,97 @@ components:
         message:
           type: string
           example: Estado actualizado
+
+    ReleaseOrderRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Motivo de la liberación (obligatorio).
+          example: Pinchadura de neumático
+
+    CancelAfterPickupRequest:
+      type: object
+      required: [status, reason]
+      properties:
+        status:
+          type: string
+          enum: [Cancelado, Rechazado]
+          description: Estado final del pedido ya retirado.
+          example: Cancelado
+        reason:
+          type: string
+          maxLength: 500
+          description: Motivo de la anulación (obligatorio).
+          example: Cliente ausente en domicilio
+
+    DeliveryOperation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 12
+        orderId:
+          type: string
+          format: uuid
+        operationType:
+          type: string
+          enum: [RELEASE, CANCEL_AFTER_PICKUP]
+        state:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED]
+        actorUserId:
+          type: string
+          format: uuid
+        actorRole:
+          type: string
+          enum: [SOPORTE, REPARTIDOR]
+        reason:
+          type: string
+          description: Motivo registrado de la operación.
+        targetStatus:
+          type: string
+          nullable: true
+        previousDeliveryId:
+          type: string
+          format: uuid
+          nullable: true
+        resultingDeliveryId:
+          type: string
+          format: uuid
+          nullable: true
+        previousStatus:
+          type: string
+          nullable: true
+        resultingStatus:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ApiResponse DeliveryOperationList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Operaciones del pedido
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryOperation'
 
     ApiResponse DeliveryRoute:
       type: object
