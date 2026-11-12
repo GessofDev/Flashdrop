@@ -22,7 +22,8 @@ rutas, comandos, flags) van en inglés/así están en el código.
 2. **Corre la CI.** El job `test` del mismo workflow buildea y corre los tests
    (`./gradlew :<servicio>:build`, `./mvnw verify`, `pnpm test` + `pnpm build`).
    Si la CI falla, no hay deploy.
-3. **Se espera la aprobación.** El job `deploy` declara `environment: production`,
+3. **Se espera la aprobación.** El job `deploy` declara `environment: dev` (el
+   environment es un input del workflow reutilizable, con `dev` por defecto),
    así que GitHub lo deja en espera hasta que alguien apruebe en ese environment.
 4. **Se serializa por servicio.** El job declara
    `concurrency: group: deploy-<servicio>` con `cancel-in-progress: false`: dos
@@ -50,7 +51,7 @@ rutas, comandos, flags) van en inglés/así están en el código.
 ```mermaid
 flowchart TD
   A["push a main / workflow_dispatch"] --> B["job test: build + tests"]
-  B --> C{"environment production<br/>aprobación"}
+  B --> C{"environment dev<br/>aprobación"}
   C -->|"aprobado"| D["concurrency: deploy-servicio"]
   D --> E{"VPS_SSH_FINGERPRINT<br/>configurado?"}
   E -->|"no"| F["el deploy falla"]
@@ -97,7 +98,7 @@ apunta a objetos que tienen que existir ya.
 
 `web-cd.yml` no usa `deploy-service.sh`: arma el bundle de `apps/web`, lo copia
 por SCP al VPS y lo sincroniza al bucket `flashdrop-web` de FloCI S3. Igual que
-los demás, pide aprobación en `production`, se serializa con
+los demás, pide aprobación en `dev`, se serializa con
 `concurrency: deploy-web` y exige el fingerprint.
 
 ---
@@ -158,28 +159,36 @@ el fingerprint nuevo; si no, el deploy falla en el paso de SSH.
 
 ---
 
-## 3. El environment `production` de GitHub
+## 3. El environment `dev` de GitHub
 
-El job `deploy` del workflow reutilizable declara `environment: production`, y
+El job `deploy` del workflow reutilizable declara `environment: dev`, y
 `web-cd.yml` declara el mismo environment. Eso es lo que pone el deploy en
 espera de una aprobación humana.
 
+> **El environment de GitHub no es un ambiente de ejecución.** No crea
+> servidores ni bases: es una etiqueta con un juego de reglas aplicado a un
+> destino de deploy. El nombre `dev` corresponde a la etapa actual del
+> proyecto (el VPS de desarrollo); cuando exista el ambiente de producción
+> real —con su dominio y su HTTPS— se crea un environment `production` aparte
+> y se le pasa `environment: production` al workflow, sin tocar los callers.
+
 ### Cómo configurarlo
 
-1. **Settings → Environments → New environment**, nombre `production`.
-2. En `production`, activá **Required reviewers** y agregá a las personas o
-   equipos que pueden aprobar. Recomendado: activar también
-   *Prevent self-review* y *Wait timer* (por ejemplo 5 minutos) si querés que
-   el deploy no se apruebe en caliente.
+1. **Settings → Environments → New environment**, nombre `dev`.
+2. En `dev`, activá **Required reviewers** y agregá a las personas o
+   equipos que pueden aprobar. Sin *wait timer*: el deploy espera lo que
+   haga falta hasta que alguien lo apruebe.
 3. Opcional: **Deployment branches and tags** → dejalo en *All branches* si
-   querés que `main` y los deploys manuales puedan usar el environment.
+   querés que `main` y los deploys manuales puedan usar el environment. Con
+   *Protected branches only*, un `workflow_dispatch` desde una rama que no
+   sea `main` queda bloqueado.
 
 La aprobación se hace desde la pestaña **Environments** del run en GitHub
 Actions, o por el aviso que GitHub manda a los reviewers.
 
 ### El aviso importante
 
-**Mientras el environment `production` no exista con sus required reviewers
+**Mientras el environment `dev` no exista con sus required reviewers
 configurados, la puerta de aprobación no existe.** GitHub crea el environment
 de forma implícita la primera vez que un job lo referencia, pero lo crea sin
 reglas de protección: el job no espera a nadie y despliega directo al VPS. Es
@@ -366,7 +375,7 @@ Cada workflow de CD acepta `workflow_dispatch`:
 1. GitHub → **Actions** → elegir el workflow (por ejemplo `orders-service CD`).
 2. **Run workflow** → elegir la rama → **Run workflow**.
 3. El job `test` corre igual que en CI. Si pasa, el job `deploy` queda
-   esperando la aprobación en `production`.
+   esperando la aprobación en `dev`.
 
 Con `workflow_dispatch` el SHA que se despliega (`github.sha`) es la cabeza de
 la rama elegida en el momento del disparo, y es el mismo commit que probó el

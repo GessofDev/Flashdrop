@@ -113,3 +113,12 @@ L6. Risk: item 1 — the deploy applies DDL to the database of orders
 (`order_delivery_operations` and the other pending migrations). The migrations
 are additive and are never reverted by a rollback, so the schema can end up one
 step ahead of the code.
+
+L7. Decision (human): the GitHub environment is called `dev`, not `production`,
+because there is no production environment yet — the only deploy target is the
+development VPS. Required reviewers are enabled from now on, without a wait
+timer. The environment name became an input of the reusable workflow
+(`environment`, default `dev`) and of the web workflow (dispatch input), so
+promoting to the real production is a parameter and not a name hardcoded in
+six files. The name of the environment does not create any infrastructure: it
+is a label with approval rules attached to a deploy target.

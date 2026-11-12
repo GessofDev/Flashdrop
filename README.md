@@ -238,7 +238,7 @@ El CD de todos los servicios pasa por un único workflow reutilizable,
 `.github/workflows/deploy.yml`, que:
 
 - **despliega el SHA exacto que probó la CI**, no `origin/main`;
-- **espera una aprobación** manual en el environment `production` de GitHub;
+- **espera una aprobación** manual en el environment `dev` de GitHub;
 - **aplica y verifica las migraciones** en cada deploy;
 - **vuelve a la versión anterior** si el health check o la verificación del
   esquema fallan.
@@ -250,7 +250,7 @@ Workflows principales:
 - `.github/workflows/<servicio>-ci.yml` — CI (build y tests) de cada servicio.
 - `.github/workflows/deploy-scripts-ci.yml` — tests de los scripts de deploy.
 
-Runbook completo (secrets, environment `production`, política de migraciones,
+Runbook completo (secrets, environment `dev`, política de migraciones,
 rollback manual y tests): **[`docs/deploy.md`](docs/deploy.md)**.
 
 ## Observabilidad

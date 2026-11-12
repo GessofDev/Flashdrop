@@ -8,6 +8,13 @@ on:
       - 'apps/web/**'
       - '.github/workflows/web-cd.yml'
   workflow_dispatch:
+    inputs:
+      # The environment the deploy is approved in. `dev` is the environment
+      # that exists today (the VPS).
+      environment:
+        required: false
+        type: string
+        default: "dev"
 
 permissions:
   contents: read
@@ -16,9 +23,9 @@ jobs:
   build-and-deploy:
     name: Build & Deploy to FloCI S3
     runs-on: ubuntu-latest
-    # Approval gate: the `production` environment must be configured with
-    # required reviewers in the repository settings.
-    environment: production
+    # Approval gate: the environment must be configured with required
+    # reviewers in the repository settings.
+    environment: ${{ inputs.environment || 'dev' }}
     # Serialize the web deploys and never cancel a running one.
     concurrency:
       group: deploy-web

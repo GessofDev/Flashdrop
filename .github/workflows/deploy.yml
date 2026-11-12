@@ -15,6 +15,13 @@ on:
       health-url:
         required: true
         type: string
+      # The environment the deploy is approved in. `dev` is the environment
+      # that exists today (the VPS). It is an input so the promotion to the
+      # real production is a parameter, not a hardcoded name.
+      environment:
+        required: false
+        type: string
+        default: "dev"
       # Repo-relative dir with the service Flyway SQL files.
       # Empty means the service has no migrations.
       migration-dir:
@@ -41,9 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Approval gate: the `production` environment must be configured with
-    # required reviewers in the repository settings.
-    environment: production
+    # Approval gate: the environment must be configured with required
+    # reviewers in the repository settings.
+    environment: ${{ inputs.environment }}
     # Serialize deploys per service and never cancel a running deploy.
     # Callers must NOT declare this group, the called job would deadlock.
     concurrency:
