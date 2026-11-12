@@ -77,6 +77,20 @@ jobs:
           echo "step accepts any host key."
           exit 1
 
+      # Prints which machine the deploy is going to. The secret value itself is
+      # masked by GitHub, but its resolution is not, so the run answers "where
+      # did this deploy land?" without exposing anything.
+      - name: Resolve the deploy host
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          resolved="$(getent hosts "$VPS_HOST" | awk '{print $1}' | head -n 1)"
+          if [ -n "$resolved" ]; then
+            echo "the deploy target resolves to: $resolved"
+          else
+            echo "the deploy target could not be resolved"
+          fi
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.0
         with:
