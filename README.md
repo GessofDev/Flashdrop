@@ -238,7 +238,9 @@ El CD de todos los servicios pasa por un único workflow reutilizable,
 `.github/workflows/deploy.yml`, que:
 
 - **despliega el SHA exacto que probó la CI**, no `origin/main`;
-- **espera una aprobación** manual en el environment `dev` de GitHub;
+- registra el deploy en el environment `dev` de GitHub, donde la puerta de
+  aprobación se puede prender cuando quieras (hoy está apagada: los deploys
+  son automáticos);
 - **aplica y verifica las migraciones** en cada deploy;
 - **vuelve a la versión anterior** si el health check o la verificación del
   esquema fallan.

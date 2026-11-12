@@ -23,8 +23,9 @@ jobs:
   build-and-deploy:
     name: Build & Deploy to FloCI S3
     runs-on: ubuntu-latest
-    # Approval gate: the environment must be configured with required
-    # reviewers in the repository settings.
+    # Deploy target label. The approval gate lives in the repository
+    # settings (required reviewers on the environment), not here: the `dev`
+    # environment has no protection rules today, so the deploy is automatic.
     environment: ${{ inputs.environment || 'dev' }}
     # Serialize the web deploys and never cancel a running one.
     concurrency:

@@ -48,8 +48,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Approval gate: the environment must be configured with required
-    # reviewers in the repository settings.
+    # Deploy target label. It also records the deployment history of every
+    # deploy, which is what the `production` promotion will need later.
+    #
+    # The approval gate is NOT here: it lives in the repository settings
+    # (required reviewers on the environment). The `dev` environment has no
+    # protection rules today, so the deploy is automatic; turning the gate on
+    # is a settings change, not a code change and not a new release.
     environment: ${{ inputs.environment }}
     # Serialize deploys per service and never cancel a running deploy.
     # Callers must NOT declare this group, the called job would deadlock.

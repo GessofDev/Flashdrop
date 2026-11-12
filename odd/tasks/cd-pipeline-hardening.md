@@ -116,9 +116,19 @@ step ahead of the code.
 
 L7. Decision (human): the GitHub environment is called `dev`, not `production`,
 because there is no production environment yet — the only deploy target is the
-development VPS. Required reviewers are enabled from now on, without a wait
-timer. The environment name became an input of the reusable workflow
+development VPS. The environment name became an input of the reusable workflow
 (`environment`, default `dev`) and of the web workflow (dispatch input), so
 promoting to the real production is a parameter and not a name hardcoded in
 six files. The name of the environment does not create any infrastructure: it
 is a label with approval rules attached to a deploy target.
+
+L8. Decision (human): in the current development stage the deploy stays
+automatic on every push to `main`. The `dev` environment therefore ships
+WITHOUT required reviewers, so the deploy does not wait for a human. The
+approval gate stays wired but lives in the repository settings: turning it on
+is `Settings -> Environments -> dev -> Required reviewers`, a settings change
+with no code and no release, to be flipped when the v1 of the product starts
+requiring it. The environment also records the deployment history from the
+first deploy, which is what the future `production` promotion will need. The
+human is the repository admin, so the rules can be configured whenever they
+are needed.

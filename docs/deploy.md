@@ -22,9 +22,11 @@ rutas, comandos, flags) van en inglés/así están en el código.
 2. **Corre la CI.** El job `test` del mismo workflow buildea y corre los tests
    (`./gradlew :<servicio>:build`, `./mvnw verify`, `pnpm test` + `pnpm build`).
    Si la CI falla, no hay deploy.
-3. **Se espera la aprobación.** El job `deploy` declara `environment: dev` (el
-   environment es un input del workflow reutilizable, con `dev` por defecto),
-   así que GitHub lo deja en espera hasta que alguien apruebe en ese environment.
+3. **Se registra el deploy.** El job `deploy` declara `environment: dev`: eso
+   etiqueta el destino y arma el historial de deployments. La puerta de
+   aprobación vive en la configuración del environment y hoy está apagada, así
+   que el deploy sigue derecho; cuando se encienda (Settings → Environments →
+   `dev` → Required reviewers), el job queda esperando a que alguien apruebe.
 4. **Se serializa por servicio.** El job declara
    `concurrency: group: deploy-<servicio>` con `cancel-in-progress: false`: dos
    deploys del mismo servicio nunca se pisan (el segundo espera), y los de
@@ -51,7 +53,7 @@ rutas, comandos, flags) van en inglés/así están en el código.
 ```mermaid
 flowchart TD
   A["push a main / workflow_dispatch"] --> B["job test: build + tests"]
-  B --> C{"environment dev<br/>aprobación"}
+  B --> C{"environment dev<br/>historial + puerta opcional"}
   C -->|"aprobado"| D["concurrency: deploy-servicio"]
   D --> E{"VPS_SSH_FINGERPRINT<br/>configurado?"}
   E -->|"no"| F["el deploy falla"]
@@ -162,8 +164,7 @@ el fingerprint nuevo; si no, el deploy falla en el paso de SSH.
 ## 3. El environment `dev` de GitHub
 
 El job `deploy` del workflow reutilizable declara `environment: dev`, y
-`web-cd.yml` declara el mismo environment. Eso es lo que pone el deploy en
-espera de una aprobación humana.
+`web-cd.yml` declara el mismo environment.
 
 > **El environment de GitHub no es un ambiente de ejecución.** No crea
 > servidores ni bases: es una etiqueta con un juego de reglas aplicado a un
@@ -172,36 +173,34 @@ espera de una aprobación humana.
 > real —con su dominio y su HTTPS— se crea un environment `production` aparte
 > y se le pasa `environment: production` al workflow, sin tocar los callers.
 
-### Cómo configurarlo
+### Qué hace hoy y qué se prende después
 
-1. **Settings → Environments → New environment**, nombre `dev`.
-2. En `dev`, activá **Required reviewers** y agregá a las personas o
-   equipos que pueden aprobar. Sin *wait timer*: el deploy espera lo que
-   haga falta hasta que alguien lo apruebe.
-3. Opcional: **Deployment branches and tags** → dejalo en *All branches* si
-   querés que `main` y los deploys manuales puedan usar el environment. Con
-   *Protected branches only*, un `workflow_dispatch` desde una rama que no
-   sea `main` queda bloqueado.
+Hoy el environment `dev` está **sin reglas de protección**: el deploy es
+automático, cada push a `main` que pasa los tests llega al servidor. Eso es
+una decisión de etapa, no una limitación: la etapa actual prioriza que los
+deploys sean ágiles.
+
+La **puerta de aprobación** no está en el código, está en la configuración del
+environment. Prendarla es un cambio de settings, no de código ni de release:
+
+1. **Settings → Environments → `dev`**.
+2. Activar **Required reviewers** y agregar a las personas o equipos que
+   pueden aprobar. Sin *wait timer*: el deploy espera lo que haga falta hasta
+   que alguien lo apruebe.
+3. Listo. A partir de ese momento **todo** deploy que apunte a `dev` (también
+   los que dispara un merge automático) queda esperando aprobación.
 
 La aprobación se hace desde la pestaña **Environments** del run en GitHub
 Actions, o por el aviso que GitHub manda a los reviewers.
 
-### El aviso importante
+### Crear el environment (opcional pero recomendado)
 
-**Mientras el environment `dev` no exista con sus required reviewers
-configurados, la puerta de aprobación no existe.** GitHub crea el environment
-de forma implícita la primera vez que un job lo referencia, pero lo crea sin
-reglas de protección: el job no espera a nadie y despliega directo al VPS. Es
-decir, el environment hay que crearlo y configurarlo **antes** del primer
-deploy.
-
-El environment creado de forma implícita es **el mismo** que después se
-configura a mano: cuando se le agreguen los required reviewers, rigen desde ese
-momento y el historial de deployments ya registrado se conserva. Ojo, eso sí:
-según la documentación de GitHub, **solo un admin del repositorio puede
-configurar las reglas de protección** de un environment. Si tu cuenta no es
-admin, el `dev` queda sin puerta de aprobación hasta que alguien con permisos
-la active.
+GitHub crea el environment `dev` de forma implícita la primera vez que un job
+lo referencia, sin reglas de protección. Crearlo a mano (Settings →
+Environments → New environment → `dev`) no cambia el comportamiento del
+deploy: lo único que aporta es que el historial de deployments del `dev`
+arranca limpio y con el nombre que querés, en vez de depender de la creación
+implícita.
 
 Sobre la disponibilidad de *Required reviewers*: en repositorios públicos está
 disponible en todos los planes; en repositorios privados o internos puede
@@ -209,7 +208,10 @@ depender del plan (típicamente GitHub Pro, Team o Enterprise Cloud). Si el
 toggle no aparece en tu repositorio, no es un error de configuración del
 pipeline: es una restricción del plan. En ese caso hay que asegurar la
 aprobación por otro lado (por ejemplo, revisando el run antes de que llegue al
-VPS) y dejar la migración al environment apenas el plan lo permita.
+VPS).
+
+Ojo, eso sí: según la documentación de GitHub, **solo un admin del repositorio
+puede configurar las reglas de protección** de un environment.
 
 ---
 
