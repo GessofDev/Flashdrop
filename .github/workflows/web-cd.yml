@@ -8,13 +8,46 @@ on:
       - 'apps/web/**'
       - '.github/workflows/web-cd.yml'
   workflow_dispatch:
+    inputs:
+      # The environment the deploy is approved in. `dev` is the environment
+      # that exists today (the VPS).
+      environment:
+        required: false
+        type: string
+        default: "dev"
+
+permissions:
+  contents: read
 
 jobs:
   build-and-deploy:
     name: Build & Deploy to FloCI S3
     runs-on: ubuntu-latest
+    # Deploy target label. The approval gate lives in the repository
+    # settings (required reviewers on the environment), not here: the `dev`
+    # environment has no protection rules today, so the deploy is automatic.
+    environment: ${{ inputs.environment || 'dev' }}
+    # Serialize the web deploys and never cancel a running one.
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: false
 
     steps:
+      # The SSH host key must be pinned. Without a fingerprint the SSH step
+      # accepts any host key, so a man-in-the-middle could take the deploy.
+      - name: "Guard: SSH host key fingerprint configured"
+        # The secrets context is not available in a step-level if expression,
+        # so the secret is exposed through the step environment first.
+        env:
+          VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}
+        if: ${{ env.VPS_SSH_FINGERPRINT == '' }}
+        run: |
+          echo "::error::VPS_SSH_FINGERPRINT is empty."
+          echo "The SSH host key must be pinned before deploying"
+          echo "(see the CD runbook). Without a fingerprint the SSH"
+          echo "step accepts any host key."
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -53,6 +86,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_SSH_FINGERPRINT }}
           source: 'dist.tar.gz'
           target: '~'
           overwrite: true
@@ -63,6 +97,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_SSH_FINGERPRINT }}
           script: |
             set -e
             mkdir -p ~/flashdrop-dist

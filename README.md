@@ -67,7 +67,9 @@ Cada servicio expone su API pública por el gateway (`/api/<servicio>/*`) y cons
 │   ├── migration-plan/             # Plan de migración monolito → microservicios
 │   └── archived-coolify/           # Artefactos de un setup Coolify previo (archivado, histórico)
 │
-├── .github/                        # (vacío en main; CI workflows viven en cada servicio)
+├── docs/                           # Runbooks y planes (p. ej. docs/deploy.md)
+│
+├── .github/workflows/              # CI y CD por servicio + deploy reutilizable
 ├── .gitignore
 └── README.md
 ```
@@ -201,6 +203,9 @@ La plantilla completa de variables compartidas está en
 
 Referencia operativa completa: **[`infra/floci/INFRASTRUCTURE.md`](infra/floci/INFRASTRUCTURE.md)**.
 
+El deploy automatizado por CD (el que corre hoy con GitHub Actions) está
+documentado en **[`docs/deploy.md`](docs/deploy.md)**.
+
 FloCI es un emulador local de AWS (RDS, ECS, Secrets Manager) que corre
 sobre un VPS y se opera vía AWS CLI con `--endpoint-url http://127.0.0.1:4566`.
 Las bases Postgres y los servicios se levantan dentro del contenedor FloCI,
@@ -218,18 +223,37 @@ Resumen del flujo:
 3. **Build de imágenes** localmente en el VPS (`/home/dev/dbuild/`) o en CI.
 4. **Levantar los servicios** con ECS task definitions en
    `infra/floci/task-definitions/`. Cada task definition inyecta las env vars
-   necesarias desde Secrets Manager.
+   necesarias desde Secrets Manager. El CD actual los levanta con
+   `docker compose` sobre el VPS (ver [`docs/deploy.md`](docs/deploy.md)).
 5. **Smoke test**: `curl http://flashdrop-orders:8083/health` desde un
    container en `floci_default`, o vía el túnel del VPS.
 
 ## CI / CD
 
-GitHub Actions corre por servicio dentro de su propio subdirectorio:
+Los workflows de GitHub Actions viven en `.github/workflows/` (en la raíz del
+repo) y están separados por servicio: uno de CI (build y tests) y uno de CD
+(despliegue), los dos con filtros de `paths` para no disparar de más.
 
-- `services/auth-service/.github/workflows/ci.yml` — build y tests del Auth Service
-- `services/orders-service/.github/workflows/ci.yml` — build y tests del Orders Service
+El CD de todos los servicios pasa por un único workflow reutilizable,
+`.github/workflows/deploy.yml`, que:
 
-Los demás servicios no tienen CI configurado todavía; la convención es agregar `.github/workflows/ci.yml` dentro de cada `services/<X>/` cuando se quiera CI para ese servicio. El deploy a FloCI puede dispararse con webhooks de GitHub Actions.
+- **despliega el SHA exacto que probó la CI**, no `origin/main`;
+- registra el deploy en el environment `dev` de GitHub, donde la puerta de
+  aprobación se puede prender cuando quieras (hoy está apagada: los deploys
+  son automáticos);
+- **aplica y verifica las migraciones** en cada deploy;
+- **vuelve a la versión anterior** si el health check o la verificación del
+  esquema fallan.
+
+Workflows principales:
+
+- `.github/workflows/deploy.yml` — deploy reutilizable, el que usan todos los servicios.
+- `.github/workflows/<servicio>-cd.yml` — CD de auth, catalog, delivery, orders y gateway; `web-cd.yml` publica la web en S3.
+- `.github/workflows/<servicio>-ci.yml` — CI (build y tests) de cada servicio.
+- `.github/workflows/deploy-scripts-ci.yml` — tests de los scripts de deploy.
+
+Runbook completo (secrets, environment `dev`, política de migraciones,
+rollback manual y tests): **[`docs/deploy.md`](docs/deploy.md)**.
 
 ## Observabilidad
 
