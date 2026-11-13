@@ -148,6 +148,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
      * check and the clear atomic with a concurrent claim or cancellation.
      */
     @Override
+    @Transactional
     public DeliveryRoute releaseDeliveryPerson(Long orderId, Long expectedDeliveryId) {
         if (expectedDeliveryId == null) {
             throw new IllegalArgumentException("expectedDeliveryId is required");
@@ -180,6 +181,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
      * lives in orders-service.
      */
     @Override
+    @Transactional
     public DeliveryRoute closeRoute(Long routeId, RouteStatus targetStatus) {
         if (targetStatus == null || !targetStatus.isCancellation()) {
             throw new IllegalArgumentException("targetStatus must be Cancelado or Rechazado");
