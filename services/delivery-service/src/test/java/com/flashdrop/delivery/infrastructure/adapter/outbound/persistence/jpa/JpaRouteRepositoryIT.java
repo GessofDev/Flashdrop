@@ -1,5 +1,6 @@
 package com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa;
 
+import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
@@ -19,7 +20,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -85,6 +92,80 @@ class JpaRouteRepositoryIT {
 
         assertThat(jpaRouteRepository.findById(a.getId()).orElseThrow().getDeliveryPersonId()).isNull();
         assertThat(jpaRouteRepository.findById(b.getId()).orElseThrow().getDeliveryPersonId()).isEqualTo(902L);
+    }
+
+    @Test
+    @DisplayName("releaseDeliveryPerson runs in its own transaction — no ambient transaction required")
+    void releaseDeliveryPerson_worksWithoutAmbientTransaction() {
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                null, 5201L, 42L, "Pickup", "Delivery", BigDecimal.ONE, 10, "Asignado", Instant.now());
+        entity = jpaRouteRepository.save(entity);
+
+        DeliveryRoute released = adapter.releaseDeliveryPerson(5201L, 42L);
+
+        assertThat(released.getDeliveryPersonId()).isNull();
+        assertThat(released.getStatus()).isEqualTo(RouteStatus.PENDIENTE);
+        assertThat(jpaRouteRepository.findById(entity.getId()).orElseThrow().getDeliveryPersonId()).isNull();
+        assertThat(jpaRouteRepository.findById(entity.getId()).orElseThrow().getStatus())
+                .isEqualTo(RouteStatus.PENDIENTE.getDbValue());
+    }
+
+    @Test
+    @DisplayName("closeRoute runs in its own transaction — no ambient transaction required")
+    void closeRoute_worksWithoutAmbientTransaction() {
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                null, 5202L, 42L, "Pickup", "Delivery", BigDecimal.ONE, 10, "En camino", Instant.now());
+        entity = jpaRouteRepository.save(entity);
+
+        DeliveryRoute closed = adapter.closeRoute(entity.getId(), RouteStatus.CANCELADO);
+
+        assertThat(closed.getStatus()).isEqualTo(RouteStatus.CANCELADO);
+        assertThat(jpaRouteRepository.findById(entity.getId()).orElseThrow().getStatus())
+                .isEqualTo(RouteStatus.CANCELADO.getDbValue());
+    }
+
+    @Test
+    @DisplayName("concurrent closes of the same route: the row lock lets exactly one win")
+    void concurrentClose_onlyOneWins() throws Exception {
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                null, 5203L, 42L, "Pickup", "Delivery", BigDecimal.ONE, 10, "En camino", Instant.now());
+        entity = jpaRouteRepository.save(entity);
+        Long routeId = entity.getId();
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Throwable> cancel = pool.submit(() -> closeRoute(start, routeId, RouteStatus.CANCELADO));
+            Future<Throwable> reject = pool.submit(() -> closeRoute(start, routeId, RouteStatus.RECHAZADO));
+            start.countDown();
+
+            Throwable cancelFailure = cancel.get(30, TimeUnit.SECONDS);
+            Throwable rejectFailure = reject.get(30, TimeUnit.SECONDS);
+
+            // Exactly one close commits; the loser observes the terminal state
+            // written by the winner and is rejected instead of overwriting it.
+            assertThat(java.util.Arrays.asList(cancelFailure, rejectFailure))
+                    .filteredOn(Objects::nonNull)
+                    .hasSize(1)
+                    .allSatisfy(failure -> assertThat(failure)
+                            .isInstanceOf(RouteReleaseConflictException.class));
+
+            String persistedStatus = jpaRouteRepository.findById(routeId).orElseThrow().getStatus();
+            assertThat(persistedStatus)
+                    .isIn(RouteStatus.CANCELADO.getDbValue(), RouteStatus.RECHAZADO.getDbValue());
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private Throwable closeRoute(CountDownLatch start, Long routeId, RouteStatus targetStatus) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            adapter.closeRoute(routeId, targetStatus);
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
     }
 
     @Test
