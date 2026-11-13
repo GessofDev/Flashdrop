@@ -1,5 +1,6 @@
 package com.flashdrop.delivery.infrastructure.adapter.outbound.persistence.jpa;
 
+import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteReleaseConflictException;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
@@ -162,6 +163,63 @@ class JpaRouteRepositoryIT {
         try {
             start.await(10, TimeUnit.SECONDS);
             adapter.closeRoute(routeId, targetStatus);
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
+    }
+
+    @Test
+    @DisplayName("assignDeliveryPerson runs in its own transaction — no ambient transaction required")
+    void assignDeliveryPerson_worksWithoutAmbientTransaction() {
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                null, 5204L, null, "Pickup", "Delivery", BigDecimal.ONE, 10, "Pendiente", Instant.now());
+        entity = jpaRouteRepository.save(entity);
+
+        DeliveryRoute claimed = adapter.assignDeliveryPerson(5204L, 42L);
+
+        assertThat(claimed.getDeliveryPersonId()).isEqualTo(42L);
+        assertThat(claimed.getStatus()).isEqualTo(RouteStatus.ASSIGNED);
+        assertThat(jpaRouteRepository.findById(entity.getId()).orElseThrow().getDeliveryPersonId()).isEqualTo(42L);
+    }
+
+    @Test
+    @DisplayName("concurrent claims of the same route: the row lock lets exactly one win")
+    void concurrentClaim_onlyOneWins() throws Exception {
+        DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                null, 5205L, null, "Pickup", "Delivery", BigDecimal.ONE, 10, "Pendiente", Instant.now());
+        entity = jpaRouteRepository.save(entity);
+        Long orderId = 5205L;
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Throwable> first = pool.submit(() -> claimRoute(start, orderId, 42L));
+            Future<Throwable> second = pool.submit(() -> claimRoute(start, orderId, 77L));
+            start.countDown();
+
+            Throwable firstFailure = first.get(30, TimeUnit.SECONDS);
+            Throwable secondFailure = second.get(30, TimeUnit.SECONDS);
+
+            // Exactly one claim commits; the loser observes the assignment
+            // written by the winner and is rejected instead of overwriting it.
+            assertThat(java.util.Arrays.asList(firstFailure, secondFailure))
+                    .filteredOn(Objects::nonNull)
+                    .hasSize(1)
+                    .allSatisfy(failure -> assertThat(failure)
+                            .isInstanceOf(RouteAlreadyAssignedException.class));
+
+            Long assignedCourier = jpaRouteRepository.findByOrderId(orderId).orElseThrow().getDeliveryPersonId();
+            assertThat(assignedCourier).isIn(42L, 77L);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private Throwable claimRoute(CountDownLatch start, Long orderId, Long deliveryPersonId) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            adapter.assignDeliveryPerson(orderId, deliveryPersonId);
             return null;
         } catch (Throwable failure) {
             return failure;

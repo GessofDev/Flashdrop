@@ -111,8 +111,15 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
      * The transition {@code PENDIENTE → ASSIGNED} is applied on the same
      * managed entity so the lock is released only after the UPDATE flushes
      * to the database.
+     * <p>
+     * {@code @Transactional} is required, not optional: the {@code FOR UPDATE}
+     * lock only exists inside a transaction. Called from the claim use case
+     * it joins that transaction ({@code REQUIRED}), so the batch still rolls
+     * back as a whole; called on its own it owns its transaction and commits
+     * the assignment by itself.
      */
     @Override
+    @Transactional
     public DeliveryRoute assignDeliveryPerson(Long orderId, Long deliveryPersonId) {
         DeliveryRouteJpaEntity entity = jpaRepository.findByOrderIdForUpdate(orderId)
                 .orElseThrow(() -> new RouteNotPrecreatedException(orderId));
