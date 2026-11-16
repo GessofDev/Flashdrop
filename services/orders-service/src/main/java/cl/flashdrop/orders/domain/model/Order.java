@@ -63,6 +63,17 @@ public class Order {
     private int deliveryCodeAttempts = 0;
     private OffsetDateTime deliveryCodeVerifiedAt;
 
+    // -------------------------------------------------------
+    // Pago (FlashDrop 1.0 tiendas)
+    // -------------------------------------------------------
+
+    /** Llave que envia la app: la misma llave del mismo cliente devuelve el mismo pedido. */
+    private String idempotencyKey;
+    /** Hasta cuando se puede pagar (solo en Pendiente de pago). */
+    private OffsetDateTime paymentExpiresAt;
+    /** Hasta cuando la tienda debe aceptar el pedido ya pagado. Se fija al aprobarse el pago. */
+    private OffsetDateTime storeResponseDueAt;
+
     /**
      * Código visible para el cliente dueño. Dato de presentación: lo calcula el caso de uso que
      * consulta el pedido, no se persiste y es {@code null} para cualquier otro rol.
@@ -125,6 +136,8 @@ public class Order {
      * quedaron en ese estado deben poder terminar su ciclo.
      */
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
+            // Solo el sistema confirma el pago (a Nuevo pedido); ningun rol puede fijar ese estado.
+            OrderStatus.PENDIENTE_PAGO, EnumSet.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
             OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO,
                     OrderStatus.CANCELADO, OrderStatus.RECHAZADO),
             OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO),
@@ -199,6 +212,7 @@ public class Order {
      * que ya están en EN_CAMINO/RETIRADO/ENTREGADO.</p>
      */
     public boolean isClaimable() {
-        return this.deliveryId == null && !this.status.isClosed();
+        // Un pedido sin pagar no existe para delivery aunque no este "cerrado".
+        return this.deliveryId == null && !this.status.isClosed() && !this.status.isPendingPayment();
     }
 }

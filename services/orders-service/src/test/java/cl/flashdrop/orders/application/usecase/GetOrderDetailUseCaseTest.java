@@ -143,6 +143,31 @@ class GetOrderDetailUseCaseTest {
     }
 
     @Test
+    void pedidoSinPagar_loVeSuClienteDueno() {
+        pedido(OrderStatus.PENDIENTE_PAGO, null);
+        when(clientPort.findClientIdByUserId(USER)).thenReturn(Optional.of(CLIENT));
+
+        assertEquals(ORDER, build().execute(ORDER, Set.of(Role.CLIENTE), USER).getId());
+    }
+
+    @Test
+    void pedidoSinPagar_laTiendaNoLoVe_403() {
+        pedido(OrderStatus.PENDIENTE_PAGO, null);
+        lenient().when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(RESTAURANT));
+
+        assertThrows(ForbiddenOperationException.class,
+                () -> build().execute(ORDER, Set.of(Role.RESTAURANTE), USER));
+    }
+
+    @Test
+    void pedidoSinPagar_elRepartidorNoLoVe_403() {
+        pedido(OrderStatus.PENDIENTE_PAGO, null);
+
+        assertThrows(ForbiddenOperationException.class,
+                () -> build().execute(ORDER, Set.of(Role.REPARTIDOR), USER));
+    }
+
+    @Test
     void clienteQueNoHizoElPedido_403() {
         pedido(OrderStatus.NUEVO_PEDIDO, null);
         when(clientPort.findClientIdByUserId(USER)).thenReturn(Optional.of(IdConverter.toUuid(99L)));

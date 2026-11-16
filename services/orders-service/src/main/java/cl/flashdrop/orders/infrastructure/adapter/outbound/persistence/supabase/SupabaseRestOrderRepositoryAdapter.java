@@ -90,6 +90,28 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     @Override
+    public List<Order> findVisibleToStore(UUID restaurantId) {
+        if (restaurantId == null) return List.of();
+        OrderRow[] rows = supabaseRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("restaurant_id", "eq." + IdConverter.toLong(restaurantId))
+                        .queryParam("status", "neq." + OrderStatus.PENDIENTE_PAGO.getValue())
+                        .queryParam("select", "*")
+                        .queryParam("order", "id.desc")
+                        .build())
+                .retrieve()
+                .body(OrderRow[].class);
+        if (rows == null) return List.of();
+        return Arrays.stream(rows).map(r -> mapToOrder(r, List.of())).collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<Order> findByClientIdAndIdempotencyKey(UUID clientId, String idempotencyKey) {
+        throw new UnsupportedOperationException("Pagos e idempotencia no soportados en el perfil supabase");
+    }
+
+    @Override
     public List<Order> findByClientId(UUID clientId) {
         if (clientId == null) return List.of();
         OrderRow[] rows = supabaseRestClient.get()
@@ -121,12 +143,21 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
     }
 
     private int countActive(String column, UUID id) {
+        return countActive(column, id, "not.in.(Entregado,Cancelado,Rechazado)");
+    }
+
+    /** Tienda y repartidor no cuentan como "en curso" un pedido que aun espera el pago. */
+    private int countActiveForOperator(String column, UUID id) {
+        return countActive(column, id, "not.in.(Entregado,Cancelado,Rechazado,\"Pendiente de pago\")");
+    }
+
+    private int countActive(String column, UUID id, String statusFilter) {
         if (id == null) return 0;
         OrderRow[] rows = supabaseRestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/orders")
                         .queryParam(column, "eq." + IdConverter.toLong(id))
-                        .queryParam("status", "not.in.(Entregado,Cancelado,Rechazado)")
+                        .queryParam("status", statusFilter)
                         .queryParam("select", "id")
                         .queryParam("limit", "1000")
                         .build())
@@ -142,12 +173,12 @@ public class SupabaseRestOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     public int countActiveByRestaurant(UUID restaurantId) {
-        return countActive("restaurant_id", restaurantId);
+        return countActiveForOperator("restaurant_id", restaurantId);
     }
 
     @Override
     public int countActiveByDeliveryPerson(UUID deliveryId) {
-        return countActive("delivery_id", deliveryId);
+        return countActiveForOperator("delivery_id", deliveryId);
     }
 
     @Override

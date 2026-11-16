@@ -41,7 +41,7 @@ public class ListOrdersUseCase {
 
         if (currentRoles.contains(Role.RESTAURANTE)) {
             catalogPort.findRestaurantIdByUserId(currentUserId).ifPresentOrElse(
-                    restaurantId -> orderRepository.findAll(restaurantId)
+                    restaurantId -> orderRepository.findVisibleToStore(restaurantId)
                             .forEach(o -> visible.putIfAbsent(o.getId(), o)),
                     () -> log.debug("Usuario {} no tiene restaurante asociado", currentUserId));
         }

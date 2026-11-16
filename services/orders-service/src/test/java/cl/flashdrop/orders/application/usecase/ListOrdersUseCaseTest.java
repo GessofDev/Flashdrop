@@ -59,7 +59,7 @@ class ListOrdersUseCaseTest {
     @Test
     void restaurante_veLosPedidosDeSuRestaurante() {
         when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(RESTAURANT_ID));
-        when(orderRepository.findAll(RESTAURANT_ID))
+        when(orderRepository.findVisibleToStore(RESTAURANT_ID))
                 .thenReturn(List.of(order(UUID.randomUUID(), RESTAURANT_ID, UUID.randomUUID())));
         when(catalogPort.findRestaurantById(RESTAURANT_ID))
                 .thenReturn(Optional.of(RestaurantInfo.builder().restaurantId(RESTAURANT_ID).name("Burgers").build()));
@@ -78,7 +78,7 @@ class ListOrdersUseCaseTest {
         List<Order> result = useCase.execute(USER_ID, Set.of(Role.RESTAURANTE));
 
         assertTrue(result.isEmpty());
-        verify(orderRepository, never()).findAll(any());
+        verify(orderRepository, never()).findVisibleToStore(any());
     }
 
     @Test
@@ -91,7 +91,7 @@ class ListOrdersUseCaseTest {
         List<Order> result = useCase.execute(USER_ID, Set.of(Role.CLIENTE));
 
         assertEquals(List.of(mine.getId()), result.stream().map(Order::getId).toList());
-        verify(orderRepository, never()).findAll(any());
+        verify(orderRepository, never()).findVisibleToStore(any());
         verify(catalogPort, never()).findRestaurantIdByUserId(any());
     }
 
@@ -112,7 +112,7 @@ class ListOrdersUseCaseTest {
         UUID onlyClient = UUID.randomUUID();
         when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(RESTAURANT_ID));
         when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
-        when(orderRepository.findAll(RESTAURANT_ID)).thenReturn(List.of(
+        when(orderRepository.findVisibleToStore(RESTAURANT_ID)).thenReturn(List.of(
                 order(shared, RESTAURANT_ID, CLIENT_ID), order(onlyRestaurant, RESTAURANT_ID, UUID.randomUUID())));
         when(orderRepository.findByClientId(CLIENT_ID)).thenReturn(List.of(
                 order(shared, RESTAURANT_ID, CLIENT_ID), order(onlyClient, UUID.randomUUID(), CLIENT_ID)));
@@ -128,7 +128,7 @@ class ListOrdersUseCaseTest {
         List<Order> result = useCase.execute(USER_ID, Set.of(Role.REPARTIDOR));
 
         assertTrue(result.isEmpty());
-        verify(orderRepository, never()).findAll(any());
+        verify(orderRepository, never()).findVisibleToStore(any());
         verify(orderRepository, never()).findByClientId(any());
     }
 }

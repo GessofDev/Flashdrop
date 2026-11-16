@@ -10,6 +10,11 @@ import lombok.Getter;
 @Getter
 public enum OrderStatus {
 
+    /**
+     * El pedido esta creado pero aun no se pago: lo ven solo el cliente y el sistema. La tienda
+     * y los repartidores no deben verlo ni tomarlo hasta que el pago se apruebe.
+     */
+    PENDIENTE_PAGO("Pendiente de pago"),
     NUEVO_PEDIDO("Nuevo pedido"),
     PREPARANDO("Preparando"),
     LISTO_PARA_RETIRO("Listo para retiro"),
@@ -46,6 +51,13 @@ public enum OrderStatus {
      */
     public boolean isActiveDelivery() {
         return this == EN_CAMINO || this == RETIRADO;
+    }
+
+    /**
+     * Indica si el pedido espera el pago: todavia no existe para la tienda ni para delivery.
+     */
+    public boolean isPendingPayment() {
+        return this == PENDIENTE_PAGO;
     }
 
     /**

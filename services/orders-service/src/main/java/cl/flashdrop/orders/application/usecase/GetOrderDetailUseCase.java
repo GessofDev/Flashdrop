@@ -70,6 +70,10 @@ public class GetOrderDetailUseCase {
                 && clientPort.findClientIdByUserId(userId).filter(c -> c.equals(order.getClientId())).isPresent()) {
             return true;
         }
+        // Un pedido sin pagar solo existe para su cliente: ni la tienda ni delivery lo ven.
+        if (order.getStatus().isPendingPayment()) {
+            return false;
+        }
         if (roles.contains(Role.RESTAURANTE)
                 && catalogPort.findRestaurantIdByUserId(userId).filter(r -> r.equals(order.getRestaurantId())).isPresent()) {
             return true;

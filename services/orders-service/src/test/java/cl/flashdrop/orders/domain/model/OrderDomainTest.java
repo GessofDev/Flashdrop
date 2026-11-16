@@ -91,6 +91,9 @@ class OrderDomainTest {
     @Test
     void shouldAllowOnlyTheTransitionsOfTheStatusMatrix() {
         Set<List<OrderStatus>> allowed = Set.of(
+                // Pago: solo se confirma (a Nuevo pedido) o se cancela; no puede saltarse el pago.
+                List.of(OrderStatus.PENDIENTE_PAGO, OrderStatus.NUEVO_PEDIDO),
+                List.of(OrderStatus.PENDIENTE_PAGO, OrderStatus.CANCELADO),
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO),
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO),
@@ -139,6 +142,25 @@ class OrderDomainTest {
                 .build();
 
         assertFalse(order.isClaimable());
+    }
+
+    @Test
+    void shouldNotBeClaimableWhileWaitingForPayment() {
+        // Un pedido sin pagar no esta "cerrado", pero ningun repartidor puede tomarlo.
+        Order order = Order.builder()
+                .status(OrderStatus.PENDIENTE_PAGO)
+                .build();
+
+        assertFalse(order.isClaimable());
+    }
+
+    @Test
+    void pendingPaymentStatusShouldHaveTheExpectedValueAndFlag() {
+        assertEquals("Pendiente de pago", OrderStatus.PENDIENTE_PAGO.getValue());
+        assertEquals(OrderStatus.PENDIENTE_PAGO, OrderStatus.fromValue("Pendiente de pago"));
+        for (OrderStatus status : OrderStatus.values()) {
+            assertEquals(status == OrderStatus.PENDIENTE_PAGO, status.isPendingPayment(), status.name());
+        }
     }
 
     @Test

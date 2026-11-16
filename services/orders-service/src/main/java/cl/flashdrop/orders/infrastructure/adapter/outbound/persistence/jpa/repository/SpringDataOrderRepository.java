@@ -19,6 +19,8 @@ import java.util.Optional;
 public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Long> {
     List<OrderEntity> findByClientId(Long clientId);
     List<OrderEntity> findByRestaurantId(Long restaurantId);
+    List<OrderEntity> findByRestaurantIdAndStatusNot(Long restaurantId, String status);
+    Optional<OrderEntity> findByClientIdAndIdempotencyKey(Long clientId, String idempotencyKey);
     List<OrderEntity> findByDeliveryId(Long deliveryId);
     List<OrderEntity> findByIdIn(Collection<Long> ids);
 

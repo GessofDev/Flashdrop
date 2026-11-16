@@ -54,6 +54,9 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .deliveryCodeVersion(order.getDeliveryCodeVersion())
                 .deliveryCodeAttempts(order.getDeliveryCodeAttempts())
                 .deliveryCodeVerifiedAt(order.getDeliveryCodeVerifiedAt())
+                .idempotencyKey(order.getIdempotencyKey())
+                .paymentExpiresAt(order.getPaymentExpiresAt())
+                .storeResponseDueAt(order.getStoreResponseDueAt())
                 .build();
 
         OrderEntity savedOrder = orderRepository.save(orderEntity);
@@ -107,6 +110,22 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Order> findVisibleToStore(UUID restaurantId) {
+        if (restaurantId == null) return List.of();
+        return mapWithItems(orderRepository.findByRestaurantIdAndStatusNot(
+                IdConverter.toLong(restaurantId), OrderStatus.PENDIENTE_PAGO.getValue()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Order> findByClientIdAndIdempotencyKey(UUID clientId, String idempotencyKey) {
+        if (clientId == null || idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();
+        return orderRepository.findByClientIdAndIdempotencyKey(IdConverter.toLong(clientId), idempotencyKey)
+                .map(entity -> mapToOrder(entity, orderItemRepository.findByOrderId(entity.getId())));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Order> findByClientId(UUID clientId) {
         if (clientId == null) return List.of();
         return mapWithItems(orderRepository.findByClientId(IdConverter.toLong(clientId)));
@@ -114,6 +133,14 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     private static final List<String> TERMINAL_STATUSES = List.of(
             OrderStatus.ENTREGADO.getValue(), OrderStatus.CANCELADO.getValue(), OrderStatus.RECHAZADO.getValue());
+
+    /**
+     * Para tienda y repartidor, un pedido que espera el pago todavia no cuenta como "en curso".
+     * Para el cliente si cuenta (es su pedido vigente).
+     */
+    private static final List<String> NOT_ACTIVE_FOR_OPERATORS = List.of(
+            OrderStatus.ENTREGADO.getValue(), OrderStatus.CANCELADO.getValue(), OrderStatus.RECHAZADO.getValue(),
+            OrderStatus.PENDIENTE_PAGO.getValue());
 
     @Override
     @Transactional(readOnly = true)
@@ -126,14 +153,14 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
     @Transactional(readOnly = true)
     public int countActiveByRestaurant(UUID restaurantId) {
         if (restaurantId == null) return 0;
-        return (int) orderRepository.countByRestaurantIdAndStatusNotIn(IdConverter.toLong(restaurantId), TERMINAL_STATUSES);
+        return (int) orderRepository.countByRestaurantIdAndStatusNotIn(IdConverter.toLong(restaurantId), NOT_ACTIVE_FOR_OPERATORS);
     }
 
     @Override
     @Transactional(readOnly = true)
     public int countActiveByDeliveryPerson(UUID deliveryId) {
         if (deliveryId == null) return 0;
-        return (int) orderRepository.countByDeliveryIdAndStatusNotIn(IdConverter.toLong(deliveryId), TERMINAL_STATUSES);
+        return (int) orderRepository.countByDeliveryIdAndStatusNotIn(IdConverter.toLong(deliveryId), NOT_ACTIVE_FOR_OPERATORS);
     }
 
     @Override
@@ -298,6 +325,9 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .deliveryCodeVersion(entity.getDeliveryCodeVersion())
                 .deliveryCodeAttempts(entity.getDeliveryCodeAttempts())
                 .deliveryCodeVerifiedAt(entity.getDeliveryCodeVerifiedAt())
+                .idempotencyKey(entity.getIdempotencyKey())
+                .paymentExpiresAt(entity.getPaymentExpiresAt())
+                .storeResponseDueAt(entity.getStoreResponseDueAt())
                 .items(items)
                 .build();
     }
