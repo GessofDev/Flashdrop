@@ -88,6 +88,8 @@ class RoleTransitionPolicyTest {
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO),
                 List.of(Role.CLIENTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
+                // El cliente puede abandonar un pedido que aun no pago.
+                List.of(Role.CLIENTE, OrderStatus.PENDIENTE_PAGO, OrderStatus.CANCELADO),
                 List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO)
         );
@@ -104,6 +106,15 @@ class RoleTransitionPolicyTest {
         }
 
         assertEquals(expected, actual);
+    }
+
+    @Test
+    void noRoleCanConfirmPaymentOrPutAnOrderBackToPendingPayment() {
+        // Solo el sistema (webhook de pago) pasa Pendiente de pago -> Nuevo pedido.
+        for (Role role : Role.values()) {
+            assertFalse(RoleTransitionPolicy.canSet(Set.of(role), OrderStatus.NUEVO_PEDIDO), role.name());
+            assertFalse(RoleTransitionPolicy.canSet(Set.of(role), OrderStatus.PENDIENTE_PAGO), role.name());
+        }
     }
 
     private static boolean domainAllows(OrderStatus from, OrderStatus to) {

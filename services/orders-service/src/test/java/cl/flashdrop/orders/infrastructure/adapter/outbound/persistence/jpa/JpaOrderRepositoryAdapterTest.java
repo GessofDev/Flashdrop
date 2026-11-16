@@ -387,6 +387,97 @@ class JpaOrderRepositoryAdapterTest extends PostgresIntegrationTestSupport {
         assertTrue(adapter.findByIds(null).isEmpty());
     }
 
+    // ------------------------------------------------------------------
+    // Pago (spec 4.1): estado Pendiente de pago, idempotencia y plazos
+    // ------------------------------------------------------------------
+
+    @Test
+    void save_shouldPersistAndReadBackPaymentFields() {
+        OffsetDateTime payBy = OffsetDateTime.now().plusMinutes(15).withNano(0);
+        OffsetDateTime storeBy = OffsetDateTime.now().plusMinutes(25).withNano(0);
+
+        Order saved = adapter.save(baseOrder().status(OrderStatus.PENDIENTE_PAGO).idempotencyKey("key-1")
+                .paymentExpiresAt(payBy).storeResponseDueAt(storeBy).items(List.of()).build());
+
+        Order found = adapter.findById(saved.getId()).orElseThrow();
+        assertEquals(OrderStatus.PENDIENTE_PAGO, found.getStatus());
+        assertEquals("key-1", found.getIdempotencyKey());
+        assertEquals(0, payBy.compareTo(found.getPaymentExpiresAt()));
+        assertEquals(0, storeBy.compareTo(found.getStoreResponseDueAt()));
+    }
+
+    @Test
+    void save_shouldLeavePaymentFieldsNullForOrdersWithoutThem() {
+        Order saved = adapter.save(baseOrder().items(List.of()).build());
+
+        Order found = adapter.findById(saved.getId()).orElseThrow();
+        assertNull(found.getIdempotencyKey());
+        assertNull(found.getPaymentExpiresAt());
+        assertNull(found.getStoreResponseDueAt());
+    }
+
+    @Test
+    void findByClientIdAndIdempotencyKey_shouldReturnTheSameOrderForTheSameKey() {
+        Order saved = adapter.save(baseOrder().idempotencyKey("retry-key")
+                .items(List.of(sampleItem(1L, 1, BigDecimal.valueOf(2000)))).build());
+
+        Optional<Order> found = adapter.findByClientIdAndIdempotencyKey(clientId, "retry-key");
+
+        assertTrue(found.isPresent());
+        assertEquals(saved.getId(), found.get().getId());
+        assertEquals(1, found.get().getItems().size());
+    }
+
+    @Test
+    void findByClientIdAndIdempotencyKey_shouldNotMatchOtherKeysOrBlankKeys() {
+        adapter.save(baseOrder().idempotencyKey("retry-key").items(List.of()).build());
+
+        assertTrue(adapter.findByClientIdAndIdempotencyKey(clientId, "other-key").isEmpty());
+        assertTrue(adapter.findByClientIdAndIdempotencyKey(clientId, null).isEmpty());
+        assertTrue(adapter.findByClientIdAndIdempotencyKey(clientId, " ").isEmpty());
+        assertTrue(adapter.findByClientIdAndIdempotencyKey(null, "retry-key").isEmpty());
+    }
+
+    @Test
+    void save_shouldRejectASecondOrderWithTheSameClientAndKey() {
+        adapter.save(baseOrder().idempotencyKey("dup").items(List.of()).build());
+
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> {
+            adapter.save(baseOrder().idempotencyKey("dup").items(List.of()).build());
+            orderRepository.flush();
+        });
+    }
+
+    @Test
+    void findVisibleToStore_shouldHidePendingPaymentOrders() {
+        Order paid = adapter.save(baseOrder().status(OrderStatus.NUEVO_PEDIDO).items(List.of()).build());
+        adapter.save(baseOrder().status(OrderStatus.PENDIENTE_PAGO).items(List.of()).build());
+
+        List<Order> visible = adapter.findVisibleToStore(restaurantId);
+
+        assertEquals(1, visible.size());
+        assertEquals(paid.getId(), visible.get(0).getId());
+        // El cliente, en cambio, si ve su pedido pendiente.
+        assertEquals(2, adapter.findByClientId(clientId).size());
+    }
+
+    @Test
+    void findAvailableForDelivery_shouldNeverReturnPendingPaymentOrders() {
+        adapter.save(baseOrder().status(OrderStatus.PENDIENTE_PAGO).items(List.of()).build());
+
+        assertTrue(adapter.findAvailableForDelivery(restaurantId, 10).isEmpty());
+    }
+
+    @Test
+    void countActive_shouldCountPendingPaymentForTheClientButNotForStoreOrDelivery() {
+        UUID deliveryId = IdConverter.toUuid(9L);
+        adapter.save(baseOrder().status(OrderStatus.PENDIENTE_PAGO).deliveryId(deliveryId).items(List.of()).build());
+
+        assertEquals(1, adapter.countActiveByClient(clientId));
+        assertEquals(0, adapter.countActiveByRestaurant(restaurantId));
+        assertEquals(0, adapter.countActiveByDeliveryPerson(deliveryId));
+    }
+
     @Test
     void findByIdsForClaim_shouldBehaveLikeFindByIds() {
         Order saved = adapter.save(baseOrder().items(List.of()).build());

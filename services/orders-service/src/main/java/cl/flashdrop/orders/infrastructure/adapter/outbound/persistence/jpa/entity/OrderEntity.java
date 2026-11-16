@@ -63,4 +63,13 @@ public class OrderEntity {
 
     @Column(name = "delivery_code_verified_at")
     private OffsetDateTime deliveryCodeVerifiedAt;
+
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
+    @Column(name = "payment_expires_at")
+    private OffsetDateTime paymentExpiresAt;
+
+    @Column(name = "store_response_due_at")
+    private OffsetDateTime storeResponseDueAt;
 }

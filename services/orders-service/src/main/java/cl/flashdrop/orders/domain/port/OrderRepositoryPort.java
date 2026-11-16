@@ -37,6 +37,18 @@ public interface OrderRepositoryPort {
     List<Order> findAll(UUID restaurantId);
 
     /**
+     * Pedidos de un restaurante tal como los ve la tienda: SIN los que estan en Pendiente de
+     * pago (un pedido que nadie pago no existe para la tienda).
+     */
+    List<Order> findVisibleToStore(UUID restaurantId);
+
+    /**
+     * Busca el pedido que ese cliente ya creo con esa llave de idempotencia (reintento de la
+     * misma peticion). {@code Optional.empty()} si no existe.
+     */
+    Optional<Order> findByClientIdAndIdempotencyKey(UUID clientId, String idempotencyKey);
+
+    /**
      * Lista los pedidos hechos por un cliente (id de perfil de cliente, no de usuario).
      */
     List<Order> findByClientId(UUID clientId);
@@ -44,10 +56,10 @@ public interface OrderRepositoryPort {
     /** Pedidos en curso (ni Entregado, ni Cancelado, ni Rechazado) hechos por ese cliente. */
     int countActiveByClient(UUID clientId);
 
-    /** Pedidos en curso de ese restaurante. */
+    /** Pedidos en curso de ese restaurante (no incluye los que esperan pago). */
     int countActiveByRestaurant(UUID restaurantId);
 
-    /** Pedidos en curso asignados a ese repartidor. */
+    /** Pedidos en curso asignados a ese repartidor (no incluye los que esperan pago). */
     int countActiveByDeliveryPerson(UUID deliveryId);
 
     /** Borra la direccion (dato personal) de todos los pedidos de ese cliente. Idempotente. */
