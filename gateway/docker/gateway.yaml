@@ -91,3 +91,20 @@ routes:
     target: http://delivery-service:8084
     stripPrefix: false
     backendName: delivery-service
+
+  # === REVIEWS ===
+  - prefix: /api/reviews
+    target: http://reviews-service:8085
+    stripPrefix: false
+    backendName: reviews-service
+
+  - prefix: /api/users/me/reviews
+    target: http://reviews-service:8085
+    stripPrefix: false
+    backendName: reviews-service
+
+overrides:
+  - path: /api/reviews
+    rateLimit:
+      maxRequests: 10
+      windowSeconds: 60

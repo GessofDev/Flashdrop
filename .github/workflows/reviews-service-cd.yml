@@ -1,0 +1,62 @@
+name: reviews-service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/reviews-service/**'
+      - 'services/shared-observability/**'
+      - 'services/*.gradle.kts'
+      - '.github/workflows/reviews-service-cd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test & Build reviews-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/reviews_db
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            services/**/*.gradle.kts
+            services/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Dar permisos de ejecucion a gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build y tests de reviews-service
+        run: ./gradlew :reviews-service:build --configure-on-demand --no-daemon
+
+  deploy:
+    needs: test
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service: reviews
+      compose-service: reviews-service
+      health-url: http://127.0.0.1:8085/actuator/health
+      migration-dir: services/reviews-service/src/main/resources/db/migration
+      migration-schema: internal
+    secrets:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_FINGERPRINT: ${{ secrets.VPS_SSH_FINGERPRINT }}

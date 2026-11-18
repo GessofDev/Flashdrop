@@ -249,6 +249,40 @@ services:
       start_period: 40s
 
   # ===========================================================================
+  # reviews-service — :8085 — base reviews_db (Floci 7006)
+  # Contexto services/: depende de shared-observability.
+  # Su base usa el esquema `internal`, no `public`.
+  # ===========================================================================
+  reviews-service:
+    build:
+      context: ../../services
+      dockerfile: reviews-service/Dockerfile
+    container_name: stack-reviews
+    restart: unless-stopped
+    networks: [stack, floci_default]
+    environment:
+      - SPRING_PROFILES_ACTIVE=reviews
+      - SERVER_PORT=8085
+      - REVIEWS_DB_HOST=172.16.1.2
+      - REVIEWS_DB_PORT=${REVIEWS_DB_PORT:-7006}
+      - REVIEWS_DB_NAME=reviews_db
+      - REVIEWS_DB_USER=${REVIEWS_DB_USER:-reviews_app}
+      - REVIEWS_DB_PASSWORD=${REVIEWS_DB_PASSWORD:?falta REVIEWS_DB_PASSWORD en .env}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:?falta INTERNAL_API_KEY en .env}
+      - AUTH_SERVICE_JWKS_URI=http://auth-service:8081/auth/.well-known/jwks.json
+      - AUTH_SERVICE_ISSUER=flashdrop-auth
+      - ORDERS_SERVICE_URL=http://orders-service:8083
+      - CATALOG_SERVICE_URL=http://catalog-service:8082
+    ports:
+      - '127.0.0.1:8085:8085'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8085/actuator/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===========================================================================
   # gateway — :3000 — unica entrada publica
   # ===========================================================================
   gateway:
@@ -268,6 +302,8 @@ services:
       orders-service:
         condition: service_healthy
       delivery-service:
+        condition: service_healthy
+      reviews-service:
         condition: service_healthy
     environment:
       - NODE_ENV=production

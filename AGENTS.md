@@ -32,7 +32,7 @@
 ## 3. Build systems — mixed on purpose
 
 - Java services use **Gradle (Kotlin DSL)**: `auth-service`, `catalog-service`,
-  `delivery-service`, `shared-observability`.
+  `delivery-service`, `reviews-service`, `shared-observability`.
 - **`orders-service` uses Maven** (`mvnw`). Do not add it to `settings.gradle.kts`.
 - Gateway is **pnpm 9 + TypeScript** (Fastify).
 
