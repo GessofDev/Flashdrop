@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import type { RestaurantResponse } from '@/api';
 import { restaurantPath } from '@/app/routePaths';
+import { RatingAverage } from '@/components/ratings';
 import { Badge } from '@/components/ui';
 
 import { CatalogImage } from './CatalogImage';
@@ -15,8 +16,10 @@ export interface RestaurantCardProps {
  * Card of a restaurant.
  *
  * The catalog sends the name, the address, the picture and whether the local
- * takes orders now, so the card shows exactly those: the backend sends no customer score, no
- * delivery time and no shipping cost, so the card cannot show them.
+ * takes orders now, so the card shows exactly those. It also sends the
+ * average and the count of the scores once it holds the aggregate of the
+ * ratings, and the card shows them only then: the backend sends no delivery
+ * time and no shipping cost, so the card cannot show them.
  *
  * The card is the way into the local: it links to the page where the
  * customer sees its dishes.
@@ -36,6 +39,10 @@ export function RestaurantCard({ restaurant }: RestaurantCardProps) {
           {restaurant.open === false ? <Badge variant="destructive">Cerrado</Badge> : null}
         </div>
         <p className="text-sm text-foreground-secondary">{restaurant.address}</p>
+        <RatingAverage
+          average={restaurant.ratingAverage ?? null}
+          count={restaurant.ratingCount ?? null}
+        />
       </div>
     </Link>
   );

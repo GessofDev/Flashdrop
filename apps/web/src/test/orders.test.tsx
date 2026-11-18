@@ -270,7 +270,7 @@ describe('customer orders', () => {
       expect(screen.queryByText('Carlos Morales')).toBeNull();
     });
 
-    it('never renders chat, delivery PIN, live positions, ratings or an electronic receipt', async () => {
+    it('never renders chat, delivery PIN, live positions, ratings or an electronic receipt while the order is not delivered', async () => {
       mockFetch(ordersResponse);
       renderApp(`/pedidos/${ORDER_ID}`);
 

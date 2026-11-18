@@ -4,6 +4,8 @@ export { GuaranteeCard } from './GuaranteeCard';
 export { OrderListCard } from './OrderListCard';
 export type { OrderListCardProps } from './OrderListCard';
 export { OrderListPage } from './OrderListPage';
+export { MAX_REVIEW_COMMENT_LENGTH, OrderRatingSection } from './OrderRatingSection';
+export type { OrderRatingSectionProps } from './OrderRatingSection';
 export { OrderStatusBadge } from './OrderStatusBadge';
 export type { OrderStatusBadgeProps } from './OrderStatusBadge';
 export { OrderStepper } from './OrderStepper';

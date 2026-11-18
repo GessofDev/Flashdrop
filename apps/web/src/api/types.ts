@@ -116,6 +116,16 @@ export interface RestaurantResponse {
   acceptingOrders?: boolean;
   /** Week of the local; empty when it depends only on the switch. */
   hours?: OpeningHours[];
+  /**
+   * Average of the scores of the local.
+   *
+   * The catalog publishes it when it already holds the aggregate of the
+   * ratings; until then the field does not travel and the screens show
+   * nothing instead of a number nobody can back.
+   */
+  ratingAverage?: number | null;
+  /** Number of scores behind the average of the local. */
+  ratingCount?: number | null;
 }
 
 /** One day of the week of a local. `closesAt` before `opensAt` ends the next day. */

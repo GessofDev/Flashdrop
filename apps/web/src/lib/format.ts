@@ -14,6 +14,16 @@ export function formatClp(amount: number): string {
 }
 
 /**
+ * Average of the scores, in the Chilean format.
+ *
+ * The backend sends a number with decimals, and the interface shows one
+ * decimal with a comma: `4,9`.
+ */
+export function formatRatingAverage(average: number): string {
+  return average.toFixed(1).replace('.', ',');
+}
+
+/**
  * Placeholder of a value the backend did not send.
  *
  * The screens show it instead of an empty cell, so the reader knows the data

@@ -6,9 +6,11 @@ import type { OrderDetail } from '@/api';
 import { routePaths } from '@/app/routePaths';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { Skeleton } from '@/components/ui';
+import { isDeliveredStatus } from '@/lib/orderStatus';
 
 import { CourierCard } from './CourierCard';
 import { GuaranteeCard } from './GuaranteeCard';
+import { OrderRatingSection } from './OrderRatingSection';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderStepper } from './OrderStepper';
 import { OrderSummary } from './OrderSummary';
@@ -147,6 +149,12 @@ export function OrderTrackingPage() {
               <GuaranteeCard />
             </div>
           </div>
+
+          {isDeliveredStatus(order.status) ? (
+            <div className="mt-6">
+              <OrderRatingSection key={order.id} orderId={order.id} />
+            </div>
+          ) : null}
         </>
       )}
     </div>
