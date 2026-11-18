@@ -267,7 +267,7 @@ services:
       - REVIEWS_DB_PORT=${REVIEWS_DB_PORT:-7006}
       - REVIEWS_DB_NAME=reviews_db
       - REVIEWS_DB_USER=${REVIEWS_DB_USER:-reviews_app}
-      - REVIEWS_DB_PASSWORD=${REVIEWS_DB_PASSWORD:?falta REVIEWS_DB_PASSWORD en .env}
+      - REVIEWS_DB_PASSWORD=${REVIEWS_DB_PASSWORD:-}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:?falta INTERNAL_API_KEY en .env}
       - AUTH_SERVICE_JWKS_URI=http://auth-service:8081/auth/.well-known/jwks.json
       - AUTH_SERVICE_ISSUER=flashdrop-auth
@@ -302,8 +302,6 @@ services:
       orders-service:
         condition: service_healthy
       delivery-service:
-        condition: service_healthy
-      reviews-service:
         condition: service_healthy
     environment:
       - NODE_ENV=production
