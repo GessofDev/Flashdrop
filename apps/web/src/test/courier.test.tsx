@@ -207,7 +207,7 @@ describe('courier console', () => {
     expect(screen.queryByRole('button', { name: /Confirmar (retiro|entrega)/ })).toBeNull();
   });
 
-  it('never renders a PIN, chat, live GPS, tip or rating', async () => {
+  it('never renders a PIN, chat, live GPS, tip or a rating without the aggregate of the backend', async () => {
     mockFetch((call: RecordedCall) => courierResponse(call, courierMockState()));
     const { unmount } = renderApp('/repartidor');
 

@@ -56,6 +56,17 @@ export function completedStepsForStatus(status: string): number {
 }
 
 /**
+ * Whether the order was delivered.
+ *
+ * The order is delivered when its status is `Entregado`; the comparison
+ * ignores the case and the spaces, because the backend spells the status
+ * with the label of its enum.
+ */
+export function isDeliveredStatus(status: string): boolean {
+  return status.trim().toLowerCase() === 'entregado';
+}
+
+/**
  * Whether the status is one of the statuses of the backend.
  *
  * The screens use it to tell a known milestone from a value nobody can

@@ -1,16 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { catalogApi } from '@/api';
+import { catalogApi, reviewsApi } from '@/api';
 import type { ProductResponse } from '@/api';
 import { routePaths } from '@/app/routePaths';
 import { useCart } from '@/cart';
 import { CartPanel } from '@/components/cart';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
+import { RatingAverage } from '@/components/ratings';
 import { Skeleton } from '@/components/ui';
 
 import { CatalogImage } from './CatalogImage';
 import { ProductCard } from './ProductCard';
+import { RestaurantReviews } from './RestaurantReviews';
 import { useCatalogResource } from './useCatalogResource';
 
 /**
@@ -31,9 +33,17 @@ export function RestaurantPage() {
     () => (knownId ? catalogApi.listProducts({ restaurantId }) : Promise.resolve([])),
     [knownId, restaurantId],
   );
+  const loadReviews = useCallback(
+    () =>
+      knownId
+        ? reviewsApi.getTargetReviews('TIENDA', restaurantId)
+        : Promise.resolve(null),
+    [knownId, restaurantId],
+  );
 
   const restaurants = useCatalogResource(loadRestaurants);
   const products = useCatalogResource(loadProducts);
+  const reviews = useCatalogResource(loadReviews);
 
   const restaurant = useMemo(
     () => (restaurants.data ?? []).find((item) => item.id === restaurantId) ?? null,
@@ -90,6 +100,11 @@ export function RestaurantPage() {
                   {restaurant.name}
                 </h1>
                 <p className="text-sm text-foreground-secondary">{restaurant.address}</p>
+                <RatingAverage
+                  average={reviews.data?.average ?? null}
+                  count={reviews.data?.count ?? null}
+                  showStars
+                />
               </div>
             </header>
           )}
@@ -132,6 +147,8 @@ export function RestaurantPage() {
               </div>
             )}
           </section>
+
+          <RestaurantReviews resource={reviews} />
 
           {notice !== null ? (
             <p role="status" className="text-sm font-medium text-success">

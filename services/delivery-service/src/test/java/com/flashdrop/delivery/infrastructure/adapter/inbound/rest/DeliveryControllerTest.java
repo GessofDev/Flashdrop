@@ -59,7 +59,7 @@ class DeliveryControllerTest {
     private JwksKeyProvider jwksKeyProvider;
 
     private DeliveryPersonResponse makePersonResponse(Long id) {
-        return new DeliveryPersonResponse(id, "1", "MOTO", Instant.now());
+        return new DeliveryPersonResponse(id, "1", "MOTO", Instant.now(), null, 0L);
     }
 
     @BeforeEach

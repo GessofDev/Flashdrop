@@ -14,6 +14,7 @@ import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
 import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
+import com.flashdrop.delivery.domain.valueobjects.RatingSummary;
 import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,18 +67,22 @@ class ClaimDeliveryOrdersUseCaseImplTest {
     @Mock
     private InternalOrdersClientPort internalOrdersClient;
 
+    @Mock
+    private GetDeliveryPersonRatingStatsUseCase getDeliveryPersonRatingStatsUseCase;
+
     private ClaimDeliveryOrdersUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
         // Default to flag OFF — PR-A tests assume no PR-B wiring is active.
         useCase = newUseCase(false);
+        when(getDeliveryPersonRatingStatsUseCase.executeForUserId(any())).thenReturn(RatingSummary.none());
     }
 
     private ClaimDeliveryOrdersUseCaseImpl newUseCase(boolean delegateToOrdersEnabled) {
         return new ClaimDeliveryOrdersUseCaseImpl(
                 deliveryPersonRepository, routeRepository, orderServicePort,
-                internalOrdersClient, delegateToOrdersEnabled);
+                internalOrdersClient, getDeliveryPersonRatingStatsUseCase, delegateToOrdersEnabled);
     }
 
     // ---------------------------------------------------------------------------------

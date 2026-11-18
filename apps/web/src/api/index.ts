@@ -22,6 +22,22 @@ export type {
 } from './delivery';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
+export {
+  isRatingTargetType,
+  RATING_TARGET_LABELS,
+  RATING_TARGET_TYPES,
+  reviewsApi,
+} from './reviews';
+export type {
+  CompletedReview,
+  CreateReviewRequest,
+  PendingReviewTarget,
+  PendingReviewsResponse,
+  PublicReview,
+  RatingDistribution,
+  RatingTargetType,
+  TargetReviewsResponse,
+} from './reviews';
 export { storeCatalogApi } from './storeCatalog';
 export type { OwnerProductPayload } from './storeCatalog';
 export { SALES_RANGES } from './types';

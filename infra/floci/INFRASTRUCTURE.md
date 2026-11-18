@@ -96,6 +96,7 @@ External access:
 | catalog  | `flashdrop-catalog-postgres` | `172.16.1.2:7001` | `flashdrop_catalog` | `catalog_app`  |
 | orders   | `flashdrop-orders-postgres`  | `172.16.1.2:7002` | `flashdrop_orders`  | `orders_app`   |
 | delivery | `delivery-rds`               | `172.16.1.2:7005` | `delivery_db`       | `delivery_svc` |
+| reviews  | `reviews-rds`                | `172.16.1.2:7006` | `reviews_db`        | `reviews_app`  |
 
 Las cuatro son PostgreSQL 16.3 y salen por `172.16.1.2`, que es el contenedor de
 FloCI haciendo de proxy.
@@ -138,6 +139,7 @@ Convención: `<servicio>/db-password`, uno por servicio y creado por su dueño.
 | `delivery/db-password`       | creado  |
 | `catalog/db-password`        | pendiente |
 | `orders/db-password`         | pendiente |
+| `reviews/db-password`        | pendiente |
 
 **`flashdrop/internal-api-key` es UNA SOLA para los cinco servicios.** No crear
 una por servicio: en cuanto alguien rote una y no las otras, todas las llamadas

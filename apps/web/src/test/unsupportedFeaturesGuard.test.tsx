@@ -8,6 +8,12 @@ import { listSourceFiles } from './support/sourceFiles';
  *
  * Each entry pairs a descriptive rule name with regexes to enforce via
  * static analysis across all authored UI components (`src/components/`, `src/app/`).
+ *
+ * The rule `ratings-and-reviews` was retired with the ratings system
+ * (`odd/tasks/ratings-system.md`, T16): the average of a store, the form of
+ * the ratings of a delivered order and the public comments of a store are
+ * part of the product now (S3, S5 and S8 of that feature), and the backend
+ * that answers them is `reviews-service`.
  */
 interface UnsupportedFeatureRule {
   readonly id: string;
@@ -16,11 +22,6 @@ interface UnsupportedFeatureRule {
 }
 
 export const UNSUPPORTED_FEATURES_RULES: ReadonlyArray<UnsupportedFeatureRule> = [
-  {
-    id: 'ratings-and-reviews',
-    description: 'No ratings, star reviews, or customer review counts',
-    patterns: [/★/, /\brating\b/i, /calificaci[oó]n/i, /reseñas?/i],
-  },
   {
     id: 'free-shipping-and-marketplace-delivery-fee',
     description: 'No free shipping badges or per-restaurant delivery fee claims in marketplace',

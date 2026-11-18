@@ -1,0 +1,94 @@
+{
+  "family": "reviews-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "containerDefinitions": [
+    {
+      "name": "reviews-service",
+      "image": "reviews-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8085,
+          "hostPort": 8085,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "reviews"
+        },
+        {
+          "name": "SERVER_PORT",
+          "value": "8085"
+        },
+        {
+          "name": "REVIEWS_DB_HOST",
+          "value": "172.16.1.2"
+        },
+        {
+          "name": "REVIEWS_DB_PORT",
+          "value": "7006"
+        },
+        {
+          "name": "REVIEWS_DB_NAME",
+          "value": "reviews_db"
+        },
+        {
+          "name": "REVIEWS_DB_USER",
+          "value": "reviews_app"
+        },
+        {
+          "name": "AUTH_SERVICE_JWKS_URI",
+          "value": "http://auth-service:8081/auth/.well-known/jwks.json"
+        },
+        {
+          "name": "AUTH_SERVICE_ISSUER",
+          "value": "flashdrop-auth"
+        },
+        {
+          "name": "ORDERS_SERVICE_URL",
+          "value": "http://orders-service:8083"
+        },
+        {
+          "name": "CATALOG_SERVICE_URL",
+          "value": "http://catalog-service:8082"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "REVIEWS_DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:reviews/db-password"
+        },
+        {
+          "name": "INTERNAL_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:000000000000:secret:flashdrop/internal-api-key"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:8085/actuator/health || exit 1"
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 10,
+        "startPeriod": 40
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/reviews-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

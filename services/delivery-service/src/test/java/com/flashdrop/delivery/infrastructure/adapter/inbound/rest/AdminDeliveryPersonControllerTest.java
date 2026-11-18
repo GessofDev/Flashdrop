@@ -108,7 +108,7 @@ class AdminDeliveryPersonControllerTest {
     @Test
     void admin_createsTheProfileForTheGivenUser() throws Exception {
         when(createDeliveryPersonUseCase.execute(eq(77L), any(CreateDeliveryPersonRequest.class)))
-                .thenReturn(new DeliveryPersonResponse(5L, "77", "MOTO", Instant.now()));
+                .thenReturn(new DeliveryPersonResponse(5L, "77", "MOTO", Instant.now(), null, 0L));
 
         mockMvc.perform(post("/api/delivery/admin/persons").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))

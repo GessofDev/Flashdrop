@@ -2,6 +2,7 @@ package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -12,9 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
+import com.flashdrop.catalog.application.usecase.GetRestaurantRatingStatsUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreHoursUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreOpenStatusUseCase;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
+import com.flashdrop.catalog.domain.model.RatingSummary;
 import com.flashdrop.catalog.domain.model.Restaurant;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.OpeningHoursDto;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.RestaurantResponse;
@@ -31,17 +34,20 @@ public class MyStoreRestaurantController {
     private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final SetStoreOpenStatusUseCase setStoreOpenStatusUseCase;
     private final SetStoreHoursUseCase setStoreHoursUseCase;
+    private final GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase;
     private final Clock clock;
 
     public MyStoreRestaurantController(
             GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
             SetStoreOpenStatusUseCase setStoreOpenStatusUseCase,
             SetStoreHoursUseCase setStoreHoursUseCase,
+            GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase,
             Clock clock
     ) {
         this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
         this.setStoreOpenStatusUseCase = setStoreOpenStatusUseCase;
         this.setStoreHoursUseCase = setStoreHoursUseCase;
+        this.getRestaurantRatingStatsUseCase = getRestaurantRatingStatsUseCase;
         this.clock = clock;
     }
 
@@ -70,7 +76,12 @@ public class MyStoreRestaurantController {
     }
 
     private RestaurantResponse toResponse(Restaurant restaurant) {
-        return RestaurantResponse.fromDomain(restaurant, LocalDateTime.now(clock));
+        // El promedio sale de la cache local (pull a reviews-service), no de
+        // una llamada en linea: el local abre igual si reviews-service caе.
+        RatingSummary rating = getRestaurantRatingStatsUseCase
+                .execute(List.of(restaurant.getId()))
+                .getOrDefault(restaurant.getId(), RatingSummary.none());
+        return RestaurantResponse.fromDomain(restaurant, LocalDateTime.now(clock), rating);
     }
 
     private Long userId(Jwt jwt) {

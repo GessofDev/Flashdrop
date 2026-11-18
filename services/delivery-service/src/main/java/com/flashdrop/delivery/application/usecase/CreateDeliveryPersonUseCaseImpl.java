@@ -6,6 +6,7 @@ import com.flashdrop.delivery.application.port.inbound.CreateDeliveryPersonUseCa
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.domain.exception.DeliveryPersonAlreadyExistsException;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
+import com.flashdrop.delivery.domain.valueobjects.RatingSummary;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -49,10 +50,14 @@ public class CreateDeliveryPersonUseCaseImpl implements CreateDeliveryPersonUseC
     }
 
     private DeliveryPersonResponse toResponse(DeliveryPerson person) {
+        // El repartidor se acaba de crear: todavia no tiene calificaciones.
+        RatingSummary rating = RatingSummary.none();
         return new DeliveryPersonResponse(
                 person.getId(),
                 person.getUserId(),
                 person.getVehicle() != null ? person.getVehicle().name() : null,
-                person.getCreatedAt());
+                person.getCreatedAt(),
+                rating.average(),
+                rating.count());
     }
 }

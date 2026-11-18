@@ -7,13 +7,14 @@ import {
   MAX_CLAIM_ORDERS,
   MISSING_COURIER_PROFILE_MESSAGE,
 } from '@/api';
-import type { ApiError, AvailableDeliveryOrder, CourierVehicle, RestaurantResponse } from '@/api';
+import type { ApiError, AvailableDeliveryOrder, CourierVehicle, DeliveryPerson, RestaurantResponse } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { Button, Skeleton } from '@/components/ui';
 import { useSession } from '@/session';
 
 import { AvailableOrderCard } from './AvailableOrderCard';
 import { CourierProfileForm } from './CourierProfileForm';
+import { CourierRatingSummary } from './CourierRatingSummary';
 
 interface AvailableQueueState {
   /** Orders returned by the backend, in its own order. */
@@ -56,6 +57,7 @@ export function CourierAvailablePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [profile, setProfile] = useState<DeliveryPerson | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   const canClaim =
@@ -176,7 +178,9 @@ export function CourierAvailablePage() {
     setNotice(null);
 
     try {
-      await courierApi.createProfile(vehicle);
+      const created = await courierApi.createProfile(vehicle);
+
+      setProfile(created);
       setActionError(null);
       setNotice('Perfil de repartidor creado. La cola fue actualizada.');
       setReloadToken((token) => token + 1);
@@ -256,6 +260,15 @@ export function CourierAvailablePage() {
         <p role="status" className="mb-6 text-sm font-medium text-success">
           {notice}
         </p>
+      ) : null}
+
+      {profile !== null ? (
+        <div className="mb-6">
+          <CourierRatingSummary
+            average={profile.ratingAverage ?? null}
+            count={profile.ratingCount ?? null}
+          />
+        </div>
       ) : null}
 
       {showProfileForm ? (

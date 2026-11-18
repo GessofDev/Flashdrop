@@ -41,6 +41,7 @@ shaped, because the services do not share one envelope:
 |---|---|---|
 | `orders-service`, `delivery-service` | `{ success, message, data }` | `'envelope'` |
 | `auth-service`, `catalog-service` | the bare DTO | `'bare'` |
+| `reviews-service` | the bare DTO | `'bare'` (the reader also accepts the envelope) |
 
 ```ts
 const orders = await request<OrderListResponse[]>({
@@ -156,6 +157,43 @@ customers search by restaurant name or by the name of any dish for sale
 (e.g., "pizza"). The search filters the restaurant grid dynamically, keeping
 the popular dishes section focused on category browsing.
 
+## Ratings (T16)
+
+The web app is the client of `reviews-service`, the service that owns the
+ratings of the platform (`odd/tasks/ratings-system.md`).
+
+`src/components/ratings/` holds the pieces the screens share: the stars the
+customer chooses a score with (`StarRatingInput`), the stars that show a
+score (`StarRatingDisplay`), the average of a destination (`RatingAverage`)
+and the list of the public comments (`ReviewList`).
+
+The form lives in the tracking of the order: when the order is `Entregado`,
+the screen asks `GET /api/reviews/pending/{orderId}` and shows one form for
+each destination the customer can still rate — the score goes from one to
+five stars and the comment is optional, up to 500 characters. The ratings
+already written are shown as they are, without the option of changing them.
+
+The client never decides who can rate whom: that matrix belongs to the
+server, and the screen shows exactly the destinations the pending endpoint
+returns.
+
+The averages of a store and of a courier appear **only when the backend
+sends them**: `catalog-service` publishes `ratingAverage` and `ratingCount`
+in the card of the local, and `delivery-service` publishes them in the
+profile of the courier. While they do not travel, the screens show nothing
+instead of a number nobody can back.
+
+Two details of the transport are worth knowing:
+
+- `reviews-service` works with the **numeric** id of the order, while the
+  orders screens hold the UUID of it. `src/lib/orderId.ts` derives the
+  numeric id from the least significant half of the UUID, the same space the
+  other services publish.
+- The readers of `src/api/reviews.ts` accept the bare DTO of the contract
+  and the `{ success, message, data }` envelope of the rest of the backend,
+  and they never invent a field the answer does not carry.
+
+
 ## Canonical shell (T3)
 
 `src/components/shell/` holds the shell of the app, built from the mockup
@@ -233,6 +271,7 @@ src/
 ├── api/            # typed transport: request(), ApiError, DTOs, auth calls
 ├── app/            # router, route paths, role routes, guard and placeholders
 ├── components/     # ui/ primitives, errors/ notice, shell/ and auth/ screens
+│                   # and ratings/ for the stars, the averages and the list
 ├── lib/            # formatters and the readers of the order and route status
 ├── session/        # session store, roles, provider and session events
 ├── styles/         # index.css (entry) and theme.css (the only token file)

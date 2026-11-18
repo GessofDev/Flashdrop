@@ -70,6 +70,16 @@ export interface DeliveryPerson {
   vehicle: string | null;
   /** Instant the profile was created. */
   createdAt: string;
+  /**
+   * Average of the scores of the courier.
+   *
+   * The delivery service publishes it when it already holds the aggregate of
+   * the ratings; until then the field does not travel and the screens show
+   * nothing instead of a number nobody can back.
+   */
+  ratingAverage?: number | null;
+  /** Number of scores behind the average of the courier. */
+  ratingCount?: number | null;
 }
 
 /**

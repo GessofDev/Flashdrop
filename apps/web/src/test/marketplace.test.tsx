@@ -175,7 +175,7 @@ describe('customer marketplace', () => {
     );
   });
 
-  it('never renders ratings, delivery times, shipping costs or the coupon of the day', async () => {
+  it('never renders ratings when the catalog does not send them, nor delivery times, shipping costs or the coupon of the day', async () => {
     mockFetch(catalogResponse);
     renderApp('/');
 

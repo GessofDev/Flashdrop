@@ -18,3 +18,16 @@ spring:
   flyway:
     enabled: true
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
+
+# Configuracion del pull de promedios de calificacion (T14).
+#
+# reviews-service es el dueno del dato; catalog lo pide por lotes al endpoint
+# interno y lo deja cacheado en su propia base (tabla restaurant_rating_stats).
+# `ttl` es a la vez la ventana de frescura de la cache y la cadencia del pull.
+# El secret es el mismo `internal.api.key` compartido por todos los servicios.
+catalog:
+  reviews:
+    base-url: ${REVIEWS_SERVICE_URL:http://reviews-service:8085}
+    ttl: ${REVIEWS_STATS_TTL:PT5M}
+    batch-size: ${REVIEWS_STATS_BATCH_SIZE:100}
+    api-key: ${REVIEWS_INTERNAL_API_KEY:${internal.api.key:}}
