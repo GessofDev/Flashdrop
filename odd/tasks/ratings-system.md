@@ -323,3 +323,22 @@ docs acompañando al comportamiento.
   delivery 8084 → **reviews 8085**); los workflows de CI/CD viven en
   `.github/workflows/` de la raíz y las task-definitions de FloCI en
   `infra/floci/task-definitions/`.
+- **L9** (T0, spike): confirmadas las plantillas a copiar — `delivery-service`
+  como módulo de referencia (build.gradle.kts, Dockerfile con contexto
+  `services/`, `application.yml` + `application-<profile>.yml`, `SecurityConfig`
+  con `JwtAuthenticationFilter` + `RoleAuthoritiesExtractor` +
+  `CurrentUserResolver`, `InternalApiKeyFilter` de `shared-observability`),
+  `delivery-service-ci.yml` / `-cd.yml` como workflows, `delivery-service.dev.json`
+  como task-definition y el bloque `delivery-service` de
+  `gateway/docker/docker-compose.stack.yml` + su ruta en `gateway/docker/gateway.yaml`.
+  Confirmado que `orders-service` **no** expone un endpoint interno de orden
+  individual (solo lista y claim): de ahí el T4.
+- **L10** (T1, OpenSpec): change creado en `openspec/changes/ratings-system/`
+  (`proposal.md`, `design.md`, `spec.md` con FR-1..FR-12, `tasks.md` con los
+  contratos entre tareas) y doc de diseño en
+  `docs/plans/2026-11-18-ratings-system-design.md`.
+- **L11** (ejecución): implementación delegada a tres workers en paralelo con
+  superficies disjuntas — (a) núcleo `reviews-service` + endpoint interno de
+  orders (T2-T10), (b) gateway + FloCI + CI/CD + agregados en catalog/delivery
+  (T12-T15), (c) web (T16). Los tres contratos duros quedaron fijados por
+  adelantado para evitar drift de integración.
