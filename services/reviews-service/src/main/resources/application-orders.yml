@@ -1,0 +1,22 @@
+# =============================================================================
+# Configuración de los clientes HTTP internos de reviews-service
+# =============================================================================
+# Activado con SPRING_PROFILES_ACTIVE=reviews,orders
+#
+# Los RestClient envían X-Internal-Api-Key en cada request (autenticación
+# entre servicios). Degradación segura: si orders-service o catalog-service no
+# están disponibles, el adapter falla explícitamente (503) en vez de inventar
+# una respuesta — el servicio nunca valida contra datos inventados.
+# =============================================================================
+
+orders:
+  service:
+    url: ${ORDERS_SERVICE_URL:http://orders-service:8083}
+
+catalog:
+  service:
+    url: ${CATALOG_SERVICE_URL:http://catalog-service:8082}
+
+internal:
+  api:
+    key: ${INTERNAL_API_KEY:}

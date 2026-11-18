@@ -1,0 +1,50 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: reviews-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.flashdrop: DEBUG
+    org.springframework.web: INFO
+
+# JWT auth (RS256) — base defaults so unit tests that don't load a profile
+# (e.g. @WebMvcTest) still see the same property keys.
+auth:
+  # auth-service hostname resolves via docker-compose DNS in local dev and via
+  # FloCI task-definition env vars in deployed environments. Tests override
+  # through @TestPropertySource.
+  jwks-uri: >-
+    ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}
+
+# Clave interna para /api/internal/** (X-Internal-Api-Key). Es el mismo
+# secret compartido por todos los servicios (flashdrop/internal-api-key).
+# Sin valor por defecto real a propósito: en perfiles distintos de `dev` el
+# registro del filtro de shared-observability falla ruidosamente si la clave
+# no está configurada (fail-closed).
+internal:
+  api:
+    key: ${INTERNAL_API_KEY:}
+
+# URLs de los servicios internos que consume reviews-service.
+# Resuelven por DNS de docker-compose en local y por variables de entorno
+# en los task-definitions de FloCI.
+orders:
+  service:
+    url: ${ORDERS_SERVICE_URL:http://orders-service:8083}
+
+catalog:
+  service:
+    url: ${CATALOG_SERVICE_URL:http://catalog-service:8082}

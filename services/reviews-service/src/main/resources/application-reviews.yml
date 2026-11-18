@@ -1,0 +1,34 @@
+# =============================================================================
+# Perfil `reviews` — base de datos propia de reviews-service (reviews_db)
+# =============================================================================
+# Mismo patrón que delivery-service (application-delivery.yml): el perfil
+# `reviews` es el que configura el datasource, el esquema `internal` y Flyway.
+# =============================================================================
+
+spring:
+  datasource:
+    url: >-
+      jdbc:postgresql://${REVIEWS_DB_HOST:localhost}:${REVIEWS_DB_PORT:5432}/${REVIEWS_DB_NAME:reviews_db}
+    username: ${REVIEWS_DB_USER:reviews_svc}
+    password: ${REVIEWS_DB_PASSWORD:reviews_svc_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: internal
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    schemas: internal
+    locations: classpath:db/migration
+
+# JWT auth (RS256) — verificado localmente contra el JWKS de auth-service.
+# Path no estándar (/auth/.well-known/jwks.json), verificado en
+# services/auth-service/src/main/java/com/flashdrop/auth/infrastructure/
+# adapter/inbound/rest/JwksController.java
+auth:
+  jwks-uri: >-
+    ${AUTH_SERVICE_JWKS_URI:http://auth-service:8081/auth/.well-known/jwks.json}
+  issuer: ${AUTH_SERVICE_ISSUER:flashdrop-auth}

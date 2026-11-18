@@ -7,4 +7,5 @@ rootProject.name = "flashdrop-services"
 include("shared-observability")
 include("auth-service")
 include("delivery-service")
+include("reviews-service")
 // orders-service es Maven (no se incluye acá, se construye por separado)

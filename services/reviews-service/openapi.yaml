@@ -1,0 +1,465 @@
+openapi: 3.0.3
+info:
+  title: FlashDrop - Reviews Service API
+  description: |
+    Microservicio de calificaciones entre clientes, repartidores y tiendas.
+
+    **Puerto:** 8085 (el gateway lo expone bajo `/api/reviews`).
+
+    ## Reglas de negocio (feature `ratings-system`)
+    - Una calificación se ancla a una **orden** y solo existe si la orden
+      esta `ENTREGADO` (S3).
+    - Matriz de autorización de 6 relaciones (S4):
+
+      | Autor \\ Destino | TIENDA | REPARTIDOR | CLIENTE |
+      |---|---|---|---|
+      | CLIENTE | sí | sí | no |
+      | REPARTIDOR | sí | no | sí |
+      | RESTAURANTE | no | sí | sí |
+
+      El autor debe tener el rol (claim `roles` del JWT, multi-rol) **y** ser
+      participante de la orden.
+    - Escala entera de 1 a 5 estrellas; comentario opcional de hasta 500
+      caracteres (S5).
+    - Una sola calificación por `(orden, autor, destino)`: el reintento
+      devuelve `409` (S6).
+    - El **id del destino lo deriva el servidor** desde la orden; el cliente
+      nunca lo envia (S7).
+    - El promedio y los comentarios son públicos (S8).
+
+    ## Notas para quien integra
+    - Los endpoints publicos (`/api/reviews/**`, `/api/users/**`) exigen JWT
+      con al menos uno de los roles `Cliente`, `Repartidor` o `Restaurante`.
+      Sin token responden `401`; con un rol distinto, `403`.
+    - Los endpoints `/api/internal/**` no usan JWT: exigen la cabecera
+      `X-Internal-Api-Key` y solo los llaman otros servicios de la red
+      interna. No se exponen por el gateway.
+    - Los errores usan el sobre comun `{ "code", "service", "traceId", "message" }`.
+    - Todos los ids son numericos publicos: `auth.users.id` para usuarios,
+      `catalog.restaurant.id` para tiendas.
+  version: 1.0.0
+  contact:
+    name: FlashDrop Backend Team
+
+servers:
+  - url: http://localhost:8085
+    description: Desarrollo local
+
+tags:
+  - name: Reviews
+    description: Calificaciones de los actores de una orden
+  - name: Users
+    description: Historial de calificaciones del usuario autenticado
+  - name: Internal
+    description: Llamadas entre servicios (X-Internal-Api-Key)
+
+paths:
+  /api/reviews:
+    post:
+      tags: [Reviews]
+      summary: Crear una calificacion
+      description: |
+        Crea una calificacion sobre un actor de una orden. El `targetId` **no**
+        se recibe: lo deriva el servidor desde la orden.
+      operationId: createReview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '201':
+          description: Calificacion creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/reviews/pending/{orderId}:
+    get:
+      tags: [Reviews]
+      summary: Calificaciones pendientes del autor en una orden
+      description: Que falta calificar en esa orden y que ya califico el autor.
+      operationId: listPendingReviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Id numerico publico de la orden
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Pendientes y ya hechas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/reviews/{targetType}/{targetId}:
+    get:
+      tags: [Reviews]
+      summary: Calificaciones publicas de un destino
+      description: Pagina de calificaciones publicadas del destino, con su
+        agregado.
+      operationId: listReviewsForTarget
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: targetType
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/RatingTarget'
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Pagina de calificaciones con el agregado del destino
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TargetReviews'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/users/me/reviews:
+    get:
+      tags: [Users]
+      summary: Historial de calificaciones del usuario autenticado
+      operationId: listMyReviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Pagina de calificaciones del autor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReviews'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/internal/reviews/aggregates:
+    get:
+      tags: [Internal]
+      summary: Agregados de calificacion por lotes
+      description: |
+        Consumido por catalog-service (promedio de la tienda) y
+        delivery-service (promedio del repartidor).
+        Devuelve **un** elemento por cada id solicitado, en el orden pedido:
+        los ids sin calificaciones vienen con `count = 0` y `average = 0.0`.
+      operationId: getRatingAggregates
+      security:
+        - internalApiKey: []
+      parameters:
+        - name: targetType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/RatingTarget'
+        - name: ids
+          in: query
+          required: true
+          description: Ids de destino separados por coma (p. ej. `1,2,3`)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agregados por destino
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalAggregates'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT de auth-service (RS256). El claim `roles` trae
+        Cliente | Repartidor | Restaurante.
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+
+  responses:
+    BadRequest:
+      description: Payload o parametro invalido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Sin token valido o sin la clave interna
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: El rol o la relacion no habilitan la calificacion
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: La orden o el destino no existen
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Ya existe una calificacion para esa terna
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    UnprocessableEntity:
+      description: La orden todavia no esta entregada
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ServiceUnavailable:
+      description: orders-service o catalog-service no estan disponibles
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    RatingTarget:
+      type: string
+      description: Tipo de destino de la calificacion
+      enum: [TIENDA, REPARTIDOR, CLIENTE]
+
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        service:
+          type: string
+          example: reviews-service
+        traceId:
+          type: string
+        message:
+          type: string
+
+    CreateReviewRequest:
+      type: object
+      required: [orderId, targetType, rating]
+      properties:
+        orderId:
+          type: integer
+          format: int64
+          description: Id numerico publico de la orden
+          example: 501
+        targetType:
+          $ref: '#/components/schemas/RatingTarget'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Comentario opcional, se renderiza como texto plano
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderId:
+          type: integer
+          format: int64
+        authorUserId:
+          type: integer
+          format: int64
+        targetType:
+          $ref: '#/components/schemas/RatingTarget'
+        targetId:
+          type: integer
+          format: int64
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [PUBLICADO, OCULTO]
+        createdAt:
+          type: string
+          format: date-time
+
+    PendingReviews:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        pending:
+          type: array
+          items:
+            type: object
+            properties:
+              targetType:
+                $ref: '#/components/schemas/RatingTarget'
+              targetId:
+                type: integer
+                format: int64
+        completed:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+
+    RatingAggregate:
+      type: object
+      properties:
+        average:
+          type: number
+          format: double
+          example: 4.5
+        count:
+          type: integer
+          format: int64
+          example: 10
+        distribution:
+          type: object
+          description: Cantidad de calificaciones por nota (claves "1".."5")
+          additionalProperties:
+            type: integer
+            format: int64
+
+    TargetReviews:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        aggregate:
+          $ref: '#/components/schemas/RatingAggregate'
+
+    MyReviews:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    InternalAggregates:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              targetId:
+                type: integer
+                format: int64
+              average:
+                type: number
+                format: double
+              count:
+                type: integer
+                format: int64
