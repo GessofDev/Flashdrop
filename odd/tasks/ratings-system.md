@@ -342,3 +342,8 @@ docs acompañando al comportamiento.
   orders (T2-T10), (b) gateway + FloCI + CI/CD + agregados en catalog/delivery
   (T12-T15), (c) web (T16). Los tres contratos duros quedaron fijados por
   adelantado para evitar drift de integración.
+- **L12** (commits): WU-1 cerrado en dos commits — `6d09c8c` (feature doc,
+  325 líneas) y `69d4fd3` (OpenSpec change + doc de diseño, 672 líneas). Los
+  commits de docs van juntos a propósito: son una sola unidad de lectura para
+  quien revise. **Frontera de slice**: a partir de `69d4fd3` cada work unit de
+  código entra en su propio commit de ~400 líneas o menos.
