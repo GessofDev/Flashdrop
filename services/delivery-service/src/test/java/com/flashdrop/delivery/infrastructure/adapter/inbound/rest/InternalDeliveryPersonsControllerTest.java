@@ -2,11 +2,14 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 
 import com.flashdrop.delivery.application.dto.DeliveryPersonResponse;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.application.usecase.GetDeliveryPersonRatingStatsUseCase;
 import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
+import com.flashdrop.delivery.domain.valueobjects.RatingSummary;
 import com.flashdrop.delivery.domain.valueobjects.VehicleType;
 import com.flashdrop.observability.config.ObservabilityAutoConfiguration;
 import com.flashdrop.observability.security.InternalApiKeyFilter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -48,6 +51,10 @@ class InternalDeliveryPersonsControllerTest {
     @MockBean
     private DeliveryPersonRepository deliveryPersonRepository;
 
+    /** El perfil del repartidor incluye el promedio cacheado de sus calificaciones. */
+    @MockBean
+    private GetDeliveryPersonRatingStatsUseCase getDeliveryPersonRatingStatsUseCase;
+
     /** JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
      *  requires JwksKeyProvider via constructor injection. */
     @MockBean
@@ -56,8 +63,13 @@ class InternalDeliveryPersonsControllerTest {
     private static final String INTERNAL_KEY_HEADER = "X-Internal-Api-Key";
     private static final String VALID_KEY = "test-internal-key";
 
+    @BeforeEach
+    void setUp() {
+        when(getDeliveryPersonRatingStatsUseCase.executeForUserId(anyString())).thenReturn(RatingSummary.none());
+    }
+
     private DeliveryPersonResponse makePersonResponse(Long id, String userId) {
-        return new DeliveryPersonResponse(id, userId, "MOTO", Instant.parse("2024-01-01T10:00:00Z"));
+        return new DeliveryPersonResponse(id, userId, "MOTO", Instant.parse("2024-01-01T10:00:00Z"), null, 0L);
     }
 
     // ---------------------------------------------------------------------------------------------

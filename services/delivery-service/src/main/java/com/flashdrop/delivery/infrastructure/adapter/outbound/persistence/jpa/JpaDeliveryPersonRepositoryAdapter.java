@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -27,6 +28,11 @@ public class JpaDeliveryPersonRepositoryAdapter implements DeliveryPersonReposit
     @Override
     public Optional<DeliveryPerson> findByUserId(String userId) {
         return jpaRepository.findByUserId(userId).map(this::toDomain);
+    }
+
+    @Override
+    public List<DeliveryPerson> findAll() {
+        return jpaRepository.findAll().stream().map(this::toDomain).toList();
     }
 
     @Override

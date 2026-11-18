@@ -3,9 +3,12 @@ package com.flashdrop.delivery.infrastructure.adapter.inbound.rest;
 import com.flashdrop.delivery.application.dto.ApiResponse;
 import com.flashdrop.delivery.application.dto.DeliveryPersonResponse;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
+import com.flashdrop.delivery.application.usecase.GetDeliveryPersonRatingStatsUseCase;
 import com.flashdrop.delivery.infrastructure.security.JwksKeyProvider;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
+import com.flashdrop.delivery.domain.valueobjects.RatingSummary;
 import com.flashdrop.observability.config.ObservabilityAutoConfiguration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +47,10 @@ class InternalDeliveryPersonsControllerContractTest {
     @MockBean
     private DeliveryPersonRepository deliveryPersonRepository;
 
+    /** El perfil del repartidor incluye el promedio cacheado de sus calificaciones. */
+    @MockBean
+    private GetDeliveryPersonRatingStatsUseCase getDeliveryPersonRatingStatsUseCase;
+
     /** JwtAuthenticationFilter is a Filter bean picked up by @WebMvcTest; it
      *  requires JwksKeyProvider via constructor injection. */
     @MockBean
@@ -51,6 +58,11 @@ class InternalDeliveryPersonsControllerContractTest {
 
     private static final String INTERNAL_KEY_HEADER = "X-Internal-Api-Key";
     private static final String VALID_KEY = "test-internal-key";
+
+    @BeforeEach
+    void setUp() {
+        when(getDeliveryPersonRatingStatsUseCase.executeForUserId(anyString())).thenReturn(RatingSummary.none());
+    }
 
     @Test
     @DisplayName("TC1: GET /api/internal/delivery-persons?userId=U1 returns ApiResponse envelope with success=true")

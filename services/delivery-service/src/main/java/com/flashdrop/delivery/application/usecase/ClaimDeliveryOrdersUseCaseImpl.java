@@ -11,6 +11,7 @@ import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
 import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
 import com.flashdrop.delivery.domain.model.DeliveryRoute;
+import com.flashdrop.delivery.domain.valueobjects.RatingSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,17 +30,20 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
     private final RouteRepository routeRepository;
     private final OrderServicePort orderServicePort;
     private final InternalOrdersClientPort internalOrdersClient;
+    private final GetDeliveryPersonRatingStatsUseCase getDeliveryPersonRatingStatsUseCase;
     private final boolean delegateToOrdersEnabled;
 
     public ClaimDeliveryOrdersUseCaseImpl(DeliveryPersonRepository deliveryPersonRepository,
                                           RouteRepository routeRepository,
                                           OrderServicePort orderServicePort,
                                           InternalOrdersClientPort internalOrdersClient,
+                                          GetDeliveryPersonRatingStatsUseCase getDeliveryPersonRatingStatsUseCase,
                                           @Value("${delivery.claim.delegate-to-orders.enabled:true}") boolean delegateToOrdersEnabled) {
         this.deliveryPersonRepository = deliveryPersonRepository;
         this.routeRepository = routeRepository;
         this.orderServicePort = orderServicePort;
         this.internalOrdersClient = internalOrdersClient;
+        this.getDeliveryPersonRatingStatsUseCase = getDeliveryPersonRatingStatsUseCase;
         this.delegateToOrdersEnabled = delegateToOrdersEnabled;
     }
 
@@ -123,11 +127,17 @@ public class ClaimDeliveryOrdersUseCaseImpl implements ClaimDeliveryOrdersUseCas
     }
 
     private DeliveryPersonResponse toDeliveryPersonResponse(DeliveryPerson deliveryPerson) {
+        // El promedio sale de la cache local (pull a reviews-service), no de una
+        // llamada en linea: el claim no se frena si reviews-service cae.
+        RatingSummary rating = getDeliveryPersonRatingStatsUseCase
+                .executeForUserId(deliveryPerson.getUserId());
         return new DeliveryPersonResponse(
                 deliveryPerson.getId(),
                 deliveryPerson.getUserId(),
                 deliveryPerson.getVehicle() != null ? deliveryPerson.getVehicle().name() : null,
-                deliveryPerson.getCreatedAt()
+                deliveryPerson.getCreatedAt(),
+                rating.average(),
+                rating.count()
         );
     }
 }
