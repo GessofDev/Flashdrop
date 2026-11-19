@@ -46,17 +46,20 @@ class CreateOrderUseCaseTest {
     private EventPublisherPort eventPublisher;
     @Mock
     private DeliveryCodePort deliveryCodePort;
+    @Mock
+    private cl.flashdrop.orders.application.service.DeliveryFeeCalculator deliveryFeeCalculator;
 
     @InjectMocks
     private CreateOrderUseCase createOrderUseCase;
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(createOrderUseCase, "deliveryFee", BigDecimal.valueOf(2500));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
         ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
         lenient().when(deliveryCodePort.isSecureModeAvailable()).thenReturn(true);
+        lenient().when(deliveryFeeCalculator.calculate(any(), any(), any(), any()))
+                .thenReturn(cl.flashdrop.orders.domain.model.DeliveryQuote.fallback(BigDecimal.valueOf(2500), null));
     }
 
     @Test

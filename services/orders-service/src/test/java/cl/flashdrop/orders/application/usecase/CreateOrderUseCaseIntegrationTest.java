@@ -64,14 +64,17 @@ class CreateOrderUseCaseIntegrationTest {
         DeliveryHttpClientAdapter deliveryAdapter = new DeliveryHttpClientAdapter(deliveryClient);
 
         orderRepository = mock(OrderRepositoryPort.class);
+        DeliveryTariffRepositoryPort tariffRepository = mock(DeliveryTariffRepositoryPort.class);
+        when(tariffRepository.find()).thenReturn(cl.flashdrop.orders.domain.model.DeliveryTariff.empty());
         clientPort = mock(ClientPort.class);
         eventPublisher = mock(EventPublisherPort.class);
 
         useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort, deliveryAdapter, eventPublisher,
-                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"));
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"),
+                new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
+                        tariffRepository, null, BigDecimal.valueOf(2500), 1));
 
         // Inject @Value fields via reflection (not available outside Spring context)
-        setField(useCase, "deliveryFee", BigDecimal.valueOf(2500));
         setField(useCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         setField(useCase, "defaultEstimatedMinutes", 20);
         setField(useCase, "orderCreatedRoutingKey", "order.created");

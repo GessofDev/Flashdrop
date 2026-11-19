@@ -129,6 +129,7 @@ public class CatalogHttpClientAdapter implements CatalogPort {
                 .image(d.image())
                 .price(d.price())
                 .available(d.available() != null && d.available())
+                .dimension(d.dimension())
                 .build();
     }
 

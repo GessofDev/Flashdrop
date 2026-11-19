@@ -2,6 +2,7 @@ package cl.flashdrop.orders.application.usecase;
 
 import cl.flashdrop.orders.application.command.CreateOrderCommand;
 import cl.flashdrop.orders.application.dto.CreatedOrderResult;
+import cl.flashdrop.orders.application.service.DeliveryFeeCalculator;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
@@ -40,9 +41,7 @@ public class CreateOrderUseCase {
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
     private final DeliveryCodePort deliveryCodePort;
-
-    @Value("${orders.delivery-fee:2500}")
-    private BigDecimal deliveryFee;
+    private final DeliveryFeeCalculator deliveryFeeCalculator;
 
     @Value("${orders.default-distance-km:3.2}")
     private BigDecimal defaultDistanceKm;
@@ -133,6 +132,13 @@ public class CreateOrderUseCase {
 
         // 6. Calcular totales
         BigDecimal subtotal = Order.calculateSubtotal(items);
+        // El envio lo calcula el servidor con la tarifa del administrador (nunca viene del cliente).
+        List<DeliveryFeeCalculator.Line> feeLines = command.getItems().stream()
+                .map(req -> new DeliveryFeeCalculator.Line(productById.get(req.getProductId()), req.getQuantity()))
+                .collect(Collectors.toList());
+        DeliveryQuote quote = deliveryFeeCalculator.calculate(feeLines, restaurant,
+                command.getDeliveryLatitude(), command.getDeliveryLongitude());
+        BigDecimal deliveryFee = quote.deliveryFee();
         BigDecimal total = Order.calculateTotal(subtotal, deliveryFee);
 
         // 7. Construir y persistir la orden
@@ -144,6 +150,8 @@ public class CreateOrderUseCase {
                 .status(OrderStatus.NUEVO_PEDIDO)
                 .address(command.getAddress())
                 .commune(normalizedCommune)
+                .deliveryLatitude(command.getDeliveryLatitude())
+                .deliveryLongitude(command.getDeliveryLongitude())
                 .subtotal(subtotal)
                 .deliveryFee(deliveryFee)
                 .total(total)
@@ -159,7 +167,10 @@ public class CreateOrderUseCase {
         String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
 
         // 8. Crear ruta de entrega
-        BigDecimal distanceKm = normalizeDistance(command.getDistanceKm());
+        // Con coordenadas y tarifa, la distancia es la calculada; si no, la que mande la app o la de siempre.
+        BigDecimal distanceKm = quote.distanceKm() != null
+                ? quote.distanceKm().max(BigDecimal.valueOf(0.5)).min(BigDecimal.valueOf(80))
+                : normalizeDistance(command.getDistanceKm());
         int estimatedMinutes = normalizeMinutes(command.getEstimatedMinutes());
 
         DeliveryRoute route = DeliveryRoute.builder()

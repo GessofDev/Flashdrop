@@ -176,6 +176,8 @@ public class OrderController {
                 .commune(request.getCommune())
                 .paymentMethod(request.getPaymentMethod())
                 .receptionMode(ReceptionMode.fromRequest(request.getReceptionMode()))
+                .deliveryLatitude(request.getLatitude())
+                .deliveryLongitude(request.getLongitude())
                 .distanceKm(request.getDistanceKm())
                 .estimatedMinutes(request.getEstimatedMinutes())
                 .items(cmdItems)

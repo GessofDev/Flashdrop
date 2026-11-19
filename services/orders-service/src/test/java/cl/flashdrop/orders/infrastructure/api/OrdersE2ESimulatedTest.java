@@ -108,8 +108,10 @@ class OrdersE2ESimulatedTest {
 
         CreateOrderUseCase createOrderUseCase = new CreateOrderUseCase(
                 orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, eventPublisher,
-                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"));
-        ReflectionTestUtils.setField(createOrderUseCase, "deliveryFee", BigDecimal.valueOf(2500));
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"),
+                new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
+                        mock(cl.flashdrop.orders.domain.port.DeliveryTariffRepositoryPort.class), null,
+                        BigDecimal.valueOf(2500), 1));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
         ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
