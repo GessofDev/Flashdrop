@@ -101,3 +101,14 @@ Antes de entregar se validó el estado confirmado (checkout limpio) con: pruebas
 - **Llave de idempotencia:** repetir la misma llave devuelve el pedido original sin comparar el contenido, y dos peticiones simultáneas con la misma llave podrían chocar con el índice único (error en una de ellas). Las apps deben usar una llave nueva por intento de compra.
 - **La firma del webhook de la pasarela simulada es un secreto compartido**, no un HMAC del cuerpo. Es aceptable para la simulación; el adaptador de la pasarela real debe verificar la firma que esa pasarela defina.
 - **Varias réplicas:** si hay más de una instancia de Orders, todas corren la tarea; la cancelación es una sentencia condicional y cerrar la ruta es idempotente, así que no hay doble cancelación, solo trabajo repetido.
+
+## Reglas de otros equipos con las que esta entrega convive (no se relajan)
+
+Estas reglas ya están en `main` y **esta entrega se adapta a ellas**, no al revés:
+
+- **Cobertura de despacho (Javier, PR #111, F11).** Las coordenadas del destino son obligatorias y la cobertura se valida siempre (con o sin tarifa). El local debe tener **pin y radio de despacho** (1 a 50 km); sin ellos "no puede recibir pedidos nuevos". Un destino fuera del radio se rechaza. Orders revalida antes de crear el pedido y en la cotización. El envío de respaldo ($2.500) solo se cobra si el administrador no cargó rangos de tarifa.
+  - **Antes de activar esta versión:** cada local debe configurar su pin y su radio (`PUT /api/catalog/my/restaurant/delivery-radius`). Un local sin radio rechaza todos sus pedidos.
+  - **La app antigua** que no envíe coordenadas recibirá un rechazo: requiere una actualización coordinada, no una relajación de la validación.
+  - Las migraciones de Catalog son independientes por servicio: V9 (dimensión del producto, este trabajo) y V10 (radio, Javier).
+- **Foto de perfil (Nicolás, PR #110, F10).** Pertenece a Auth y no interactúa con esta entrega; solo comparte el despliegue (`docker-compose.stack.yml` y `env.stack.template` de gateway).
+- **Despliegue:** las migraciones de cada servicio se aplican por el procedimiento de Sebastián.

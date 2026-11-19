@@ -77,7 +77,7 @@ Todas son idempotentes (`IF NOT EXISTS`) y no borran datos. `V10` de Orders ya e
 
 ### Infraestructura
 - Crear el secreto `flashdrop/payment-webhook-secret` y referenciarlo en la task definition de Orders (`PAYMENT_WEBHOOK_SECRET`).
-- Ensayar las migraciones de Orders V6 a V13 sobre una copia de la base real antes de desplegar (fuera de alcance, pero recomendado: `PaymentsMigrationUpgradeTest` ya cubre el escenario en CI).
+- Ensayar las migraciones de Orders (V6 a V14) y de Catalog (V9 dimensión del producto y V10 radio de despacho) sobre una copia de la base real antes de desplegar, por el procedimiento de Sebastián (fuera de alcance, pero recomendado: `PaymentsMigrationUpgradeTest` ya cubre el escenario de Orders en CI).
 
 ### Fuera de alcance, queda anotado
 - Pedidos sin pagar no vencen todavía (existe el plazo `payment_expires_at`, pero no hay tarea que los cancele).
