@@ -399,6 +399,52 @@ paths:
         '403':
           description: No es el cliente dueño del pedido
 
+  /api/admin/order-policy:
+    get:
+      tags: [Admin]
+      summary: Ver los plazos globales de los pedidos
+      description: Solo administradores (Cliente + Restaurante + Repartidor a la vez; 403 si no).
+      operationId: getOrderPolicy
+      responses:
+        '200':
+          description: Plazos vigentes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPolicy'
+        '403':
+          description: No es administrador
+    put:
+      tags: [Admin]
+      summary: Reemplazar los plazos globales de los pedidos
+      description: |
+        Plazos en minutos (1 a 1440; la ventana de cancelación del cliente admite 0).
+        - `storeResponseMinutes`: cuánto tiene la tienda para aceptar un pedido ya pagado. Si no responde, el pedido
+          se cancela solo (`STORE_NO_RESPONSE`). **Es el mismo para todos los locales**: una tienda ya no lo elige.
+        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que la tienda aceptó el pedido. Si pasa
+          el plazo sin repartidor, el pedido se cancela solo (`NO_COURIER`). También solo global.
+        Las tareas revisan cada minuto. Al cancelar se cierra la ruta en Delivery y se publica el cambio de estado.
+        El cliente solo se entera cuando el pedido pasa a "Cancelado" (con su motivo); las devoluciones están fuera
+        de alcance.
+      operationId: replaceOrderPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPolicy'
+      responses:
+        '200':
+          description: Plazos guardados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: No es administrador
+
   /api/admin/delivery-tariff:
     get:
       tags: [Admin]
@@ -1236,6 +1282,19 @@ components:
         status:
           type: string
           example: Nuevo pedido
+        cancelReason:
+          type: string
+          enum: [STORE_NO_RESPONSE, NO_COURIER]
+          description: |
+            Solo si el sistema canceló solo el pedido porque nadie lo atendió: `STORE_NO_RESPONSE` (la tienda no
+            respondió a tiempo) o `NO_COURIER` (no se encontró repartidor a tiempo). Ausente en los demás casos.
+        cancelReasonMessage:
+          type: string
+          description: Texto listo para mostrar junto al estado "Cancelado".
+          example: La tienda no respondio a tiempo
+        cancelledAt:
+          type: string
+          format: date-time
         address:
           type: string
           example: "Av. Providencia 1200, Santiago"
@@ -1450,6 +1509,27 @@ components:
           type: integer
         status:
           type: string
+
+    OrderPolicy:
+      type: object
+      required: [paymentExpirationMinutes, storeResponseMinutes, customerCancelWindowMinutes, courierWaitMinutes]
+      properties:
+        paymentExpirationMinutes:
+          type: integer
+          description: Plazo para pagar un pedido pendiente de pago.
+          example: 15
+        storeResponseMinutes:
+          type: integer
+          description: Plazo para que la tienda acepte un pedido pagado. Global, no lo elige la tienda.
+          example: 10
+        customerCancelWindowMinutes:
+          type: integer
+          description: Minutos desde la compra en que el cliente puede cancelar (0 = no puede).
+          example: 5
+        courierWaitMinutes:
+          type: integer
+          description: Espera de repartidor desde que la tienda aceptó. Global, no lo elige la tienda.
+          example: 20
 
     OrderQuote:
       type: object

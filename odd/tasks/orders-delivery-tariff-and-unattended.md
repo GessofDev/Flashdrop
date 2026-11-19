@@ -34,8 +34,8 @@ T5 | S5 | inline | `feat(catalog): add product dimension` (`c860663`)
 
 PR 2 — Pedidos sin tomar (`feat/orders-unattended-timeouts`)
 
-T6 | S6 | pending | enable scheduling, add courier-wait policy and admin endpoints
-T7 | S6 | pending | store response timeout job and no-courier timeout job
+T6 | S6 | inline | `feat(orders): cancel orders nobody attends (F7)` (`56f4a04`): scheduling, courier-wait policy, store acceptance, admin endpoints
+T7 | S6 | inline | store response timeout job and no-courier timeout job (same commit)
 
 ## Log
 
@@ -52,3 +52,7 @@ L5 — 2026-11-19 — PR 1 implemented on `feat/orders-delivery-tariff`. Orders 
 L6 — 2026-11-19 — Decision: the delivery route is created when the payment is approved (not at order creation), so Delivery never sees unpaid orders. To keep what the app sent (distance, minutes) the order now stores `distance_km` and `estimated_minutes` (V13).
 
 L7 — 2026-11-19 — Found while testing: Hibernate schema validation caught `smallint` vs `integer` on `products.dimension`; migration fixed before commit.
+
+L8 — 2026-11-19 — PR 2 implemented on `feat/orders-unattended-timeouts` (based on PR 1). Store response time and courier wait are global only (`/api/admin/order-policy`); store-level values are ignored. The courier wait counts from the store acceptance (`accepted_at`). Cancellation is one conditional UPDATE; the Delivery route is closed in the same transaction. Report: `docs/plans/INFORME_IMPLEMENTACION_PEDIDOS_SIN_ATENDER_ORDERS.md`.
+
+L9 — 2026-11-19 — Enabling `@EnableScheduling` also starts `PendingDeliveryOperationRecoveryService`, which existed but never ran in orders. Orders created before this change have no deadlines and are never auto-cancelled. A courier release resets the courier deadline so the released order is not cancelled right away.
