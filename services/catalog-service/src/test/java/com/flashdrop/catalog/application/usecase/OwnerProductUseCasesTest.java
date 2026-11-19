@@ -122,7 +122,8 @@ class OwnerProductUseCasesTest {
                 "Descripcion",
                 BigDecimal.valueOf(2500),
                 "products/2026/10/550e8400-e29b-41d4-a716-446655440000.webp",
-                available
+                available,
+                null
         );
     }
 
@@ -135,7 +136,8 @@ class OwnerProductUseCasesTest {
                 "Descripcion",
                 new Money(BigDecimal.valueOf(2500)),
                 "products/2026/10/550e8400-e29b-41d4-a716-446655440000.webp",
-                available
+                available,
+                null
         );
     }
 }

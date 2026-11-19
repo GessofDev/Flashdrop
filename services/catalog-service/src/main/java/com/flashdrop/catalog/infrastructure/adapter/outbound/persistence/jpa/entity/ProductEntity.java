@@ -39,6 +39,9 @@ public class ProductEntity {
     @Column(name = "is_available", nullable = false)
     private boolean available;
 
+    @Column(name = "dimension")
+    private Integer dimension;
+
     protected ProductEntity() {
     }
 
@@ -60,6 +63,10 @@ public class ProductEntity {
         this.available = available;
     }
 
+    public void setDimension(Integer dimension) {
+        this.dimension = dimension;
+    }
+
     public Product toDomain() {
         return new Product(
                 id,
@@ -69,7 +76,8 @@ public class ProductEntity {
                 description,
                 new Money(price),
                 image,
-                available
+                available,
+                dimension
         );
     }
 
@@ -81,5 +89,6 @@ public class ProductEntity {
         this.price = product.getPrice().amount();
         this.image = product.getImage();
         this.available = product.isAvailable();
+        this.dimension = product.getDimension();
     }
 }

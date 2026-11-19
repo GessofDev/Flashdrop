@@ -95,6 +95,8 @@ public class JpaProductRepositoryAdapter implements ProductRepositoryPort {
                 product.isAvailable()
         );
 
+        entity.setDimension(product.getDimension());
+
         return repository.save(entity).toDomain();
     }
 

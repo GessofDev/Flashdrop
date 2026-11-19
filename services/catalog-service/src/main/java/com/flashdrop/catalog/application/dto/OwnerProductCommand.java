@@ -8,6 +8,7 @@ public record OwnerProductCommand(
         String description,
         BigDecimal price,
         String image,
-        Boolean available
+        Boolean available,
+        Integer dimension
 ) {
 }

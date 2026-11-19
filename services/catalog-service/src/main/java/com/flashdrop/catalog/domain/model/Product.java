@@ -14,6 +14,11 @@ public class Product {
     private Money price;
     private String image;
     private boolean available;
+    /** Dimension del producto, escala 1 a 10 (la usa Orders para el envio). {@code null} si no esta clasificado. */
+    private Integer dimension;
+
+    public static final int MIN_DIMENSION = 1;
+    public static final int MAX_DIMENSION = 10;
 
     public Product(
             Long id,
@@ -25,9 +30,29 @@ public class Product {
             String image,
             boolean available
     ) {
+        this(id, categoryId, restaurantId, name, description, price, image, available, null);
+    }
+
+    public Product(
+            Long id,
+            Long categoryId,
+            Long restaurantId,
+            String name,
+            String description,
+            Money price,
+            String image,
+            boolean available,
+            Integer dimension
+    ) {
         // Regla de negocio: no dejamos crear productos sin nombre.
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre del producto es obligatorio");
+        }
+
+        // La dimension es opcional, pero si viene debe estar en la escala 1 a 10.
+        if (dimension != null && (dimension < MIN_DIMENSION || dimension > MAX_DIMENSION)) {
+            throw new IllegalArgumentException("La dimension del producto debe estar entre "
+                    + MIN_DIMENSION + " y " + MAX_DIMENSION);
         }
 
         // El precio viene como Money para concentrar la validacion de monto ahi.
@@ -43,6 +68,7 @@ public class Product {
         this.price = price;
         this.image = image;
         this.available = available;
+        this.dimension = dimension;
 
     }
 
@@ -72,6 +98,10 @@ public class Product {
 
     public String getImage() {
         return image;
+    }
+
+    public Integer getDimension() {
+        return dimension;
     }
 
     public boolean isAvailable() {

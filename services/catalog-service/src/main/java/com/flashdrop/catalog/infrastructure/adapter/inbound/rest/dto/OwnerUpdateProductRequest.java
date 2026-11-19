@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 
 import com.flashdrop.catalog.application.dto.OwnerProductCommand;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -20,9 +22,10 @@ public record OwnerUpdateProductRequest(
                 message = "debe ser un object key de producto valido"
         )
         String image,
-        @NotNull Boolean available
+        @NotNull Boolean available,
+        @Min(1) @Max(10) Integer dimension
 ) {
     public OwnerProductCommand toCommand() {
-        return new OwnerProductCommand(categoryId, name, description, price, image, available);
+        return new OwnerProductCommand(categoryId, name, description, price, image, available, dimension);
     }
 }
