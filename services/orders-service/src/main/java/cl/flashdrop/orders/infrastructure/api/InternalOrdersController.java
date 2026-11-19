@@ -67,7 +67,8 @@ public class InternalOrdersController {
                 IdConverter.toLong(order.getRestaurantId()),
                 order.getDeliveryId() != null ? IdConverter.toLong(order.getDeliveryId()) : null,
                 order.getStatus().getValue(),
-                order.getAddress());
+                order.getAddress(),
+                order.getCommune());
     }
 
     /**

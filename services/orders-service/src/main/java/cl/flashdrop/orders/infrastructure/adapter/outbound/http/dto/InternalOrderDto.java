@@ -17,6 +17,11 @@ public record InternalOrderDto(
         Long restaurantId,
         Long deliveryId,
         String status,
-        String address
+        String address,
+        String commune
 ) {
+
+    public InternalOrderDto(Long id, Long clientId, Long restaurantId, Long deliveryId, String status, String address) {
+        this(id, clientId, restaurantId, deliveryId, status, address, null);
+    }
 }

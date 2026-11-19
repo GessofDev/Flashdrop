@@ -55,6 +55,7 @@ public class InternalRoutesController {
         );
 
         route.setReceptionMode(request.receptionMode());
+        route.setCommune(request.commune());
 
         DeliveryRoute saved = routeRepository.save(route);
         return new ResponseEntity<>(
@@ -134,7 +135,8 @@ public class InternalRoutesController {
                 route.getCreatedAt(),
                 null,
                 route.getReceptionMode(),
-                route.isDeliveryPinRequired()
+                route.isDeliveryPinRequired(),
+                route.getCommune()
         );
     }
 

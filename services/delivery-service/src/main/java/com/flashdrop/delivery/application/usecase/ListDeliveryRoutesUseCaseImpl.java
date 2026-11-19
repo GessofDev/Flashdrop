@@ -66,7 +66,8 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
                 route.getCreatedAt(),
                 code,
                 route.getReceptionMode(),
-                route.isDeliveryPinRequired()
+                route.isDeliveryPinRequired(),
+                route.getCommune()
         );
     }
 }

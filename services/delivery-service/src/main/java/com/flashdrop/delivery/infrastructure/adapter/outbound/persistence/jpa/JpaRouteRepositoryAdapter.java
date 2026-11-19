@@ -224,6 +224,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
                 entity.getCreatedAt()
         );
         route.setReceptionMode(entity.getReceptionMode());
+        route.setCommune(entity.getCommune());
         return route;
     }
 
@@ -240,6 +241,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
                 route.getCreatedAt() != null ? route.getCreatedAt() : Instant.now()
         );
         entity.setReceptionMode(route.getReceptionMode());
+        entity.setCommune(route.getCommune());
         return entity;
     }
 }
