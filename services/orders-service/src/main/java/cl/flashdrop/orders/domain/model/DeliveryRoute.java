@@ -29,6 +29,9 @@ public class DeliveryRoute {
     /** Dirección de entrega (cliente) */
     private final String deliveryAddress;
 
+    /** Comuna de entrega (opcional) */
+    private final String commune;
+
     /** Distancia estimada en kilómetros */
     private final BigDecimal distanceKm;
 

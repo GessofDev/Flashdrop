@@ -136,12 +136,14 @@ public class CreateOrderUseCase {
         BigDecimal total = Order.calculateTotal(subtotal, deliveryFee);
 
         // 7. Construir y persistir la orden
+        String normalizedCommune = normalizeCommune(command.getCommune());
         Order order = Order.builder()
                 .clientId(clientId)
                 .restaurantId(restaurantId)
                 .deliveryId(null)
                 .status(OrderStatus.NUEVO_PEDIDO)
                 .address(command.getAddress())
+                .commune(normalizedCommune)
                 .subtotal(subtotal)
                 .deliveryFee(deliveryFee)
                 .total(total)
@@ -166,6 +168,7 @@ public class CreateOrderUseCase {
                         ? restaurant.getName() + ", " + restaurant.getAddress()
                         : "Restaurante")
                 .deliveryAddress(command.getAddress())
+                .commune(normalizedCommune)
                 .distanceKm(distanceKm)
                 .estimatedMinutes(estimatedMinutes)
                 .status("Pendiente")
@@ -195,5 +198,11 @@ public class CreateOrderUseCase {
     private int normalizeMinutes(Integer raw) {
         if (raw == null) return defaultEstimatedMinutes;
         return Math.min(180, Math.max(10, raw));
+    }
+
+    private String normalizeCommune(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

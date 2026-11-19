@@ -13,6 +13,7 @@ public class DeliveryRoute {
     private Long deliveryPersonId;
     private String pickupAddress;
     private String deliveryAddress;
+    private String commune;
     private Distance distanceKm;
     private EstimatedTime estimatedMinutes;
     private RouteStatus status;
@@ -84,6 +85,14 @@ public class DeliveryRoute {
 
     public void setDeliveryAddress(String deliveryAddress) {
         this.deliveryAddress = deliveryAddress;
+    }
+
+    public String getCommune() {
+        return commune;
+    }
+
+    public void setCommune(String commune) {
+        this.commune = commune == null || commune.isBlank() ? null : commune.trim();
     }
 
     public Distance getDistanceKm() {

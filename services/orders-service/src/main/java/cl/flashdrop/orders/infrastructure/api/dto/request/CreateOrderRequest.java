@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -46,6 +47,11 @@ public class CreateOrderRequest {
     /** Dirección de entrega (obligatorio) */
     @NotBlank(message = "La dirección es obligatoria")
     private String address;
+
+    /** Comuna de entrega (opcional por compatibilidad con clientes actuales) */
+    @JsonAlias("comuna")
+    @Size(max = 120, message = "La comuna no puede exceder 120 caracteres")
+    private String commune;
 
     /** Método de pago: Efectivo, Tarjeta, Transferencia */
     @JsonAlias("payment_method")

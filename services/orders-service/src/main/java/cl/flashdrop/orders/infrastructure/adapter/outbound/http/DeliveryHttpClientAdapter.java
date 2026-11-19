@@ -69,6 +69,9 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         body.put("orderId", IdConverter.toLongParam(route.getOrderId()));
         body.put("pickupAddress", route.getPickupAddress());
         body.put("deliveryAddress", route.getDeliveryAddress());
+        if (route.getCommune() != null) {
+            body.put("commune", route.getCommune());
+        }
         body.put("distanceKm", route.getDistanceKm());
         body.put("estimatedMinutes", route.getEstimatedMinutes());
         body.put("status", route.getStatus());

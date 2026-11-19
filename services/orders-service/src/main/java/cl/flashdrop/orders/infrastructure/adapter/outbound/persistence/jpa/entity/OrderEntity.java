@@ -34,6 +34,9 @@ public class OrderEntity {
     @Column(name = "address", nullable = false)
     private String address;
 
+    @Column(name = "commune", length = 120)
+    private String commune;
+
     @Column(name = "subtotal", nullable = false)
     private BigDecimal subtotal;
 

@@ -17,10 +17,28 @@ public record AvailableDeliveryOrderResponse(
         String restaurantName,
         String pickupAddress,
         String deliveryAddress,
+        String commune,
         String clientName,
         BigDecimal total,
         Double distanceKm,
         Integer estimatedMinutes,
         String receptionMode
 ) {
+
+    public AvailableDeliveryOrderResponse(
+            Long orderId,
+            Long restaurantId,
+            String code,
+            String status,
+            String restaurantName,
+            String pickupAddress,
+            String deliveryAddress,
+            String clientName,
+            BigDecimal total,
+            Double distanceKm,
+            Integer estimatedMinutes,
+            String receptionMode) {
+        this(orderId, restaurantId, code, status, restaurantName, pickupAddress,
+                deliveryAddress, null, clientName, total, distanceKm, estimatedMinutes, receptionMode);
+    }
 }

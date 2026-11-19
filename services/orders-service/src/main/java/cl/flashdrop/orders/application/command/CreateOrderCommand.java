@@ -31,6 +31,9 @@ public class CreateOrderCommand {
     /** Dirección de entrega */
     private final String address;
 
+    /** Comuna de entrega (opcional) */
+    private final String commune;
+
     /** Método de pago (string: "Efectivo", "Tarjeta", etc.) */
     private final String paymentMethod;
 
