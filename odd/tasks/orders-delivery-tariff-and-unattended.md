@@ -14,7 +14,7 @@ S3 — Estados
 > Pendiente de pago al crear; al aprobarse el pago la tienda lo toma de inmediato (Preparando), sin aceptarlo a mano. Pago rechazado: mismo pedido, nuevo intento.
 
 S4 — Tarifa de envío
-> Tabla de dimensión (vehículo y precio) más tabla de distancia (precio), parametrizables por el administrador. Envío = suma de ambos, calculado antes de pagar. Sin rangos o sin coordenadas de destino: $2.500.
+> Tabla de dimensión (vehículo y precio) más tabla de distancia (precio), parametrizables por el administrador. Envío = suma de ambos, calculado antes de pagar. Sin rangos de tarifa cargados: $2.500. Las coordenadas del destino son obligatorias y la cobertura (radio del local) se valida siempre.
 
 S5 — Dimensión y distancia
 > Dimensión 1 a 10 por producto, guardada en Catalog. Distancia en línea recta entre coordenadas del local y del destino.
@@ -62,3 +62,5 @@ L10 — 2026-11-19 — Change of direction (user): the restaurant no longer acce
 L11 — 2026-11-19 — Refinement (user): the courier flow does not change — a courier can only take an order that is "Listo para retiro" — so the courier wait is no longer counted from the payment but from the moment the order becomes "Listo para retiro" (`courier_due_at` is set by `markReadyForPickup`, not by the payment). An order still in "Preparando" never expires for lack of a courier. Whether couriers are available is the restaurant's call: it can reject the order (Preparando -> Rechazado, only without an assigned courier) or continue. Supersedes the "courier wait counts from the payment" part of L10 and removes its known tradeoff.
 
 L12 — 2026-11-19 — Last change (user): the restaurant can reject an order even when a courier is already assigned (`Preparando` or `Listo para retiro` -> `Rechazado`); the route is then closed in Delivery (`closeRoute(..., "Rechazado")`, which also cancels the courier's route and is idempotent), inside the same transaction so a Delivery failure undoes the rejection. The client still cannot cancel an order that has a courier (support handles it). After pickup (`Retirado`) the restaurant cannot reject. Every restaurant rejection now closes the route, with or without courier. Supersedes the "only without an assigned courier" restriction from L10/L11.
+
+L13 — 2026-11-19 — PR #111 (delivery coverage radii, merged before #112) changed the fee rules this feature documented in L4: destination coordinates are now mandatory, the store must have a location and a delivery radius, and an address outside the radius is rejected, with or without a tariff. The $2.500 fallback now applies only when no tariff ranges are loaded. The main branch went red after merging #112 because `PaidOrderLifecycleFullContextTest` still assumed the old rule; the test and the docs were updated (no production code changed).

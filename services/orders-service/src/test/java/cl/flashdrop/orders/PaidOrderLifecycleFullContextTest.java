@@ -120,7 +120,8 @@ class PaidOrderLifecycleFullContextTest {
                 .available(true).dimension(3).build()));
         when(catalogPort.findRestaurantById(RESTAURANT)).thenReturn(Optional.of(RestaurantInfo.builder()
                 .restaurantId(RESTAURANT).name("Local").address("Calle 1")
-                .latitude(new BigDecimal("-33.4500")).longitude(new BigDecimal("-70.6600")).build()));
+                .latitude(new BigDecimal("-33.4500")).longitude(new BigDecimal("-70.6600"))
+                .deliveryRadiusKm(new BigDecimal("10")).build()));
         when(catalogPort.findRestaurantIdByUserId(RESTAURANT_OWNER)).thenReturn(Optional.of(RESTAURANT));
         asAdmin();
         adminTariff.replace(new AdminDeliveryTariffController.TariffBody(
@@ -243,10 +244,30 @@ class PaidOrderLifecycleFullContextTest {
         assertEquals(1, payments.findByOrderId(first.id()).size());
     }
 
+    /** Cobertura de despacho (PR #111): ya no se omiten las coordenadas ni el radio del local. */
     @Test
-    void sinCoordenadasDeDestinoSeCobraElEnvioDeRespaldo() {
-        CreatedOrderResult created = createOrder.execute(
-                command(null).deliveryLatitude(null).deliveryLongitude(null).build());
+    void sinCoordenadasDeDestinoSeRechazaPorqueLaCoberturaSiempreSeValida() {
+        OrderDomainException ex = assertThrows(OrderDomainException.class, () -> createOrder.execute(
+                command(null).deliveryLatitude(null).deliveryLongitude(null).build()));
+        assertTrue(ex.getMessage().contains("ubicacion"), ex.getMessage());
+    }
+
+    @Test
+    void unDestinoFueraDelRadioDelLocalSeRechaza() {
+        // ~50 km al norte del local, que despacha hasta 10 km.
+        OrderDomainException ex = assertThrows(OrderDomainException.class, () -> createOrder.execute(
+                command(null).deliveryLatitude(new BigDecimal("-33.0000")).deliveryLongitude(new BigDecimal("-70.6600")).build()));
+        assertTrue(ex.getMessage().contains("radio de despacho"), ex.getMessage());
+    }
+
+    @Test
+    void sinTarifaCargadaSeCobraElEnvioDeRespaldoConLaCoberturaYaValidada() {
+        asAdmin();
+        adminTariff.replace(new AdminDeliveryTariffController.TariffBody(List.of(), List.of()));
+        SecurityContextHolder.clearContext();
+
+        CreatedOrderResult created = createOrder.execute(command(null).build());
+
         assertEquals(0, new BigDecimal("2500").compareTo(created.deliveryFee()));
     }
 
