@@ -1,6 +1,8 @@
 package cl.flashdrop.orders.infrastructure.api.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Positive;
@@ -53,7 +55,19 @@ public class CreateOrderRequest {
     @Size(max = 120, message = "La comuna no puede exceder 120 caracteres")
     private String commune;
 
-    /** Método de pago: Efectivo, Tarjeta, Transferencia */
+    /** Latitud del destino de entrega (opcional). Se envía junto con la longitud. */
+    @JsonAlias("delivery_latitude")
+    @DecimalMin(value = "-90", message = "La latitud debe estar entre -90 y 90")
+    @DecimalMax(value = "90", message = "La latitud debe estar entre -90 y 90")
+    private BigDecimal latitude;
+
+    /** Longitud del destino de entrega (opcional). Se envía junto con la latitud. */
+    @JsonAlias("delivery_longitude")
+    @DecimalMin(value = "-180", message = "La longitud debe estar entre -180 y 180")
+    @DecimalMax(value = "180", message = "La longitud debe estar entre -180 y 180")
+    private BigDecimal longitude;
+
+    /** Método de pago: solo Tarjeta (Efectivo y Transferencia se rechazan). Sin valor se asume Tarjeta. */
     @JsonAlias("payment_method")
     private String paymentMethod;
 

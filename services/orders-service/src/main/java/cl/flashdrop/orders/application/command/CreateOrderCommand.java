@@ -34,6 +34,13 @@ public class CreateOrderCommand {
     /** Comuna de entrega (opcional) */
     private final String commune;
 
+    /** Coordenadas del destino (opcionales). Sin ellas se cobra el envío de respaldo. */
+    private final BigDecimal deliveryLatitude;
+    private final BigDecimal deliveryLongitude;
+
+    /** Llave de idempotencia opcional: la misma llave del mismo cliente devuelve el mismo pedido. */
+    private final String idempotencyKey;
+
     /** Método de pago (string: "Efectivo", "Tarjeta", etc.) */
     private final String paymentMethod;
 

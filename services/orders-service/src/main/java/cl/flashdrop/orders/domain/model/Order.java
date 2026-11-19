@@ -32,6 +32,9 @@ public class Order {
     private OrderStatus status;
     private final String address;
     private final String commune;
+    /** Coordenadas del destino (opcionales: los pedidos antiguos no las traen). */
+    private final BigDecimal deliveryLatitude;
+    private final BigDecimal deliveryLongitude;
     private final BigDecimal subtotal;
     private final BigDecimal deliveryFee;
     private final BigDecimal total;

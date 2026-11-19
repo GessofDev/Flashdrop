@@ -35,7 +35,7 @@ public class SecurityConfig {
                 // Ahora exige el mismo JWT que /api/orders/** y DeliveryController
                 // resuelve la identidad real desde el token (CurrentUserResolver),
                 // ignorando el deliveryPersonId del body para efectos de autorización.
-                .requestMatchers("/api/orders/**", "/api/delivery/**").authenticated()
+                .requestMatchers("/api/orders/**", "/api/delivery/**", "/api/admin/**").authenticated()
                 .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex
