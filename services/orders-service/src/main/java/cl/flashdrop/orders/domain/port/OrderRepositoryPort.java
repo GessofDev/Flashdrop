@@ -74,6 +74,14 @@ public interface OrderRepositoryPort {
     boolean updateStatusIfCurrent(UUID orderId, OrderStatus expected, OrderStatus status);
 
     /**
+     * Confirma el pago de un pedido: pasa de Pendiente de pago a Nuevo pedido y fija el plazo de
+     * respuesta de la tienda, en una sola sentencia. {@code false} si el pedido ya no estaba pendiente.
+     */
+    default boolean confirmPayment(UUID orderId, OffsetDateTime storeResponseDueAt) {
+        return updateStatusIfCurrent(orderId, OrderStatus.PENDIENTE_PAGO, OrderStatus.NUEVO_PEDIDO);
+    }
+
+    /**
      * Busca un pedido bloqueando su fila hasta el fin de la transaccion en curso. Se usa al
      * verificar el codigo de entrega para que intentos simultaneos se procesen de a uno.
      */

@@ -143,7 +143,9 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<CreatedOrderResult> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+    public ApiResponse<CreatedOrderResult> createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         log.debug("POST /api/orders");
 
         // Wire: Long (lo emite catalog-service para productId). Dominio interno: UUID.
@@ -176,6 +178,7 @@ public class OrderController {
                 .commune(request.getCommune())
                 .paymentMethod(request.getPaymentMethod())
                 .receptionMode(ReceptionMode.fromRequest(request.getReceptionMode()))
+                .idempotencyKey(idempotencyKey)
                 .deliveryLatitude(request.getLatitude())
                 .deliveryLongitude(request.getLongitude())
                 .distanceKm(request.getDistanceKm())

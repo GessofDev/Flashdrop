@@ -36,4 +36,12 @@ public interface ClientPort {
      * Obtiene la información completa de un cliente por su id de perfil.
      */
     Optional<ClientInfo> findClientById(UUID clientId);
+
+    /**
+     * Usuario (Auth) dueño del perfil de cliente. Vacío si no existe o si el cliente fue
+     * anonimizado. Los adaptadores sin esta información pueden dejar el valor por defecto.
+     */
+    default Optional<UUID> findUserIdByClientId(UUID clientId) {
+        return Optional.empty();
+    }
 }

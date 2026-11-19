@@ -48,6 +48,8 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .commune(order.getCommune())
                 .deliveryLatitude(order.getDeliveryLatitude())
                 .deliveryLongitude(order.getDeliveryLongitude())
+                .distanceKm(order.getDistanceKm())
+                .estimatedMinutes(order.getEstimatedMinutes())
                 .subtotal(order.getSubtotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())
@@ -192,6 +194,13 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
+    public boolean confirmPayment(UUID orderId, OffsetDateTime storeResponseDueAt) {
+        return orderRepository.confirmPayment(IdConverter.toLong(orderId),
+                OrderStatus.PENDIENTE_PAGO.getValue(), OrderStatus.NUEVO_PEDIDO.getValue(), storeResponseDueAt) == 1;
+    }
+
+    @Override
+    @Transactional
     public Optional<Order> findByIdForUpdate(UUID id) {
         if (id == null) return Optional.empty();
         long rawId = IdConverter.toLong(id);
@@ -322,6 +331,8 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .commune(entity.getCommune())
                 .deliveryLatitude(entity.getDeliveryLatitude())
                 .deliveryLongitude(entity.getDeliveryLongitude())
+                .distanceKm(entity.getDistanceKm())
+                .estimatedMinutes(entity.getEstimatedMinutes())
                 .subtotal(entity.getSubtotal())
                 .deliveryFee(entity.getDeliveryFee())
                 .total(entity.getTotal())

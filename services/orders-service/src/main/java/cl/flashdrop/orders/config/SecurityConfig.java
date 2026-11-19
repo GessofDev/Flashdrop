@@ -35,7 +35,10 @@ public class SecurityConfig {
                 // Ahora exige el mismo JWT que /api/orders/** y DeliveryController
                 // resuelve la identidad real desde el token (CurrentUserResolver),
                 // ignorando el deliveryPersonId del body para efectos de autorización.
-                .requestMatchers("/api/orders/**", "/api/delivery/**", "/api/admin/**").authenticated()
+                // El aviso de la pasarela no lleva JWT: se autentica con la firma del propio aviso.
+                .requestMatchers("/api/payments/webhook").permitAll()
+                .requestMatchers("/api/orders/**", "/api/delivery/**", "/api/admin/**", "/api/payments/**")
+                        .authenticated()
                 .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex

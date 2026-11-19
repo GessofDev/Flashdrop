@@ -3,15 +3,15 @@ package cl.flashdrop.orders.application.usecase;
 import cl.flashdrop.orders.application.command.CreateOrderCommand;
 import cl.flashdrop.orders.application.dto.CreatedOrderResult;
 import cl.flashdrop.orders.application.service.DeliveryFeeCalculator;
+import cl.flashdrop.orders.application.service.OrderPolicyResolver;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.*;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
 import cl.flashdrop.orders.domain.port.DeliveryCodePort;
-import cl.flashdrop.orders.domain.port.DeliveryPort;
-import cl.flashdrop.orders.domain.port.EventPublisherPort;
 import cl.flashdrop.orders.domain.port.OrderRepositoryPort;
-import cl.flashdrop.orders.infrastructure.messaging.event.OrderCreatedEvent;
+import cl.flashdrop.orders.domain.port.PaymentGatewayPort;
+import cl.flashdrop.orders.domain.port.PaymentRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,30 +29,34 @@ import java.util.stream.Collectors;
 /**
  * Caso de uso: Crear Pedido.
  *
- * Orquesta la validación de productos (precio siempre desde Catálogo),
- * el cálculo de totales, la persistencia y la publicación del evento.
+ * Orquesta la validación de productos (precio siempre desde Catálogo), el cálculo del envío y de los
+ * totales, y la persistencia. El pedido nace en "Pendiente de pago" con su cobro abierto en la
+ * pasarela: la ruta de entrega y el evento {@code order.created} se generan recién cuando el pago se
+ * aprueba ({@link ConfirmPaymentUseCase}).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreateOrderUseCase {
 
+    static final int MAX_IDEMPOTENCY_KEY_LENGTH = 64;
+    private static final String CURRENCY = "CLP";
+
     private final OrderRepositoryPort orderRepository;
     private final CatalogPort catalogPort;
     private final ClientPort clientPort;
-    private final DeliveryPort deliveryPort;
-    private final EventPublisherPort eventPublisher;
     private final DeliveryCodePort deliveryCodePort;
     private final DeliveryFeeCalculator deliveryFeeCalculator;
+    private final PaymentRepositoryPort paymentRepository;
+    private final PaymentGatewayPort paymentGateway;
+    private final OrderPolicyResolver policyResolver;
+    private final Clock clock;
 
     @Value("${orders.default-distance-km:3.2}")
     private BigDecimal defaultDistanceKm;
 
     @Value("${orders.default-estimated-minutes:20}")
     private int defaultEstimatedMinutes;
-
-    @Value("${orders.rabbitmq.routing-key.order-created:order.created}")
-    private String orderCreatedRoutingKey;
 
     @Transactional
     public CreatedOrderResult execute(CreateOrderCommand command) {
@@ -59,6 +65,11 @@ public class CreateOrderUseCase {
         if (command.getReceptionMode() != ReceptionMode.SEGURO) {
             throw new OrderDomainException("Todos los pedidos requieren recepción SEGURO con PIN");
         }
+
+        // Solo se cobra con Tarjeta: Efectivo y Transferencia se rechazan antes de tocar nada.
+        PaymentMethod paymentMethod = PaymentMethod.fromRequest(command.getPaymentMethod());
+
+        String idempotencyKey = normalizeIdempotencyKey(command.getIdempotencyKey());
 
         // 0. El modo SEGURO necesita la clave del código: si falta se rechaza ANTES de guardar
         // nada, con un 4xx (un 5xx dejaría una ruta huérfana en Delivery y el gateway abre el
@@ -130,9 +141,18 @@ public class CreateOrderUseCase {
                     return clientPort.findOrCreateClientIdByUserId(command.getUserId());
                 });
 
-        // 6. Calcular totales
+        // 5b. Reintento de la misma peticion: devuelve el pedido ya creado en vez de duplicarlo.
+        if (idempotencyKey != null) {
+            Order existing = orderRepository.findByClientIdAndIdempotencyKey(clientId, idempotencyKey).orElse(null);
+            if (existing != null) {
+                log.info("Pedido {} ya existia para la llave de idempotencia; se devuelve el mismo", existing.getId());
+                return replay(existing);
+            }
+        }
+
+        // 6. Calcular totales. El envio lo calcula el servidor con la tarifa del administrador
+        // (nunca viene del cliente) y se cobra antes de pagar.
         BigDecimal subtotal = Order.calculateSubtotal(items);
-        // El envio lo calcula el servidor con la tarifa del administrador (nunca viene del cliente).
         List<DeliveryFeeCalculator.Line> feeLines = command.getItems().stream()
                 .map(req -> new DeliveryFeeCalculator.Line(productById.get(req.getProductId()), req.getQuantity()))
                 .collect(Collectors.toList());
@@ -141,67 +161,72 @@ public class CreateOrderUseCase {
         BigDecimal deliveryFee = quote.deliveryFee();
         BigDecimal total = Order.calculateTotal(subtotal, deliveryFee);
 
-        // 7. Construir y persistir la orden
-        String normalizedCommune = normalizeCommune(command.getCommune());
-        Order order = Order.builder()
-                .clientId(clientId)
-                .restaurantId(restaurantId)
-                .deliveryId(null)
-                .status(OrderStatus.NUEVO_PEDIDO)
-                .address(command.getAddress())
-                .commune(normalizedCommune)
-                .deliveryLatitude(command.getDeliveryLatitude())
-                .deliveryLongitude(command.getDeliveryLongitude())
-                .subtotal(subtotal)
-                .deliveryFee(deliveryFee)
-                .total(total)
-                .paymentMethod(PaymentMethod.fromValue(command.getPaymentMethod()))
-                .receptionMode(command.getReceptionMode())
-                .items(items)
-                .build();
-
-        Order saved = orderRepository.save(order);
-
-        // El codigo se deriva del pedido ya persistido; se calcula antes de crear la ruta y
-        // publicar el evento para que un fallo aqui no deje efectos en otros servicios.
-        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
-
-        // 8. Crear ruta de entrega
         // Con coordenadas y tarifa, la distancia es la calculada; si no, la que mande la app o la de siempre.
         BigDecimal distanceKm = quote.distanceKm() != null
                 ? quote.distanceKm().max(BigDecimal.valueOf(0.5)).min(BigDecimal.valueOf(80))
                 : normalizeDistance(command.getDistanceKm());
         int estimatedMinutes = normalizeMinutes(command.getEstimatedMinutes());
 
-        DeliveryRoute route = DeliveryRoute.builder()
-                .orderId(saved.getId())
-                .pickupAddress(restaurant != null
-                        ? restaurant.getName() + ", " + restaurant.getAddress()
-                        : "Restaurante")
-                .deliveryAddress(command.getAddress())
-                .commune(normalizedCommune)
-                .distanceKm(distanceKm)
-                .estimatedMinutes(estimatedMinutes)
-                .status("Pendiente")
-                .receptionMode(saved.getReceptionMode().name())
-                .pickupLatitude(restaurant != null ? restaurant.getLatitude() : null)
-                .pickupLongitude(restaurant != null ? restaurant.getLongitude() : null)
-                .clientUserId(command.getUserId())
-                .build();
-
-        deliveryPort.saveRoute(route);
-
-        // 9. Publicar evento
-        eventPublisher.publish(orderCreatedRoutingKey, OrderCreatedEvent.builder()
-                .orderId(saved.getId())
+        // 7. Construir y persistir la orden, pendiente de pago
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        OrderPolicy.Effective policy = policyResolver.effectiveFor(restaurantId);
+        Order order = Order.builder()
                 .clientId(clientId)
                 .restaurantId(restaurantId)
+                .deliveryId(null)
+                .status(OrderStatus.PENDIENTE_PAGO)
+                .address(command.getAddress())
+                .commune(normalizeCommune(command.getCommune()))
+                .deliveryLatitude(command.getDeliveryLatitude())
+                .deliveryLongitude(command.getDeliveryLongitude())
+                .distanceKm(distanceKm)
+                .estimatedMinutes(estimatedMinutes)
+                .subtotal(subtotal)
+                .deliveryFee(deliveryFee)
                 .total(total)
-                .status(OrderStatus.NUEVO_PEDIDO.getValue())
-                .build());
+                .paymentMethod(paymentMethod)
+                .receptionMode(command.getReceptionMode())
+                .idempotencyKey(idempotencyKey)
+                .paymentExpiresAt(now.plusMinutes(policy.paymentExpirationMinutes()))
+                .items(items)
+                .build();
 
-        log.info("Pedido creado con id={}, total={}", saved.getId(), total);
-        return new CreatedOrderResult(saved.getId(), total, saved.getReceptionMode().name(), deliveryCode);
+        Order saved = orderRepository.save(order);
+
+        // El codigo se deriva del pedido ya persistido.
+        String deliveryCode = saved.isSecureReception() ? deliveryCodePort.currentCodeFor(saved) : null;
+
+        // 8. Abrir el cobro en la pasarela. El monto es el calculado por el servidor.
+        PaymentGatewayPort.PaymentSession session = paymentGateway.createSession(saved.getId(), total, CURRENCY);
+        Payment payment = paymentRepository.save(Payment.open(
+                saved.getId(), paymentGateway.providerName(), session.providerTxId(), total, now));
+
+        log.info("Pedido creado con id={}, total={}, pendiente de pago", saved.getId(), total);
+        return new CreatedOrderResult(saved.getId(), total, saved.getReceptionMode().name(), deliveryCode,
+                OrderStatus.PENDIENTE_PAGO.getValue(), deliveryFee, payment.getId(), session.paymentUrl(),
+                saved.getPaymentExpiresAt());
+    }
+
+    /** Respuesta para un reintento: el mismo pedido, con su cobro abierto si lo hay. */
+    private CreatedOrderResult replay(Order existing) {
+        Payment open = paymentRepository.findByOrderId(existing.getId()).stream()
+                .filter(p -> p.getStatus() == PaymentStatus.PENDIENTE).findFirst().orElse(null);
+        String deliveryCode = existing.isSecureReception() ? deliveryCodePort.currentCodeFor(existing) : null;
+        return new CreatedOrderResult(existing.getId(), existing.getTotal(), existing.getReceptionMode().name(),
+                deliveryCode, existing.getStatus().getValue(), existing.getDeliveryFee(),
+                open == null ? null : open.getId(),
+                open == null ? null : paymentGateway.paymentUrlFor(open.getProviderTxId()),
+                existing.getPaymentExpiresAt());
+    }
+
+    private String normalizeIdempotencyKey(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String key = raw.trim();
+        if (key.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new OrderDomainException("La llave de idempotencia no puede exceder "
+                    + MAX_IDEMPOTENCY_KEY_LENGTH + " caracteres");
+        }
+        return key;
     }
 
     private BigDecimal normalizeDistance(BigDecimal raw) {
