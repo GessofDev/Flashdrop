@@ -7,6 +7,7 @@ import com.flashdrop.observability.tracing.TraceContext;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManagers;
@@ -76,6 +77,7 @@ public class SecurityConfig {
                         AuthorityAuthorizationManager.hasRole("Cliente"),
                         AuthorityAuthorizationManager.hasRole("Restaurante"),
                         AuthorityAuthorizationManager.hasRole("Repartidor")))
+                .requestMatchers(HttpMethod.GET, "/api/delivery/routes/*/location").hasRole("Cliente")
                 .requestMatchers("/api/delivery/**", "/delivery/**").hasRole("Repartidor")
                 .anyRequest().hasRole("Repartidor")
             )
