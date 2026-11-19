@@ -29,7 +29,8 @@ import java.util.UUID;
  *
  * <ul>
  *   <li><b>Aprobado:</b> el pago queda aprobado y el pedido pasa de "Pendiente de pago" directo a
- *       "Preparando" (la tienda toma todo pedido pagado, sin aceptarlo a mano),  y la espera de repartidor empieza recién cuando quede listo para retiro. Recién
+ *       "Preparando" (la tienda toma todo pedido pagado, sin aceptarlo a mano). La espera de repartidor no corre
+ *       todavia: empieza cuando el pedido queda listo para retiro. Recién
  *       ahí se crea la ruta de entrega y se publica {@code order.created}.</li>
  *   <li><b>Rechazado:</b> el pago queda rechazado y el pedido sigue pendiente; el cliente puede
  *       reintentar con el mismo pedido ({@link RetryPaymentUseCase}).</li>

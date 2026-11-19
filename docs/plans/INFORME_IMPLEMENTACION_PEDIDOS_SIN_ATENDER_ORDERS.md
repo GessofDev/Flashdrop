@@ -83,3 +83,21 @@ Los plazos (minutos) están en la base y los edita el administrador. Valores ini
 - Devolución del dinero de pedidos rechazados o cancelados.
 - Vencimiento de pedidos sin pagar y tope para pedidos que quedan en "Preparando".
 - Avisos por correo o notificación (basta con ver el estado y el motivo).
+
+## Validación y limitaciones conocidas
+
+Antes de entregar se validó el estado confirmado (checkout limpio) con: pruebas unitarias, pruebas contra PostgreSQL real, una prueba que **levanta la aplicación completa** con las 14 migraciones y recorre el flujo de punta a punta (cotización, pago rechazado y reintento, pago aprobado, la tienda toma el pedido, "Listo para retiro", cancelación automática, rechazo con repartidor, endpoints del administrador) y otra sobre la **cadena de seguridad real** de los endpoints nuevos (el webhook no pide JWT y sí firma; el resto exige token). Además hubo una revisión de código; lo que resultó relevante se corrigió y lo demás queda como decisión o limitación:
+
+**Corregido tras la revisión**
+- Liberar un pedido anterior a F7 (sin plazo) ya no le crea uno: seguiría sin cancelarse solo.
+- Comentarios desactualizados de la política y del caso de uso del pago.
+- La tarea procesa hasta 200 pedidos por ciclo y registra los fallos sin repetir la traza completa.
+- La pasarela simulada escribe una **advertencia clara al arrancar** (deja que el cliente apruebe su propio pago: no debe usarse en producción).
+
+**Decisiones de diseño (no son defectos, pero conviene saberlas)**
+- **Sin coordenadas de destino se cobra el envío de respaldo ($2.500)**, por pedido del equipo, para no romper las apps actuales. Quien omita las coordenadas paga el mínimo; cuando todas las apps las envíen conviene volverlas obligatorias.
+- **Un pago aprobado activa el pedido aunque haya pasado `payment_expires_at`**: si la pasarela cobró, el pedido se activa. El vencimiento solo impide abrir intentos nuevos. No existe todavía una tarea que expire pedidos sin pagar (fuera de alcance).
+- **Reembolsos:** un pedido pagado que se rechaza o se cancela solo queda con el pago `APROBADO` y no se devuelve el dinero (fuera de alcance, ya anotado).
+- **Llave de idempotencia:** repetir la misma llave devuelve el pedido original sin comparar el contenido, y dos peticiones simultáneas con la misma llave podrían chocar con el índice único (error en una de ellas). Las apps deben usar una llave nueva por intento de compra.
+- **La firma del webhook de la pasarela simulada es un secreto compartido**, no un HMAC del cuerpo. Es aceptable para la simulación; el adaptador de la pasarela real debe verificar la firma que esa pasarela defina.
+- **Varias réplicas:** si hay más de una instancia de Orders, todas corren la tarea; la cancelación es una sentencia condicional y cerrar la ruta es idempotente, así que no hay doble cancelación, solo trabajo repetido.

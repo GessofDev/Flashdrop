@@ -3,6 +3,8 @@ package cl.flashdrop.orders.infrastructure.adapter.outbound.payment;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.port.PaymentGatewayPort;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,7 @@ import java.util.UUID;
  * <p>El aviso por webhook se firma con un secreto compartido ({@code orders.payment.webhook-secret}).
  * Sin secreto configurado se rechaza todo aviso (falla cerrado), igual que la clave interna.</p>
  */
+@Slf4j
 @Component
 @ConditionalOnProperty(name = "orders.payment.provider", havingValue = "fake", matchIfMissing = true)
 public class FakePaymentGateway implements PaymentGatewayPort {
@@ -36,6 +39,13 @@ public class FakePaymentGateway implements PaymentGatewayPort {
 
     public FakePaymentGateway(@Value("${orders.payment.webhook-secret:}") String webhookSecret) {
         this.webhookSecret = webhookSecret == null ? new byte[0] : webhookSecret.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Esta pasarela deja que el cliente apruebe su propio pago: nunca debe quedar activa en produccion. */
+    @PostConstruct
+    void warnSimulatedGateway() {
+        log.warn("PASARELA DE PAGO SIMULADA ACTIVA (orders.payment.provider=fake): el cliente puede aprobar su "
+                + "propio pago sin pagar. No usar en produccion: configurar la pasarela real con PAYMENT_PROVIDER.");
     }
 
     @Override

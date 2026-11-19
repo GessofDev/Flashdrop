@@ -27,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UnattendedOrderTimeoutJobs {
 
-    static final int BATCH_SIZE = 50;
+    static final int BATCH_SIZE = 200;
 
     private final OrderRepositoryPort orderRepository;
     private final UnattendedOrderCanceller canceller;
@@ -49,8 +49,8 @@ public class UnattendedOrderTimeoutJobs {
                     cancelled++;
                 }
             } catch (RuntimeException e) {
-                log.error("No se pudo cancelar el pedido {} por {}; se reintenta en el siguiente ciclo",
-                        order.getId(), reason, e);
+                log.error("No se pudo cancelar el pedido {} por {} ({}); se reintenta en el siguiente ciclo",
+                        order.getId(), reason, e.toString());
             }
         }
         return cancelled;

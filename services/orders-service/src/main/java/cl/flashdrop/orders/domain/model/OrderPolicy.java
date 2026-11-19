@@ -10,10 +10,10 @@ import java.util.UUID;
  * Plazos configurables del pedido (FlashDrop 1.0 tiendas, spec 4.1). No estan en el codigo:
  * el administrador define los valores globales.
  *
- * <p>La fila global ({@code restaurantId == null}) trae los tres plazos originales. La de una tienda
- * puede ajustar el plazo para pagar y la ventana de cancelacion del cliente; el plazo de respuesta de la
- * tienda y la espera de repartidor son <b>solo globales</b> (F7): una tienda ya no los elige y si su fila
- * trae valores se ignoran ({@link #resolve}).</p>
+ * <p>La fila global ({@code restaurantId == null}) trae los plazos. La de una tienda puede ajustar el plazo
+ * para pagar y la ventana de cancelacion del cliente; la espera de repartidor es <b>solo global</b> (F7):
+ * una tienda no la elige y si su fila trae un valor se ignora ({@link #resolve}). El plazo de respuesta de la
+ * tienda ya no se usa: la tienda toma todo pedido pagado sin aceptarlo a mano.</p>
  */
 @Getter
 @Builder
@@ -28,11 +28,11 @@ public class OrderPolicy {
     private final UUID restaurantId;
     /** Plazo para pagar un pedido. */
     private final Integer paymentExpirationMinutes;
-    /** Plazo para que la tienda acepte un pedido ya pagado. Solo se lee de la politica global. */
+    /** Ya no se usa: la tienda toma todo pedido pagado sin aceptarlo a mano. La columna sigue en la base. */
     private final Integer storeResponseMinutes;
     /** Minutos desde la compra en que el cliente puede cancelar. 0 = no puede cancelar. */
     private final Integer customerCancelWindowMinutes;
-    /** Minutos que se espera un repartidor desde que la tienda acepto. Solo se lee de la politica global. */
+    /** Minutos que se espera un repartidor desde que el pedido queda listo para retiro. Solo se lee de la politica global. */
     private final Integer courierWaitMinutes;
 
     /** Valores efectivos, ya resueltos: sin nulos. */

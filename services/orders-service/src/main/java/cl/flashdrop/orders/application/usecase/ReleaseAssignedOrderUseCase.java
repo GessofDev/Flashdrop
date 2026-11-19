@@ -105,10 +105,12 @@ public class ReleaseAssignedOrderUseCase {
         if (expectedDeliveryId.equals(order.getDeliveryId())) {
             order.setDeliveryId(null);
             orderRepository.save(order);
-            // El pedido vuelve a la bolsa: se espera un repartidor otra vez desde ahora (F7), si no, quedaria
-            // vencido de inmediato y se cancelaria en el siguiente ciclo.
-            orderRepository.resetCourierDeadline(orderId, OffsetDateTime.now(clock)
-                    .plusMinutes(policyResolver.effectiveFor(order.getRestaurantId()).courierWaitMinutes()));
+            // El pedido vuelve a la bolsa: si ya tenia plazo de espera (F7), se espera un repartidor otra vez desde
+            // ahora; si no, quedaria vencido de inmediato. Los pedidos anteriores a F7 no tienen plazo y no lo reciben.
+            if (order.getCourierDueAt() != null) {
+                orderRepository.resetCourierDeadline(orderId, OffsetDateTime.now(clock)
+                        .plusMinutes(policyResolver.effectiveFor(order.getRestaurantId()).courierWaitMinutes()));
+            }
         }
 
         DeliveryOperation op = deliveryOperationRepository.findByIdForUpdate(operationId)
