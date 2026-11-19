@@ -86,7 +86,9 @@ public class UpdateRouteStatusUseCaseImpl implements UpdateRouteStatusUseCase {
                 route.getCreatedAt(),
                 code,
                 route.getReceptionMode(),
-                route.isDeliveryPinRequired()
+                route.isDeliveryPinRequired(),
+                route.getPickupLatitude(),
+                route.getPickupLongitude()
         );
     }
 }

@@ -55,6 +55,8 @@ public class InternalRoutesController {
         );
 
         route.setReceptionMode(request.receptionMode());
+        route.setPickupCoordinates(request.pickupLatitude(), request.pickupLongitude());
+        route.setClientUserId(request.clientUserId());
 
         DeliveryRoute saved = routeRepository.save(route);
         return new ResponseEntity<>(
@@ -134,7 +136,9 @@ public class InternalRoutesController {
                 route.getCreatedAt(),
                 null,
                 route.getReceptionMode(),
-                route.isDeliveryPinRequired()
+                route.isDeliveryPinRequired(),
+                route.getPickupLatitude(),
+                route.getPickupLongitude()
         );
     }
 

@@ -44,8 +44,9 @@ public interface JpaDeliveryRouteRepository extends JpaRepository<DeliveryRouteJ
     Optional<DeliveryRouteJpaEntity> findByIdForUpdate(@Param("id") Long id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE DeliveryRouteJpaEntity r SET r.deliveryAddress = '' "
-            + "WHERE r.orderId IN :orderIds AND r.deliveryAddress IS NOT NULL AND r.deliveryAddress <> ''")
+    @Query("UPDATE DeliveryRouteJpaEntity r SET r.deliveryAddress = '', r.clientUserId = NULL "
+            + "WHERE r.orderId IN :orderIds "
+            + "AND ((r.deliveryAddress IS NOT NULL AND r.deliveryAddress <> '') OR r.clientUserId IS NOT NULL)")
     int anonymizeDeliveryAddresses(@Param("orderIds") List<Long> orderIds);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
