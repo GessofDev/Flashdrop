@@ -43,4 +43,11 @@ public class DeliveryRoute {
 
     /** Modo de recepción del pedido (NORMAL o SEGURO); Delivery lo usa para pedir o no el código */
     private final String receptionMode;
+
+    /** Coordenadas de retiro copiadas desde la tienda al crear el pedido (nullable) */
+    private final BigDecimal pickupLatitude;
+    private final BigDecimal pickupLongitude;
+
+    /** ID del usuario cliente dueño del pedido para autorizar el polling de ubicación en Delivery */
+    private final UUID clientUserId;
 }

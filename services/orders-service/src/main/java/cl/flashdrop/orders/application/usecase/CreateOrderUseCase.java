@@ -173,6 +173,9 @@ public class CreateOrderUseCase {
                 .estimatedMinutes(estimatedMinutes)
                 .status("Pendiente")
                 .receptionMode(saved.getReceptionMode().name())
+                .pickupLatitude(restaurant != null ? restaurant.getLatitude() : null)
+                .pickupLongitude(restaurant != null ? restaurant.getLongitude() : null)
+                .clientUserId(command.getUserId())
                 .build();
 
         deliveryPort.saveRoute(route);

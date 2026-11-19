@@ -87,7 +87,9 @@ public class UpdateRouteStatusUseCaseImpl implements UpdateRouteStatusUseCase {
                 code,
                 route.getReceptionMode(),
                 route.isDeliveryPinRequired(),
-                route.getCommune()
+                route.getCommune(),
+                route.getPickupLatitude(),
+                route.getPickupLongitude()
         );
     }
 }

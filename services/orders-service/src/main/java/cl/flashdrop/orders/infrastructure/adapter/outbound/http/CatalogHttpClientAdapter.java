@@ -137,6 +137,8 @@ public class CatalogHttpClientAdapter implements CatalogPort {
                 .restaurantId(IdConverter.toUuid(d.id()))
                 .name(d.name())
                 .address(d.address())
+                .latitude(d.latitude())
+                .longitude(d.longitude())
                 // null = Catalog aún sin esta versión: los servicios se despliegan por
                 // separado y, si no, un despliegue a medias rechazaría todos los pedidos.
                 .open(d.open() == null || d.open())

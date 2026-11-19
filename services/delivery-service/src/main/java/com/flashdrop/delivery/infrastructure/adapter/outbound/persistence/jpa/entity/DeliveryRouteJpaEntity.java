@@ -46,6 +46,15 @@ public class DeliveryRouteJpaEntity {
     @Column(name = "reception_mode", nullable = false)
     private String receptionMode = "NORMAL";
 
+    @Column(name = "pickup_latitude", precision = 9, scale = 6)
+    private BigDecimal pickupLatitude;
+
+    @Column(name = "pickup_longitude", precision = 9, scale = 6)
+    private BigDecimal pickupLongitude;
+
+    @Column(name = "client_user_id", length = 64)
+    private String clientUserId;
+
     public DeliveryRouteJpaEntity() {
     }
 
@@ -162,5 +171,29 @@ public class DeliveryRouteJpaEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public BigDecimal getPickupLatitude() {
+        return pickupLatitude;
+    }
+
+    public void setPickupLatitude(BigDecimal pickupLatitude) {
+        this.pickupLatitude = pickupLatitude;
+    }
+
+    public BigDecimal getPickupLongitude() {
+        return pickupLongitude;
+    }
+
+    public void setPickupLongitude(BigDecimal pickupLongitude) {
+        this.pickupLongitude = pickupLongitude;
+    }
+
+    public String getClientUserId() {
+        return clientUserId;
+    }
+
+    public void setClientUserId(String clientUserId) {
+        this.clientUserId = clientUserId;
     }
 }

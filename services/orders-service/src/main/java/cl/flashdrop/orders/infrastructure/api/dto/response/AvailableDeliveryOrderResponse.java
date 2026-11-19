@@ -22,8 +22,29 @@ public record AvailableDeliveryOrderResponse(
         BigDecimal total,
         Double distanceKm,
         Integer estimatedMinutes,
-        String receptionMode
+        String receptionMode,
+        BigDecimal pickupLatitude,
+        BigDecimal pickupLongitude
 ) {
+
+    public AvailableDeliveryOrderResponse(
+            Long orderId,
+            Long restaurantId,
+            String code,
+            String status,
+            String restaurantName,
+            String pickupAddress,
+            String deliveryAddress,
+            String commune,
+            String clientName,
+            BigDecimal total,
+            Double distanceKm,
+            Integer estimatedMinutes,
+            String receptionMode) {
+        this(orderId, restaurantId, code, status, restaurantName, pickupAddress,
+                deliveryAddress, commune, clientName, total, distanceKm, estimatedMinutes, receptionMode,
+                null, null);
+    }
 
     public AvailableDeliveryOrderResponse(
             Long orderId,
@@ -39,6 +60,7 @@ public record AvailableDeliveryOrderResponse(
             Integer estimatedMinutes,
             String receptionMode) {
         this(orderId, restaurantId, code, status, restaurantName, pickupAddress,
-                deliveryAddress, null, clientName, total, distanceKm, estimatedMinutes, receptionMode);
+                deliveryAddress, null, clientName, total, distanceKm, estimatedMinutes, receptionMode,
+                null, null);
     }
 }

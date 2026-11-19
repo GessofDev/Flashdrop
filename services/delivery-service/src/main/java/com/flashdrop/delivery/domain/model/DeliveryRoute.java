@@ -4,9 +4,15 @@ import com.flashdrop.delivery.domain.valueobjects.Distance;
 import com.flashdrop.delivery.domain.valueobjects.EstimatedTime;
 import com.flashdrop.delivery.domain.valueobjects.RouteStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 public class DeliveryRoute {
+
+    private static final BigDecimal MIN_LATITUDE = new BigDecimal("-90");
+    private static final BigDecimal MAX_LATITUDE = new BigDecimal("90");
+    private static final BigDecimal MIN_LONGITUDE = new BigDecimal("-180");
+    private static final BigDecimal MAX_LONGITUDE = new BigDecimal("180");
 
     private Long id;
     private Long orderId;
@@ -14,6 +20,9 @@ public class DeliveryRoute {
     private String pickupAddress;
     private String deliveryAddress;
     private String commune;
+    private BigDecimal pickupLatitude;
+    private BigDecimal pickupLongitude;
+    private String clientUserId;
     private Distance distanceKm;
     private EstimatedTime estimatedMinutes;
     private RouteStatus status;
@@ -140,5 +149,40 @@ public class DeliveryRoute {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public BigDecimal getPickupLatitude() {
+        return pickupLatitude;
+    }
+
+    public BigDecimal getPickupLongitude() {
+        return pickupLongitude;
+    }
+
+    public void setPickupCoordinates(BigDecimal pickupLatitude, BigDecimal pickupLongitude) {
+        if (pickupLatitude == null && pickupLongitude == null) {
+            this.pickupLatitude = null;
+            this.pickupLongitude = null;
+            return;
+        }
+        if (pickupLatitude == null || pickupLongitude == null) {
+            throw new IllegalArgumentException("Both pickupLatitude and pickupLongitude must be provided together");
+        }
+        if (pickupLatitude.compareTo(MIN_LATITUDE) < 0 || pickupLatitude.compareTo(MAX_LATITUDE) > 0) {
+            throw new IllegalArgumentException("pickupLatitude must be between -90 and 90");
+        }
+        if (pickupLongitude.compareTo(MIN_LONGITUDE) < 0 || pickupLongitude.compareTo(MAX_LONGITUDE) > 0) {
+            throw new IllegalArgumentException("pickupLongitude must be between -180 and 180");
+        }
+        this.pickupLatitude = pickupLatitude;
+        this.pickupLongitude = pickupLongitude;
+    }
+
+    public String getClientUserId() {
+        return clientUserId;
+    }
+
+    public void setClientUserId(String clientUserId) {
+        this.clientUserId = clientUserId == null || clientUserId.isBlank() ? null : clientUserId.trim();
     }
 }
