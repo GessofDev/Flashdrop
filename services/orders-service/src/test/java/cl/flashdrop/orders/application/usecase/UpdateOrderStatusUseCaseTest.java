@@ -131,6 +131,24 @@ class UpdateOrderStatusUseCaseTest {
         assertNothingPersisted();
     }
 
+    /** La tienda toma todo pedido pagado (queda en Preparando); si no puede prepararlo, lo rechaza desde ahi. */
+    @Test
+    void restaurantePropietario_puedeRechazarUnPedidoQueYaTomoEnPreparando() {
+        givenOrder(OrderStatus.PREPARANDO, null);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+        useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID);
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.PREPARANDO, OrderStatus.RECHAZADO);
+    }
+
+    @Test
+    void restaurante_noPuedeRechazarUnPedidoYaTomadoPorUnRepartidor() {
+        givenOrder(OrderStatus.PREPARANDO, DELIVERY_ID);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+        assertThrows(OrderDomainException.class,
+                () -> useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID));
+        assertNothingPersisted();
+    }
+
     @Test
     void restaurantePropietario_puedeRechazarPedidoNuevo() {
         givenOrder(OrderStatus.NUEVO_PEDIDO, null);
@@ -158,12 +176,10 @@ class UpdateOrderStatusUseCaseTest {
     }
 
     @Test
-    void pedidoPreparando_noPuedeCancelarseNiRechazarse() {
+    void pedidoPreparando_elClienteNoPuedeCancelarlo_soloLaTiendaLoRechaza() {
         givenOrder(OrderStatus.PREPARANDO, null);
         when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
-        givenUserOwnsRestaurant(RESTAURANT_ID);
         assertThrows(OrderDomainException.class, () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
-        assertThrows(OrderDomainException.class, () -> useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID));
         assertNothingPersisted();
     }
 

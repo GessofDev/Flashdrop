@@ -11,7 +11,7 @@ S2 — Pasarela
 > Simulada por ahora, con casos aprobado y rechazado. El backend maneja las respuestas desde y hacia la pasarela; la pantalla de pago simulada es del front.
 
 S3 — Estados
-> Pendiente de pago al crear, Nuevo pedido al aprobarse el pago. Pago rechazado: mismo pedido, nuevo intento.
+> Pendiente de pago al crear; al aprobarse el pago la tienda lo toma de inmediato (Preparando), sin aceptarlo a mano. Pago rechazado: mismo pedido, nuevo intento.
 
 S4 — Tarifa de envío
 > Tabla de dimensión (vehículo y precio) más tabla de distancia (precio), parametrizables por el administrador. Envío = suma de ambos, calculado antes de pagar. Sin rangos o sin coordenadas de destino: $2.500.
@@ -20,7 +20,7 @@ S5 — Dimensión y distancia
 > Dimensión 1 a 10 por producto, guardada en Catalog. Distancia en línea recta entre coordenadas del local y del destino.
 
 S6 — Pedidos sin atender
-> Plazos globales del administrador. La tienda que no responde y el pedido sin repartidor (contado desde que la tienda aceptó) se cancelan solos. Solo se avisa al cliente cuando se cancela. Las devoluciones están fuera de alcance.
+> La tienda toma todo pedido pagado de inmediato (Preparando), sin aceptarlo a mano; si no puede prepararlo, lo rechaza. El pedido sin repartidor pasada la espera global (contada desde que entra) se cancela solo. Plazo parametrizable por el administrador. Solo se avisa al cliente cuando se cancela. Las devoluciones están fuera de alcance.
 
 ## Tasks
 
@@ -56,3 +56,5 @@ L7 — 2026-11-19 — Found while testing: Hibernate schema validation caught `s
 L8 — 2026-11-19 — PR 2 implemented on `feat/orders-unattended-timeouts` (based on PR 1). Store response time and courier wait are global only (`/api/admin/order-policy`); store-level values are ignored. The courier wait counts from the store acceptance (`accepted_at`). Cancellation is one conditional UPDATE; the Delivery route is closed in the same transaction. Report: `docs/plans/INFORME_IMPLEMENTACION_PEDIDOS_SIN_ATENDER_ORDERS.md`.
 
 L9 — 2026-11-19 — Enabling `@EnableScheduling` also starts `PendingDeliveryOperationRecoveryService`, which existed but never ran in orders. Orders created before this change have no deadlines and are never auto-cancelled. A courier release resets the courier deadline so the released order is not cancelled right away.
+
+L10 — 2026-11-19 — Change of direction (user): the restaurant no longer accepts each order by hand. When the payment is approved the order goes straight from "Pendiente de pago" to "Preparando" (`accepted_at` and `courier_due_at` are set in the same UPDATE); if the store cannot prepare it, it rejects it (`Preparando -> Rechazado`, only without an assigned courier). The store-response timeout job, the `STORE_NO_RESPONSE` reason and the `storeResponseMinutes` policy field were removed from the API (the DB column stays unused). The courier wait now counts from the payment. Known tradeoff: couriers only see "Listo para retiro", so a long preparation can exceed the courier wait.

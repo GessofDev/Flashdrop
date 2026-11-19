@@ -9,7 +9,6 @@ import lombok.Getter;
 @Getter
 public enum CancellationReason {
 
-    STORE_NO_RESPONSE("La tienda no respondio a tiempo"),
     NO_COURIER("No se encontro un repartidor a tiempo");
 
     private final String message;

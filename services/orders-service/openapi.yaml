@@ -102,8 +102,8 @@ paths:
       description: |
         Crea un nuevo pedido **pendiente de pago** (estado `Pendiente de pago`) con su cobro abierto en la pasarela.
         El envío lo calcula el servidor (tarifa del administrador) y se cobra antes de pagar; la app puede
-        mostrarlo antes con `POST /api/orders/delivery-quote`. El pedido pasa a `Nuevo pedido` recién cuando el
-        pago se aprueba. Header opcional `Idempotency-Key` (máx. 64): la misma llave del mismo cliente devuelve
+        mostrarlo antes con `POST /api/orders/delivery-quote`. Cuando el pago se aprueba, la tienda toma el pedido de
+        inmediato (`Preparando`, sin aceptarlo a mano). Header opcional `Idempotency-Key` (máx. 64): la misma llave del mismo cliente devuelve
         el mismo pedido. Valida que los productos existan
         consultando al catalog-service.
       operationId: createOrder
@@ -289,7 +289,7 @@ paths:
       summary: Estado del pago de un pedido
       description: |
         Solo el cliente dueño. La app consulta este endpoint mientras espera la confirmación: cuando
-        `orderStatus` pasa a `Nuevo pedido` el pago fue aprobado; si `paymentStatus` es `RECHAZADO` puede reintentar.
+        `orderStatus` pasa a `Preparando` el pago fue aprobado (la tienda toma el pedido); si `paymentStatus` es `RECHAZADO` puede reintentar.
       operationId: getOrderPayment
       parameters:
         - name: id
@@ -338,7 +338,7 @@ paths:
       description: |
         Sin JWT: se autentica con el header `X-Payment-Signature` (secreto compartido
         `orders.payment.webhook-secret`, Secrets Manager `flashdrop/payment-webhook-secret`). Es idempotente.
-        Aprobado: el pedido pasa a `Nuevo pedido`, se fija el plazo de respuesta de la tienda, se crea la ruta
+        Aprobado: el pedido pasa directo a `Preparando` (la tienda lo toma), se fija la espera de repartidor, se crea la ruta
         de entrega y se publica `order.created`. Rechazado: el pedido sigue pendiente de pago.
       operationId: paymentWebhook
       parameters:
@@ -419,10 +419,11 @@ paths:
       summary: Reemplazar los plazos globales de los pedidos
       description: |
         Plazos en minutos (1 a 1440; la ventana de cancelación del cliente admite 0).
-        - `storeResponseMinutes`: cuánto tiene la tienda para aceptar un pedido ya pagado. Si no responde, el pedido
-          se cancela solo (`STORE_NO_RESPONSE`). **Es el mismo para todos los locales**: una tienda ya no lo elige.
-        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que la tienda aceptó el pedido. Si pasa
-          el plazo sin repartidor, el pedido se cancela solo (`NO_COURIER`). También solo global.
+        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que el pedido entra (se paga y la tienda
+          lo toma de inmediato). Si pasa el plazo sin repartidor, el pedido se cancela solo (`NO_COURIER`).
+          **Es el mismo para todos los locales**: una tienda no lo elige.
+        La tienda ya no acepta los pedidos a mano ni tiene un plazo de respuesta: todo pedido pagado queda en
+        `Preparando` y, si no puede prepararlo, lo rechaza (`Preparando → Rechazado`).
         Las tareas revisan cada minuto. Al cancelar se cierra la ruta en Delivery y se publica el cambio de estado.
         El cliente solo se entera cuando el pedido pasa a "Cancelado" (con su motivo); las devoluciones están fuera
         de alcance.
@@ -533,7 +534,7 @@ paths:
 
         | Rol | Transiciones permitidas |
         |---|---|
-        | `Restaurante` | `Nuevo pedido → Preparando`, `Preparando → Listo para retiro`, `Nuevo pedido → Listo para retiro` (atajo) |
+        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` (si no puede prepararlo; solo sin repartidor asignado) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
         | `Repartidor` | `Listo para retiro → Retirado` (y, para pedidos legacy, `En camino → Retirado`) |
         | `Cliente` | ninguna |
 
@@ -1284,14 +1285,14 @@ components:
           example: Nuevo pedido
         cancelReason:
           type: string
-          enum: [STORE_NO_RESPONSE, NO_COURIER]
+          enum: [NO_COURIER]
           description: |
-            Solo si el sistema canceló solo el pedido porque nadie lo atendió: `STORE_NO_RESPONSE` (la tienda no
-            respondió a tiempo) o `NO_COURIER` (no se encontró repartidor a tiempo). Ausente en los demás casos.
+            Solo si el sistema canceló solo el pedido porque nadie lo atendió: `NO_COURIER` (no se encontró
+            repartidor a tiempo). Ausente en los demás casos.
         cancelReasonMessage:
           type: string
           description: Texto listo para mostrar junto al estado "Cancelado".
-          example: La tienda no respondio a tiempo
+          example: No se encontro un repartidor a tiempo
         cancelledAt:
           type: string
           format: date-time
@@ -1512,23 +1513,19 @@ components:
 
     OrderPolicy:
       type: object
-      required: [paymentExpirationMinutes, storeResponseMinutes, customerCancelWindowMinutes, courierWaitMinutes]
+      required: [paymentExpirationMinutes, customerCancelWindowMinutes, courierWaitMinutes]
       properties:
         paymentExpirationMinutes:
           type: integer
           description: Plazo para pagar un pedido pendiente de pago.
           example: 15
-        storeResponseMinutes:
-          type: integer
-          description: Plazo para que la tienda acepte un pedido pagado. Global, no lo elige la tienda.
-          example: 10
         customerCancelWindowMinutes:
           type: integer
           description: Minutos desde la compra en que el cliente puede cancelar (0 = no puede).
           example: 5
         courierWaitMinutes:
           type: integer
-          description: Espera de repartidor desde que la tienda aceptó. Global, no lo elige la tienda.
+          description: Espera de repartidor desde que el pedido entra (se paga y la tienda lo toma). Global, no lo elige la tienda.
           example: 20
 
     OrderQuote:

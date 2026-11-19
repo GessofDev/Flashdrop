@@ -75,11 +75,12 @@ public interface OrderRepositoryPort {
     boolean updateStatusIfCurrent(UUID orderId, OrderStatus expected, OrderStatus status);
 
     /**
-     * Confirma el pago de un pedido: pasa de Pendiente de pago a Nuevo pedido y fija el plazo de
-     * respuesta de la tienda, en una sola sentencia. {@code false} si el pedido ya no estaba pendiente.
+     * Confirma el pago de un pedido: pasa de Pendiente de pago directamente a Preparando (la tienda toma
+     * todo pedido pagado, sin aceptarlo a mano) y deja registrado cuando entro y hasta cuando se espera un
+     * repartidor, en una sola sentencia. {@code false} si el pedido ya no estaba pendiente.
      */
-    default boolean confirmPayment(UUID orderId, OffsetDateTime storeResponseDueAt) {
-        return updateStatusIfCurrent(orderId, OrderStatus.PENDIENTE_PAGO, OrderStatus.NUEVO_PEDIDO);
+    default boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt, OffsetDateTime courierDueAt) {
+        return updateStatusIfCurrent(orderId, OrderStatus.PENDIENTE_PAGO, OrderStatus.PREPARANDO);
     }
 
     /**
@@ -96,11 +97,6 @@ public interface OrderRepositoryPort {
     default boolean acceptByStore(UUID orderId, OrderStatus expected, OrderStatus status,
                                   OffsetDateTime acceptedAt, OffsetDateTime courierDueAt) {
         return updateStatusIfCurrent(orderId, expected, status);
-    }
-
-    /** Pedidos "Nuevo pedido" cuyo plazo de respuesta de la tienda ya vencio, los mas atrasados primero. */
-    default List<Order> findStoreResponseOverdue(OffsetDateTime now, int limit) {
-        return List.of();
     }
 
     /** Pedidos aceptados por la tienda, sin repartidor, cuya espera de repartidor ya vencio. */

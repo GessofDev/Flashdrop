@@ -83,11 +83,11 @@ class ConfirmPaymentUseCaseTest {
     }
 
     @Test
-    void pagoAprobadoActivaElPedidoFijaElPlazoDeLaTiendaCreaLaRutaYPublicaElEvento() {
+    void pagoAprobadoHaceQueLaTiendaTomeElPedidoFijaLaEsperaDeRepartidorCreaLaRutaYPublicaElEvento() {
         Payment payment = pendingPayment();
         stubFound(payment, order(OrderStatus.PENDIENTE_PAGO));
-        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5));
-        when(orderRepository.confirmPayment(orderId, NOW.plusMinutes(10))).thenReturn(true);
+        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5, 20));
+        when(orderRepository.confirmPayment(orderId, NOW, NOW.plusMinutes(20))).thenReturn(true);
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(RestaurantInfo.builder()
                 .restaurantId(restaurantId).name("Burgers House").address("Los Leones 300")
                 .latitude(new BigDecimal("-33.4")).longitude(new BigDecimal("-70.6")).build()));
@@ -117,7 +117,7 @@ class ConfirmPaymentUseCaseTest {
 
         assertEquals(ConfirmPaymentUseCase.Outcome.PAYMENT_REJECTED, outcome);
         assertEquals(PaymentStatus.RECHAZADO, payment.getStatus());
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any(), any(), any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
@@ -130,7 +130,7 @@ class ConfirmPaymentUseCaseTest {
         ConfirmPaymentUseCase.Outcome outcome = useCase.execute("FAKE", "tx-1", true, "APPROVED");
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ALREADY_CONFIRMED, outcome);
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any(), any(), any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
@@ -141,15 +141,15 @@ class ConfirmPaymentUseCaseTest {
         ConfirmPaymentUseCase.Outcome outcome = useCase.execute("FAKE", "tx-1", true, "APPROVED");
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ORDER_NOT_PENDING, outcome);
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any(), any(), any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
     @Test
     void siElPedidoDejoDeEstarPendienteEnMedioDeLaConfirmacionNoSeCreaLaRuta() {
         stubFound(pendingPayment(), order(OrderStatus.PENDIENTE_PAGO));
-        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5));
-        when(orderRepository.confirmPayment(any(), any())).thenReturn(false);
+        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5, 20));
+        when(orderRepository.confirmPayment(any(), any(), any())).thenReturn(false);
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ORDER_NOT_PENDING, useCase.execute("FAKE", "tx-1", true, "APPROVED"));
         verifyNoInteractions(deliveryPort, eventPublisher);

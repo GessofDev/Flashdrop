@@ -21,12 +21,13 @@ import java.util.UUID;
  * Plazos globales de los pedidos (F7 y F8). Solo el administrador (ver {@code AdminAccess}).
  *
  * <ul>
- *   <li>{@code storeResponseMinutes}: cuanto tiene la tienda para aceptar un pedido pagado. Si no responde,
- *       el pedido se cancela. Es el mismo para todos los locales: una tienda ya no lo elige.</li>
- *   <li>{@code courierWaitMinutes}: cuanto se espera un repartidor desde que la tienda acepto. Pasado el plazo
- *       sin repartidor, el pedido se cancela.</li>
+ *   <li>{@code courierWaitMinutes}: cuanto se espera un repartidor desde que el pedido entra (se paga y la tienda
+ *       lo toma). Pasado el plazo sin repartidor, el pedido se cancela. Es el mismo para todos los locales.</li>
  *   <li>{@code paymentExpirationMinutes} y {@code customerCancelWindowMinutes}: los demas plazos globales.</li>
  * </ul>
+ *
+ * <p>La tienda toma todo pedido pagado sin aceptarlo a mano, asi que ya no hay un plazo de respuesta de la
+ * tienda: la columna {@code store_response_minutes} sigue en la base pero no se usa ni se expone aqui.</p>
  */
 @RestController
 @RequestMapping("/api/admin/order-policy")
@@ -35,7 +36,6 @@ public class AdminOrderPolicyController {
 
     public record PolicyBody(
             @NotNull @Min(OrderPolicy.MIN_MINUTES) @Max(OrderPolicy.MAX_MINUTES) Integer paymentExpirationMinutes,
-            @NotNull @Min(OrderPolicy.MIN_MINUTES) @Max(OrderPolicy.MAX_MINUTES) Integer storeResponseMinutes,
             @NotNull @Min(0) @Max(OrderPolicy.MAX_MINUTES) Integer customerCancelWindowMinutes,
             @NotNull @Min(OrderPolicy.MIN_MINUTES) @Max(OrderPolicy.MAX_MINUTES) Integer courierWaitMinutes) {
     }
@@ -53,9 +53,10 @@ public class AdminOrderPolicyController {
     @PutMapping
     public ApiResponse<PolicyBody> replace(@Valid @RequestBody PolicyBody body) {
         UUID adminId = currentUserResolver.requireAdminUserId();
+        // storeResponseMinutes ya no se usa, pero la politica global lo exige completo: se conserva el valor actual.
         policies.save(OrderPolicy.builder()
                 .paymentExpirationMinutes(body.paymentExpirationMinutes())
-                .storeResponseMinutes(body.storeResponseMinutes())
+                .storeResponseMinutes(policyResolver.effectiveFor(null).storeResponseMinutes())
                 .customerCancelWindowMinutes(body.customerCancelWindowMinutes())
                 .courierWaitMinutes(body.courierWaitMinutes())
                 .build(), adminId);
@@ -63,7 +64,6 @@ public class AdminOrderPolicyController {
     }
 
     private static PolicyBody toBody(OrderPolicy.Effective e) {
-        return new PolicyBody(e.paymentExpirationMinutes(), e.storeResponseMinutes(),
-                e.customerCancelWindowMinutes(), e.courierWaitMinutes());
+        return new PolicyBody(e.paymentExpirationMinutes(), e.customerCancelWindowMinutes(), e.courierWaitMinutes());
     }
 }

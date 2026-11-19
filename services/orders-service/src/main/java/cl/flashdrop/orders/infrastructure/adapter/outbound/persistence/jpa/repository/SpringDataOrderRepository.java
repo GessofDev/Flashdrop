@@ -42,23 +42,15 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id")
     Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE OrderEntity o SET o.status = :status, o.storeResponseDueAt = :due "
-            + "WHERE o.id = :id AND o.status = :expected")
-    int confirmPayment(@Param("id") Long id, @Param("expected") String expected,
-                       @Param("status") String status, @Param("due") OffsetDateTime due);
-
-    /** La tienda acepta: cambia de estado y registra la aceptacion y el plazo de espera de repartidor (F7). */
+    /**
+     * Acepta el pedido: cambia de estado y registra la aceptacion y el plazo de espera de repartidor (F7). Lo usa
+     * la confirmacion del pago (la tienda toma todo pedido pagado) y la aceptacion manual de pedidos antiguos.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = :acceptedAt, o.courierDueAt = :courierDueAt "
             + "WHERE o.id = :id AND o.status = :expected")
     int acceptByStore(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
                       @Param("acceptedAt") OffsetDateTime acceptedAt, @Param("courierDueAt") OffsetDateTime courierDueAt);
-
-    @Query("SELECT o FROM OrderEntity o WHERE o.status = :status AND o.storeResponseDueAt IS NOT NULL "
-            + "AND o.storeResponseDueAt <= :now ORDER BY o.storeResponseDueAt")
-    List<OrderEntity> findStoreResponseOverdue(@Param("status") String status, @Param("now") OffsetDateTime now,
-                                              Pageable pageable);
 
     @Query("SELECT o FROM OrderEntity o WHERE o.status IN :statuses AND o.deliveryId IS NULL "
             + "AND o.courierDueAt IS NOT NULL AND o.courierDueAt <= :now ORDER BY o.courierDueAt")

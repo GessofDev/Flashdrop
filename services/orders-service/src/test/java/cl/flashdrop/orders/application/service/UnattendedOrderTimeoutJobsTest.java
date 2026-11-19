@@ -19,8 +19,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,27 +43,16 @@ class UnattendedOrderTimeoutJobsTest {
     }
 
     @Test
-    void tiendaSinRespuestaCancelaLosPedidosVencidosConSuMotivo() {
-        Order a = order(OrderStatus.NUEVO_PEDIDO), b = order(OrderStatus.NUEVO_PEDIDO);
-        when(orderRepository.findStoreResponseOverdue(NOW, UnattendedOrderTimeoutJobs.BATCH_SIZE)).thenReturn(List.of(a, b));
-        when(canceller.cancel(any(), eq(CancellationReason.STORE_NO_RESPONSE))).thenReturn(true);
-
-        jobs.cancelStoreResponseTimeouts();
-
-        verify(canceller).cancel(a, CancellationReason.STORE_NO_RESPONSE);
-        verify(canceller).cancel(b, CancellationReason.STORE_NO_RESPONSE);
-        verify(orderRepository, never()).findCourierWaitOverdue(any(), anyInt());
-    }
-
-    @Test
-    void sinRepartidorCancelaLosPedidosAceptadosVencidos() {
-        Order a = order(OrderStatus.LISTO_PARA_RETIRO);
-        when(orderRepository.findCourierWaitOverdue(NOW, UnattendedOrderTimeoutJobs.BATCH_SIZE)).thenReturn(List.of(a));
-        when(canceller.cancel(a, CancellationReason.NO_COURIER)).thenReturn(true);
+    void sinRepartidorCancelaLosPedidosTomadosPorLaTiendaConLaEsperaVencida() {
+        Order preparando = order(OrderStatus.PREPARANDO), listo = order(OrderStatus.LISTO_PARA_RETIRO);
+        when(orderRepository.findCourierWaitOverdue(NOW, UnattendedOrderTimeoutJobs.BATCH_SIZE))
+                .thenReturn(List.of(preparando, listo));
+        when(canceller.cancel(any(), any())).thenReturn(true);
 
         jobs.cancelCourierWaitTimeouts();
 
-        verify(canceller).cancel(a, CancellationReason.NO_COURIER);
+        verify(canceller).cancel(preparando, CancellationReason.NO_COURIER);
+        verify(canceller).cancel(listo, CancellationReason.NO_COURIER);
     }
 
     @Test
@@ -82,9 +69,9 @@ class UnattendedOrderTimeoutJobsTest {
 
     @Test
     void sinPedidosVencidosNoHaceNada() {
-        when(orderRepository.findStoreResponseOverdue(NOW, UnattendedOrderTimeoutJobs.BATCH_SIZE)).thenReturn(List.of());
+        when(orderRepository.findCourierWaitOverdue(NOW, UnattendedOrderTimeoutJobs.BATCH_SIZE)).thenReturn(List.of());
 
-        jobs.cancelStoreResponseTimeouts();
+        jobs.cancelCourierWaitTimeouts();
 
         verify(canceller, never()).cancel(any(), any());
     }

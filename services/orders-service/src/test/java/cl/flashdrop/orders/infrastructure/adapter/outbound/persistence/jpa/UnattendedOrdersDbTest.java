@@ -56,53 +56,7 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
         return list.stream().map(Order::getId).toList();
     }
 
-    // ------------------------- tienda sin respuesta -------------------------
-
-    @Test
-    void soloSeEncuentranLosNuevosPedidosConElPlazoDeLaTiendaVencido() {
-        Order vencido = order(OrderStatus.NUEVO_PEDIDO, now.minusMinutes(1), null, null);
-        Order enPlazo = order(OrderStatus.NUEVO_PEDIDO, now.plusMinutes(5), null, null);
-        Order sinPlazo = order(OrderStatus.NUEVO_PEDIDO, null, null, null); // pedido anterior a F7
-        Order yaAceptado = order(OrderStatus.PREPARANDO, now.minusMinutes(9), null, null);
-
-        List<UUID> found = ids(orders.findStoreResponseOverdue(now, 100));
-
-        assertTrue(found.contains(vencido.getId()));
-        assertFalse(found.contains(enPlazo.getId()));
-        assertFalse(found.contains(sinPlazo.getId()));
-        assertFalse(found.contains(yaAceptado.getId()));
-    }
-
-    @Test
-    void cancelarPorTiendaSinRespuestaDejaMotivoYHora() {
-        Order vencido = order(OrderStatus.NUEVO_PEDIDO, now.minusMinutes(1), null, null);
-
-        assertTrue(orders.cancelUnattended(vencido.getId(), OrderStatus.NUEVO_PEDIDO,
-                CancellationReason.STORE_NO_RESPONSE, now));
-
-        Order loaded = orders.findById(vencido.getId()).orElseThrow();
-        assertEquals(OrderStatus.CANCELADO, loaded.getStatus());
-        assertEquals("STORE_NO_RESPONSE", loaded.getCancelReason());
-        assertEquals(now.toInstant(), loaded.getCancelledAt().toInstant());
-        // Ya cancelado: no vuelve a salir en la busqueda ni se cancela dos veces.
-        assertFalse(ids(orders.findStoreResponseOverdue(now, 100)).contains(vencido.getId()));
-        assertFalse(orders.cancelUnattended(vencido.getId(), OrderStatus.NUEVO_PEDIDO,
-                CancellationReason.STORE_NO_RESPONSE, now));
-    }
-
-    @Test
-    void siLaTiendaAceptaJustoAntesLaCancelacionNoLoPisa() {
-        Order pedido = order(OrderStatus.NUEVO_PEDIDO, now.minusMinutes(1), null, null);
-
-        assertTrue(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO,
-                now, now.plusMinutes(20)));
-
-        assertFalse(orders.cancelUnattended(pedido.getId(), OrderStatus.NUEVO_PEDIDO,
-                CancellationReason.STORE_NO_RESPONSE, now));
-        assertEquals(OrderStatus.PREPARANDO, orders.findById(pedido.getId()).orElseThrow().getStatus());
-    }
-
-    // ------------------------- aceptacion de la tienda -------------------------
+    // ------------------------- aceptacion manual (pedidos antiguos en Nuevo pedido) -------------------------
 
     @Test
     void aceptarGuardaLaHoraYElPlazoParaEncontrarRepartidor() {

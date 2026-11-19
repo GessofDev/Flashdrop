@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminOrderPolicyControllerTest {
 
     private static final String BODY = """
-            {"paymentExpirationMinutes":15,"storeResponseMinutes":8,
+            {"paymentExpirationMinutes":15,
              "customerCancelWindowMinutes":5,"courierWaitMinutes":30}""";
 
     @Mock private OrderPolicyRepositoryPort policies;
@@ -77,7 +77,6 @@ class AdminOrderPolicyControllerTest {
 
         mockMvc.perform(put("/api/admin/order-policy").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.storeResponseMinutes").value(8))
                 .andExpect(jsonPath("$.data.courierWaitMinutes").value(30));
 
         ArgumentCaptor<OrderPolicy> saved = ArgumentCaptor.forClass(OrderPolicy.class);
@@ -106,7 +105,7 @@ class AdminOrderPolicyControllerTest {
                         .content(BODY.replace("\"courierWaitMinutes\":30", "\"courierWaitMinutes\":0")))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(put("/api/admin/order-policy").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"storeResponseMinutes\":8}"))
+                        .content("{\"courierWaitMinutes\":8}"))
                 .andExpect(status().isBadRequest());
         verify(policies, never()).save(any(), any());
     }
