@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.infrastructure.api;
 
+import cl.flashdrop.orders.domain.model.AdminAccess;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.infrastructure.adapter.outbound.IdConverter;
 import org.springframework.security.access.AccessDeniedException;
@@ -79,6 +80,19 @@ public class CurrentUserResolver {
      */
     public boolean hasRole(Role role) {
         return requireCurrentRoles().contains(role);
+    }
+
+    /**
+     * Exige que el usuario autenticado sea administrador (ver {@link AdminAccess}).
+     *
+     * @return el id del administrador, para dejar auditado quien hizo el cambio
+     * @throws AccessDeniedException (403) si no lo es
+     */
+    public UUID requireAdminUserId() {
+        if (!AdminAccess.isAdmin(requireCurrentRoles())) {
+            throw new AccessDeniedException("Se requiere un usuario administrador");
+        }
+        return requireCurrentUserId();
     }
 
     private static Authentication requireAuthentication() {

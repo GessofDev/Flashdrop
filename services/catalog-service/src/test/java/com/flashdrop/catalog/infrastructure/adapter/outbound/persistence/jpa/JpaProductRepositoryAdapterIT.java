@@ -167,6 +167,29 @@ class JpaProductRepositoryAdapterIT {
                 product -> assertThat(product.isAvailable()).isFalse());
     }
 
+    @Test
+    void dimension_isPersistedUpdatedAndNullByDefault() {
+        assertThat(repository.findById(activeProduct.getId()).orElseThrow().getDimension()).isNull();
+
+        Product classified = repository.save(new Product(null, 10L, 100L, "classified", "QA",
+                new Money(BigDecimal.valueOf(2500)), null, true, 7));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(repository.findById(classified.getId()).orElseThrow().getDimension()).isEqualTo(7);
+
+        repository.update(new Product(classified.getId(), 10L, 100L, "classified", "QA",
+                new Money(BigDecimal.valueOf(2500)), null, true, 3));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(repository.findById(classified.getId()).orElseThrow().getDimension()).isEqualTo(3);
+    }
+
+    @Test
+    void dimension_outOfScale_isRejectedByTheDatabase() {
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("update products set dimension = 11 where id = ?", activeProduct.getId()));
+    }
+
     private Product saveProduct(Long categoryId, Long restaurantId, String name, boolean available) {
         return repository.save(new Product(null, categoryId, restaurantId, name, "QA",
                 new Money(BigDecimal.valueOf(2500)), null, available));

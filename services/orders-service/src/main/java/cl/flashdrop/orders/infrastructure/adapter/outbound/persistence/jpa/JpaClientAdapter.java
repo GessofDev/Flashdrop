@@ -55,6 +55,16 @@ public class JpaClientAdapter implements ClientPort {
     }
 
     @Override
+    public Optional<UUID> findUserIdByClientId(UUID clientId) {
+        if (clientId == null) {
+            return Optional.empty();
+        }
+        return clientRepository.findById(IdConverter.toLong(clientId))
+                .map(ClientEntity::getUserId)
+                .map(IdConverter::toUuid);
+    }
+
+    @Override
     public Optional<ClientInfo> findClientById(UUID clientId) {
         if (clientId == null) {
             return Optional.empty();

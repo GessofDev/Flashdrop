@@ -33,7 +33,8 @@ public class OwnerCreateProductUseCase {
                 command.description(),
                 new Money(command.price()),
                 command.image(),
-                command.available() == null || command.available()
+                command.available() == null || command.available(),
+                command.dimension()
         );
 
         return createProductUseCase.execute(product);

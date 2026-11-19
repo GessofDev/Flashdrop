@@ -64,17 +64,29 @@ class CreateOrderUseCaseIntegrationTest {
         DeliveryHttpClientAdapter deliveryAdapter = new DeliveryHttpClientAdapter(deliveryClient);
 
         orderRepository = mock(OrderRepositoryPort.class);
+        DeliveryTariffRepositoryPort tariffRepository = mock(DeliveryTariffRepositoryPort.class);
+        when(tariffRepository.find()).thenReturn(cl.flashdrop.orders.domain.model.DeliveryTariff.empty());
         clientPort = mock(ClientPort.class);
         eventPublisher = mock(EventPublisherPort.class);
+        PaymentRepositoryPort paymentRepository = mock(PaymentRepositoryPort.class);
+        when(paymentRepository.save(any(cl.flashdrop.orders.domain.model.Payment.class))).thenAnswer(i -> i.getArgument(0));
+        PaymentGatewayPort paymentGateway = mock(PaymentGatewayPort.class);
+        when(paymentGateway.providerName()).thenReturn("FAKE");
+        when(paymentGateway.createSession(any(), any(), any()))
+                .thenReturn(new PaymentGatewayPort.PaymentSession("tx-it", "fake://flashdrop-pay/tx-it"));
+        cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver =
+                mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class);
+        when(policyResolver.effectiveFor(any())).thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5));
 
-        useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort, deliveryAdapter, eventPublisher,
-                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"));
+        useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort,
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"),
+                new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
+                        tariffRepository, null, BigDecimal.valueOf(2500), 1),
+                paymentRepository, paymentGateway, policyResolver, java.time.Clock.systemUTC());
 
         // Inject @Value fields via reflection (not available outside Spring context)
-        setField(useCase, "deliveryFee", BigDecimal.valueOf(2500));
         setField(useCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         setField(useCase, "defaultEstimatedMinutes", 20);
-        setField(useCase, "orderCreatedRoutingKey", "order.created");
 
         userId = toUuid(1L);
         productId = toUuid(101L);
@@ -95,6 +107,7 @@ class CreateOrderUseCaseIntegrationTest {
                 .clientId(clientId)
                 .restaurantId(restaurantId)
                 .total(BigDecimal.valueOf(3500))
+                .receptionMode(cl.flashdrop.orders.domain.model.ReceptionMode.SEGURO)
                 .build();
         when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
 
@@ -117,7 +130,7 @@ class CreateOrderUseCaseIntegrationTest {
         assertNotNull(result.total());
 
         verify(orderRepository).save(any(Order.class));
-        verify(eventPublisher).publish(eq("order.created"), any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

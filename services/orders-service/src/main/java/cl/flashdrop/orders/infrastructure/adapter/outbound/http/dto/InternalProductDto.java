@@ -18,6 +18,7 @@ public record InternalProductDto(
         String description,
         String image,
         BigDecimal price,
-        @JsonProperty("isAvailable") Boolean available
+        @JsonProperty("isAvailable") Boolean available,
+        Integer dimension
 ) {
 }

@@ -12,7 +12,8 @@ public record InternalProductResponse(
         String description,
         BigDecimal price,
         String image,
-        @JsonProperty("isAvailable") boolean available
+        @JsonProperty("isAvailable") boolean available,
+        Integer dimension
 ) {
     public static InternalProductResponse fromDomain(Product product) {
         return new InternalProductResponse(
@@ -22,7 +23,8 @@ public record InternalProductResponse(
                 product.getDescription(),
                 product.getPrice().amount(),
                 product.getImage(),
-                product.isAvailable()
+                product.isAvailable(),
+                product.getDimension()
         );
     }
 }

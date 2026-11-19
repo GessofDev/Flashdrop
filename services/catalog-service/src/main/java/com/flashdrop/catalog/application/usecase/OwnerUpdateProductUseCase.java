@@ -44,7 +44,8 @@ public class OwnerUpdateProductUseCase {
                         command.description(),
                         command.price(),
                         command.image(),
-                        command.available()
+                        command.available(),
+                        command.dimension()
                 )
         );
     }

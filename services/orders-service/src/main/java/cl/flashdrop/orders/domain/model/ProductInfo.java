@@ -27,4 +27,7 @@ public class ProductInfo {
     private final String image;
     private final BigDecimal price;
     private final boolean available;
+
+    /** Dimension del producto en la escala 1 a 10 (la guarda Catalog). {@code null} si aun no la tiene. */
+    private final Integer dimension;
 }

@@ -105,14 +105,27 @@ class OrdersE2ESimulatedTest {
         SupabaseRestClientAdapter clientAdapter = new SupabaseRestClientAdapter(supabaseRestClient, authAdapter);
         SupabaseRestOrderRepositoryAdapter orderRepositoryAdapter = new SupabaseRestOrderRepositoryAdapter(supabaseRestClient);
         EventPublisherPort eventPublisher = mock(EventPublisherPort.class);
+        cl.flashdrop.orders.domain.port.PaymentRepositoryPort paymentRepository =
+                mock(cl.flashdrop.orders.domain.port.PaymentRepositoryPort.class);
+        org.mockito.Mockito.when(paymentRepository.save(org.mockito.ArgumentMatchers.any(cl.flashdrop.orders.domain.model.Payment.class))).thenAnswer(i -> i.getArgument(0));
+        cl.flashdrop.orders.domain.port.PaymentGatewayPort paymentGateway =
+                mock(cl.flashdrop.orders.domain.port.PaymentGatewayPort.class);
+        org.mockito.Mockito.when(paymentGateway.providerName()).thenReturn("FAKE");
+        org.mockito.Mockito.when(paymentGateway.createSession(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(
+                new cl.flashdrop.orders.domain.port.PaymentGatewayPort.PaymentSession("tx-e2e", "fake://flashdrop-pay/tx-e2e"));
+        cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver =
+                mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class);
+        org.mockito.Mockito.when(policyResolver.effectiveFor(org.mockito.ArgumentMatchers.any())).thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5));
 
         CreateOrderUseCase createOrderUseCase = new CreateOrderUseCase(
-                orderRepositoryAdapter, catalogAdapter, clientAdapter, deliveryAdapter, eventPublisher,
-                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"));
-        ReflectionTestUtils.setField(createOrderUseCase, "deliveryFee", BigDecimal.valueOf(2500));
+                orderRepositoryAdapter, catalogAdapter, clientAdapter,
+                new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"),
+                new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
+                        mock(cl.flashdrop.orders.domain.port.DeliveryTariffRepositoryPort.class), null,
+                        BigDecimal.valueOf(2500), 1),
+                paymentRepository, paymentGateway, policyResolver, java.time.Clock.systemUTC());
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
-        ReflectionTestUtils.setField(createOrderUseCase, "orderCreatedRoutingKey", "order.created");
 
         UpdateOrderStatusUseCase updateOrderStatusUseCase = new UpdateOrderStatusUseCase(
                 orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter, clientAdapter);
@@ -278,7 +291,7 @@ class OrdersE2ESimulatedTest {
         createReq.setProductId(PRODUCT_ID);
         createReq.setQuantity(2);
 
-        ApiResponse<CreatedOrderResult> createResponse = orderController.createOrder(createReq);
+        ApiResponse<CreatedOrderResult> createResponse = orderController.createOrder(createReq, null);
 
         assertNotNull(createResponse);
         assertTrue(createResponse.isSuccess());
@@ -329,8 +342,8 @@ class OrdersE2ESimulatedTest {
         wireMock.verify(getRequestedFor(urlEqualTo("/api/internal/restaurants/7"))
                 .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
 
-        wireMock.verify(postRequestedFor(urlEqualTo("/api/internal/routes"))
-                .withHeader("X-Internal-Api-Key", equalTo(API_KEY)));
+        // La ruta de entrega ya no nace al crear el pedido sino al aprobarse el pago.
+        wireMock.verify(0, postRequestedFor(urlEqualTo("/api/internal/routes")));
 
         wireMock.verify(getRequestedFor(urlPathEqualTo("/api/internal/delivery-persons"))
                 .withQueryParam("userId", equalTo("1"))

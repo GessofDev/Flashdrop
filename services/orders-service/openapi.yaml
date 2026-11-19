@@ -18,7 +18,7 @@ info:
     - **Requiere JWT válido** para las operaciones públicas (excepto health)
     - Los endpoints bajo `/api/internal/**` usan **X-Internal-Api-Key** (no JWT);
       sólo deben ser llamados por otros servicios en la red interna
-    - El delivery fee hardcodeado es **2500 CLP** (configurable)
+    - El envío se calcula con la tarifa parametrizable del administrador (dimensión + distancia); sin tarifa o sin coordenadas de destino se cobra el respaldo de **2500 CLP** (`orders.delivery-fee`)
     - Los estados de pedido son strings en español
     - RabbitMQ se usa para eventos asíncronos (opcional)
     - La comunicación con catalog-service es sincrónica (HTTP)
@@ -100,7 +100,11 @@ paths:
       tags: [Orders]
       summary: Crear nuevo pedido
       description: |
-        Crea un nuevo pedido. Valida que los productos existan
+        Crea un nuevo pedido **pendiente de pago** (estado `Pendiente de pago`) con su cobro abierto en la pasarela.
+        El envío lo calcula el servidor (tarifa del administrador) y se cobra antes de pagar; la app puede
+        mostrarlo antes con `POST /api/orders/delivery-quote`. El pedido pasa a `Nuevo pedido` recién cuando el
+        pago se aprueba. Header opcional `Idempotency-Key` (máx. 64): la misma llave del mismo cliente devuelve
+        el mismo pedido. Valida que los productos existan
         consultando al catalog-service.
       operationId: createOrder
       requestBody:
@@ -236,6 +240,208 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /api/orders/delivery-quote:
+    post:
+      tags: [Payments]
+      summary: Cotizar un pedido antes de pagar
+      description: |
+        Devuelve subtotal, envío y total tal como el servidor los cobrará al crear el pedido (mismo cálculo).
+        El envío es **costo por dimensión + costo por distancia** según la tarifa que define el administrador.
+        La distancia es en línea recta entre el local y el destino. Sin tarifa cargada o sin coordenadas de
+        destino se cobra el envío de respaldo (`defaultFee: true`). Si hay tarifa y destino pero el local no
+        tiene ubicación, responde 400 "El local no tiene ubicacion configurada".
+      operationId: quoteOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderItemRequest'
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+      responses:
+        '200':
+          description: Cotización
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/OrderQuote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/orders/{id}/payments:
+    get:
+      tags: [Payments]
+      summary: Estado del pago de un pedido
+      description: |
+        Solo el cliente dueño. La app consulta este endpoint mientras espera la confirmación: cuando
+        `orderStatus` pasa a `Nuevo pedido` el pago fue aprobado; si `paymentStatus` es `RECHAZADO` puede reintentar.
+      operationId: getOrderPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado del pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentView'
+        '403':
+          description: No es el cliente dueño del pedido
+    post:
+      tags: [Payments]
+      summary: Abrir un nuevo intento de pago
+      description: |
+        Para el mismo pedido, por ejemplo tras un pago rechazado. Si ya hay un cobro abierto devuelve ese.
+        400 si el pedido ya no está pendiente de pago o su plazo para pagar venció.
+      operationId: retryOrderPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Cobro abierto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenPayment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: No es el cliente dueño del pedido
+
+  /api/payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Aviso de la pasarela con el resultado de un pago
+      description: |
+        Sin JWT: se autentica con el header `X-Payment-Signature` (secreto compartido
+        `orders.payment.webhook-secret`, Secrets Manager `flashdrop/payment-webhook-secret`). Es idempotente.
+        Aprobado: el pedido pasa a `Nuevo pedido`, se fija el plazo de respuesta de la tienda, se crea la ruta
+        de entrega y se publica `order.created`. Rechazado: el pedido sigue pendiente de pago.
+      operationId: paymentWebhook
+      parameters:
+        - name: X-Payment-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerTxId, status]
+              properties:
+                providerTxId:
+                  type: string
+                status:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+      responses:
+        '200':
+          description: "Resultado: ORDER_ACTIVATED, ALREADY_CONFIRMED, ORDER_NOT_PENDING o PAYMENT_REJECTED"
+        '403':
+          description: Firma inválida
+        '404':
+          description: Pago no encontrado
+
+  /api/payments/fake/{providerTxId}/resolve:
+    post:
+      tags: [Payments]
+      summary: Resolver un pago con la pasarela simulada
+      description: |
+        Solo existe con `orders.payment.provider=fake`. La pantalla de pago simulada de la app llama aquí para
+        aprobar o rechazar. Solo el cliente dueño del pedido puede resolver su pago.
+      operationId: resolveFakePayment
+      parameters:
+        - name: providerTxId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+      responses:
+        '200':
+          description: Resultado aplicado
+        '403':
+          description: No es el cliente dueño del pedido
+
+  /api/admin/delivery-tariff:
+    get:
+      tags: [Admin]
+      summary: Ver la tarifa de envío vigente
+      description: |
+        Solo administradores (usuario con los roles Cliente, Restaurante y Repartidor a la vez; 403 si no).
+        Listas vacías = no hay tarifa y se cobra el envío de respaldo.
+      operationId: getDeliveryTariff
+      responses:
+        '200':
+          description: Tarifa vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryTariff'
+        '403':
+          description: No es administrador
+    put:
+      tags: [Admin]
+      summary: Reemplazar la tarifa de envío
+      description: |
+        Reemplaza ambas tablas completas. Reglas: los rangos parten en 0, no se solapan ni dejan huecos, el
+        último queda abierto (sin máximo) y los precios no son negativos. Rango de dimensión: enteros con ambos
+        extremos incluidos. Rango de distancia: desde incluido, hasta excluido. Con ambas listas vacías se
+        vuelve al envío de respaldo (2500).
+      operationId: replaceDeliveryTariff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryTariff'
+      responses:
+        '200':
+          description: Tarifa guardada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryTariff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: No es administrador
 
   /api/orders/{id}:
     get:
@@ -899,8 +1105,22 @@ components:
           example: "Av. Providencia 1200, Santiago"
         paymentMethod:
           type: string
-          description: "Método de pago: Efectivo, Tarjeta, Transferencia"
-          example: Efectivo
+          description: "Solo se acepta Tarjeta (valor por defecto si se omite). Efectivo y Transferencia se rechazan con 400."
+          example: Tarjeta
+        latitude:
+          type: number
+          format: decimal
+          minimum: -90
+          maximum: 90
+          description: Latitud del destino de entrega (opcional, alias delivery_latitude). Va junto con longitude. Sin coordenadas se cobra el envío de respaldo (2500).
+          example: -33.4372
+        longitude:
+          type: number
+          format: decimal
+          minimum: -180
+          maximum: 180
+          description: Longitud del destino de entrega (opcional, alias delivery_longitude).
+          example: -70.6506
         distanceKm:
           type: number
           format: decimal
@@ -1033,7 +1253,7 @@ components:
           example: 20480
         paymentMethod:
           type: string
-          example: Efectivo
+          example: Tarjeta
         receptionMode:
           type: string
           enum: [NORMAL, SEGURO]
@@ -1231,6 +1451,107 @@ components:
         status:
           type: string
 
+    OrderQuote:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          example: 18000
+        deliveryFee:
+          type: number
+          example: 2800
+        total:
+          type: number
+          example: 20800
+        defaultFee:
+          type: boolean
+          description: true = se cobra el envío de respaldo (sin tarifa o sin coordenadas de destino); el desglose no aplica.
+        vehicle:
+          type: string
+          enum: [MOTO, BICI, AUTO]
+        dimension:
+          type: integer
+          description: Suma de cantidad x dimensión (escala 1 a 10 por producto).
+        distanceKm:
+          type: number
+        dimensionCost:
+          type: number
+        distanceCost:
+          type: number
+
+    PaymentView:
+      type: object
+      properties:
+        orderStatus:
+          type: string
+          example: Pendiente de pago
+        paymentStatus:
+          type: string
+          enum: [PENDIENTE, APROBADO, RECHAZADO, EXPIRADO]
+          description: Estado del último intento de pago.
+        paymentId:
+          type: integer
+          format: int64
+        paymentUrl:
+          type: string
+          description: Solo si hay un cobro abierto.
+        paymentExpiresAt:
+          type: string
+          format: date-time
+
+    OpenPayment:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+        paymentUrl:
+          type: string
+        paymentExpiresAt:
+          type: string
+          format: date-time
+
+    DeliveryTariff:
+      type: object
+      properties:
+        dimensionRanges:
+          type: array
+          items:
+            type: object
+            required: [minDimension, vehicle, price]
+            properties:
+              minDimension:
+                type: integer
+                example: 0
+              maxDimension:
+                type: integer
+                nullable: true
+                description: Sin máximo en el último rango.
+                example: 4
+              vehicle:
+                type: string
+                enum: [MOTO, BICI, AUTO]
+              price:
+                type: number
+                example: 500
+        distanceRanges:
+          type: array
+          items:
+            type: object
+            required: [minKm, price]
+            properties:
+              minKm:
+                type: number
+                example: 0
+              maxKm:
+                type: number
+                nullable: true
+                description: Sin máximo en el último rango. El extremo superior no se incluye.
+                example: 2
+              price:
+                type: number
+                example: 1000
+
     CreatedOrderResult:
       type: object
       properties:
@@ -1253,6 +1574,23 @@ components:
             en modo `SEGURO`; en `NORMAL` se omite. El cliente puede volver a consultarlo en el
             detalle del pedido.
           example: "482913"
+        status:
+          type: string
+          example: Pendiente de pago
+        deliveryFee:
+          type: number
+          description: Envío calculado por el servidor.
+          example: 2800
+        paymentId:
+          type: integer
+          format: int64
+        paymentUrl:
+          type: string
+          description: Enlace de la pasarela que la app debe abrir para pagar (pasarela simulada `fake://flashdrop-pay/{txId}`).
+          example: fake://flashdrop-pay/fake-2f1c
+        paymentExpiresAt:
+          type: string
+          format: date-time
 
     ApiResponse OrderList:
       type: object

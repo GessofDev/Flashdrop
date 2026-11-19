@@ -43,6 +43,12 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :status, o.storeResponseDueAt = :due "
+            + "WHERE o.id = :id AND o.status = :expected")
+    int confirmPayment(@Param("id") Long id, @Param("expected") String expected,
+                       @Param("status") String status, @Param("due") OffsetDateTime due);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OrderEntity o SET o.status = :status WHERE o.id = :id AND o.status = :expected")
     int updateStatusIfCurrent(@Param("id") Long id, @Param("expected") String expected,
                               @Param("status") String status);

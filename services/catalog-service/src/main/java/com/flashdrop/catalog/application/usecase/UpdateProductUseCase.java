@@ -43,7 +43,8 @@ public class UpdateProductUseCase {
                 request.description() == null ? currentProduct.getDescription() : request.description(),
                 request.price() == null ? currentProduct.getPrice() : new Money(request.price()),
                 request.image() == null ? currentProduct.getImage() : request.image(),
-                request.available() == null ? currentProduct.isAvailable() : request.available()
+                request.available() == null ? currentProduct.isAvailable() : request.available(),
+                request.dimension() == null ? currentProduct.getDimension() : request.dimension()
         );
 
         validateReferences(productToUpdate);

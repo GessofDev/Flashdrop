@@ -37,6 +37,18 @@ public class OrderEntity {
     @Column(name = "commune", length = 120)
     private String commune;
 
+    @Column(name = "delivery_latitude", precision = 9, scale = 6)
+    private BigDecimal deliveryLatitude;
+
+    @Column(name = "delivery_longitude", precision = 9, scale = 6)
+    private BigDecimal deliveryLongitude;
+
+    @Column(name = "distance_km", precision = 6, scale = 2)
+    private BigDecimal distanceKm;
+
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
+
     @Column(name = "subtotal", nullable = false)
     private BigDecimal subtotal;
 

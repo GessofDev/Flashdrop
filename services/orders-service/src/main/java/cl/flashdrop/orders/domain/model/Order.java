@@ -32,6 +32,12 @@ public class Order {
     private OrderStatus status;
     private final String address;
     private final String commune;
+    /** Coordenadas del destino (opcionales: los pedidos antiguos no las traen). */
+    private final BigDecimal deliveryLatitude;
+    private final BigDecimal deliveryLongitude;
+    /** Distancia y tiempo estimados del despacho; la ruta de entrega se crea con ellos al aprobarse el pago. */
+    private final BigDecimal distanceKm;
+    private final Integer estimatedMinutes;
     private final BigDecimal subtotal;
     private final BigDecimal deliveryFee;
     private final BigDecimal total;
