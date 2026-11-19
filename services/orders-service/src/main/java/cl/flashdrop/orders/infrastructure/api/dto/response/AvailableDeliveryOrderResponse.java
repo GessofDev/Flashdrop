@@ -21,6 +21,26 @@ public record AvailableDeliveryOrderResponse(
         BigDecimal total,
         Double distanceKm,
         Integer estimatedMinutes,
-        String receptionMode
+        String receptionMode,
+        BigDecimal pickupLatitude,
+        BigDecimal pickupLongitude
 ) {
+    public AvailableDeliveryOrderResponse(
+            Long orderId,
+            Long restaurantId,
+            String code,
+            String status,
+            String restaurantName,
+            String pickupAddress,
+            String deliveryAddress,
+            String clientName,
+            BigDecimal total,
+            Double distanceKm,
+            Integer estimatedMinutes,
+            String receptionMode
+    ) {
+        this(orderId, restaurantId, code, status, restaurantName, pickupAddress,
+                deliveryAddress, clientName, total, distanceKm, estimatedMinutes, receptionMode,
+                null, null);
+    }
 }

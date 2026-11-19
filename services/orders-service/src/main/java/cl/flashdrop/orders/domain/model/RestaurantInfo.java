@@ -3,6 +3,7 @@ package cl.flashdrop.orders.domain.model;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
@@ -18,6 +19,8 @@ public class RestaurantInfo {
     private final UUID restaurantId;
     private final String name;
     private final String address;
+    private final BigDecimal latitude;
+    private final BigDecimal longitude;
 
     @Builder.Default
     private final boolean open = true;

@@ -1,6 +1,6 @@
 package cl.flashdrop.orders.infrastructure.adapter.outbound.http.dto;
 
-import java.util.UUID;
+import java.math.BigDecimal;
 
 /**
  * DTO de transporte interno de Catalog para restaurants.
@@ -10,6 +10,11 @@ public record InternalRestaurantDto(
         String name,
         String address,
         Long userId,
-        Boolean open
+        Boolean open,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
+    public InternalRestaurantDto(Long id, String name, String address, Long userId, Boolean open) {
+        this(id, name, address, userId, open, null, null);
+    }
 }

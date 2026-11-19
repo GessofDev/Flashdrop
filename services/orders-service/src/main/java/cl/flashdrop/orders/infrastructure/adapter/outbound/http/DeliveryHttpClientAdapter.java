@@ -75,6 +75,13 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         if (route.getReceptionMode() != null) {
             body.put("receptionMode", route.getReceptionMode());
         }
+        if (route.getPickupLatitude() != null && route.getPickupLongitude() != null) {
+            body.put("pickupLatitude", route.getPickupLatitude());
+            body.put("pickupLongitude", route.getPickupLongitude());
+        }
+        if (route.getClientUserId() != null) {
+            body.put("clientUserId", String.valueOf(IdConverter.toLong(route.getClientUserId())));
+        }
         try {
             deliveryInternalRestClient.post()
                     .uri("/api/internal/routes")

@@ -313,7 +313,9 @@ public class OrderController {
                         ? order.getRoute().getDistanceKm().doubleValue()
                         : null,
                 order.getRoute() != null ? order.getRoute().getEstimatedMinutes() : null,
-                order.getReceptionMode().name());
+                order.getReceptionMode().name(),
+                order.getRestaurantInfo() != null ? order.getRestaurantInfo().getLatitude() : null,
+                order.getRestaurantInfo() != null ? order.getRestaurantInfo().getLongitude() : null);
     }
 
     private OrderDetailResponse toDetailResponse(Order order) {

@@ -115,6 +115,34 @@ class DeliveryHttpClientAdapterTest {
     }
 
     @Test
+    void shouldForwardPickupCoordinatesAndClientUserIdWhenPresent() {
+        MockDeliveryServer.stubCreateRouteOk(wireMock);
+
+        DeliveryRoute route = DeliveryRoute.builder()
+                .orderId(toUuid(502L))
+                .pickupAddress("Burgers House, Los Leones 300")
+                .deliveryAddress("Av. Providencia 1200")
+                .distanceKm(BigDecimal.valueOf(3.2))
+                .estimatedMinutes(20)
+                .status("Pendiente")
+                .pickupLatitude(new BigDecimal("-33.448900"))
+                .pickupLongitude(new BigDecimal("-70.669300"))
+                .clientUserId(toUuid(77L))
+                .build();
+
+        assertDoesNotThrow(() -> adapter.saveRoute(route));
+
+        wireMock.verify(com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor(
+                        com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo("/api/internal/routes"))
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath(
+                        "$.pickupLatitude", com.github.tomakehurst.wiremock.client.WireMock.equalTo("-33.4489")))
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath(
+                        "$.pickupLongitude", com.github.tomakehurst.wiremock.client.WireMock.equalTo("-70.6693")))
+                .withRequestBody(com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath(
+                        "$.clientUserId", com.github.tomakehurst.wiremock.client.WireMock.equalTo("77"))));
+    }
+
+    @Test
     void shouldThrowExternalServiceExceptionOnCreateRouteError() {
         MockDeliveryServer.stubCreateRouteServerError(wireMock);
 
