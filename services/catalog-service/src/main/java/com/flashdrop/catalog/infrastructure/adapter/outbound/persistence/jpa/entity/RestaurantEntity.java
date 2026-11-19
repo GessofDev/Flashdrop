@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,12 @@ public class RestaurantEntity {
     @Column(name = "accepting_orders", nullable = false)
     private boolean acceptingOrders = true;
 
+    @Column(precision = 9, scale = 6)
+    private BigDecimal latitude;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+
     // EAGER porque toDomain corre fuera de la sesión; SUBSELECT evita una consulta
     // por local al listar el marketplace.
     @ElementCollection(fetch = FetchType.EAGER)
@@ -54,11 +61,18 @@ public class RestaurantEntity {
     }
 
     public static RestaurantEntity create(String name, String address, Long userId, boolean acceptingOrders) {
+        return create(name, address, userId, acceptingOrders, null, null);
+    }
+
+    public static RestaurantEntity create(String name, String address, Long userId, boolean acceptingOrders,
+                                          BigDecimal latitude, BigDecimal longitude) {
         RestaurantEntity entity = new RestaurantEntity();
         entity.name = name;
         entity.address = address;
         entity.userId = userId;
         entity.acceptingOrders = acceptingOrders;
+        entity.latitude = latitude;
+        entity.longitude = longitude;
         entity.createdAt = LocalDateTime.now();
         return entity;
     }
@@ -76,8 +90,14 @@ public class RestaurantEntity {
         newHours.forEach(tramo -> hours.add(new RestaurantHoursEmbeddable(tramo)));
     }
 
+    public void changeLocation(BigDecimal latitude, BigDecimal longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
     public Restaurant toDomain() {
         return new Restaurant(id, userId, name, address, createdAt, acceptingOrders,
-                hours.stream().map(RestaurantHoursEmbeddable::toDomain).toList());
+                hours.stream().map(RestaurantHoursEmbeddable::toDomain).toList(),
+                latitude, longitude);
     }
 }

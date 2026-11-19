@@ -1,7 +1,10 @@
 package com.flashdrop.catalog.domain.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.flashdrop.catalog.domain.valueobjects.Coordinates;
 
 public class Restaurant {
 
@@ -12,13 +15,20 @@ public class Restaurant {
     private LocalDateTime createdAt;
     private boolean acceptingOrders;
     private List<OpeningHours> hours;
+    private Coordinates coordinates;
 
     public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt) {
-        this(id, userId, name, address, createdAt, true, List.of());
+        this(id, userId, name, address, createdAt, true, List.of(), null, null);
     }
 
     public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt,
                       boolean acceptingOrders, List<OpeningHours> hours) {
+        this(id, userId, name, address, createdAt, acceptingOrders, hours, null, null);
+    }
+
+    public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt,
+                      boolean acceptingOrders, List<OpeningHours> hours,
+                      BigDecimal latitude, BigDecimal longitude) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre del restaurante es obligatorio");
         }
@@ -30,6 +40,7 @@ public class Restaurant {
         this.createdAt = createdAt;
         this.acceptingOrders = acceptingOrders;
         this.hours = List.copyOf(hours);
+        this.coordinates = Coordinates.ofNullable(latitude, longitude);
     }
 
     /**
@@ -69,5 +80,13 @@ public class Restaurant {
 
     public List<OpeningHours> getHours() {
         return hours;
+    }
+
+    public BigDecimal getLatitude() {
+        return coordinates == null ? null : coordinates.latitude();
+    }
+
+    public BigDecimal getLongitude() {
+        return coordinates == null ? null : coordinates.longitude();
     }
 }

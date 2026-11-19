@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,7 +17,9 @@ public record RestaurantResponse(
         boolean acceptingOrders,
         List<OpeningHoursDto> hours,
         Double ratingAverage,
-        long ratingCount
+        long ratingCount,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
     /**
      * @param rating promedio cacheado de las calificaciones del local; sin
@@ -34,7 +37,9 @@ public record RestaurantResponse(
                 restaurant.isAcceptingOrders(),
                 restaurant.getHours().stream().map(OpeningHoursDto::fromDomain).toList(),
                 summary.average(),
-                summary.count()
+                summary.count(),
+                restaurant.getLatitude(),
+                restaurant.getLongitude()
         );
     }
 }

@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.memory;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -51,21 +52,24 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), userId, restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours()));
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
+                restaurant.getLatitude(), restaurant.getLongitude()));
     }
 
     @Override
     public Optional<Restaurant> clearOwner(Long userId) {
         return findByUserId(userId).flatMap(owned -> replace(owned.getId(), restaurant -> new Restaurant(
                 restaurant.getId(), null, restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), false, restaurant.getHours())));
+                restaurant.getCreatedAt(), false, restaurant.getHours(),
+                restaurant.getLatitude(), restaurant.getLongitude())));
     }
 
     @Override
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+                             BigDecimal latitude, BigDecimal longitude) {
         long nextId = restaurants.stream().mapToLong(Restaurant::getId).max().orElse(0L) + 1;
         Restaurant created = new Restaurant(nextId, ownerUserId, name, address, LocalDateTime.now(),
-                acceptingOrders, List.of());
+                acceptingOrders, List.of(), latitude, longitude);
         restaurants.add(created);
         return created;
     }
@@ -74,14 +78,24 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     public Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders) {
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), acceptingOrders, restaurant.getHours()));
+                restaurant.getCreatedAt(), acceptingOrders, restaurant.getHours(),
+                restaurant.getLatitude(), restaurant.getLongitude()));
     }
 
     @Override
     public Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours) {
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), hours));
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), hours,
+                restaurant.getLatitude(), restaurant.getLongitude()));
+    }
+
+    @Override
+    public Optional<Restaurant> updateLocation(Long restaurantId, BigDecimal latitude, BigDecimal longitude) {
+        return replace(restaurantId, restaurant -> new Restaurant(
+                restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
+                latitude, longitude));
     }
 
     private Optional<Restaurant> replace(Long restaurantId, UnaryOperator<Restaurant> change) {

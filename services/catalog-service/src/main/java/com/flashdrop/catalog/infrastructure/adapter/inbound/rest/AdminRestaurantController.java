@@ -67,7 +67,9 @@ public class AdminRestaurantController {
             @AuthenticationPrincipal Jwt admin,
             @Valid @RequestBody CreateRestaurantRequest request
     ) {
-        var restaurant = createRestaurantUseCase.execute(request.name(), request.address(), request.ownerUserId());
+        var restaurant = createRestaurantUseCase.execute(
+                request.name(), request.address(), request.ownerUserId(),
+                request.latitude(), request.longitude());
         log.info("ADMIN_CREATE_RESTAURANT actor={} restaurantId={} ownerUserId={}",
                 actor(admin), restaurant.getId(), restaurant.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED)

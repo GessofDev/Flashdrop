@@ -22,7 +22,7 @@ S5 — Coordenadas de la tienda
 ## Tasks
 
 T1 | S1-S5 | inline | `docs(delivery): document courier live location design` (`7eca519`)
-T2 | S5 | pending | `feat(catalog): add manual store coordinates` (PR 1 · WU-1)
+T2 | S5 | inline | `feat(catalog): add manual store coordinates` (PR 1 · WU-1)
 T3 | S1,S5 | pending | `feat(delivery): store pickup coordinates and client user id on routes` (PR 2 · WU-2)
 T4 | S4,S5 | pending | `feat(orders): propagate pickup coordinates for claimable orders` (PR 2 · WU-3)
 T5 | S2 | pending | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
