@@ -94,7 +94,7 @@ public class AuthController {
                                      @Valid @RequestBody UpdateProfileRequest req) {
         TokenClaims claims = validateToken.validate(bearer(authorization));
         return updateUserProfile.updateProfile(claims.userId(), new UpdateUserProfileCommand(
-                req.name(), req.lastName(), req.phone(), req.photo()));
+                req.name(), req.lastName(), req.phone()));
     }
 
     /** Responde 202 exista o no el correo: el resultado no se puede distinguir (S-07). */

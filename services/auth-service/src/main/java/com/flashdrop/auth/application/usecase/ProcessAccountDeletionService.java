@@ -13,13 +13,14 @@ import com.flashdrop.auth.application.port.outbound.AccountDeletionStore;
 import com.flashdrop.auth.application.port.outbound.AccountErasurePort;
 import com.flashdrop.auth.application.port.outbound.AuditLogger;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.ProfilePhotoStorage;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
 import com.flashdrop.auth.domain.exception.AccountDeletionBlockedException;
 import com.flashdrop.auth.domain.model.AccountDeletion;
 
 /**
- * Completa en segundo plano la eliminacion de cuentas: Orders, luego Delivery, luego Catalog y al final
- * borra al usuario en Auth. El orden importa: Orders necesita resolver al cliente, tienda o repartidor
+ * Completa en segundo plano la eliminacion de cuentas: Orders, luego Delivery, luego Catalog, la foto de
+ * perfil (F10) y al final borra al usuario en Auth. El orden importa: Orders necesita resolver al cliente, tienda o repartidor
  * mientras Catalog y Delivery todavia los conocen. Cada paso es idempotente y su avance se guarda, asi un
  * reintento continua donde quedo. Si aparecen pedidos en curso (carrera entre la solicitud y el borrado) la
  * eliminacion se aborta y la cuenta se reactiva: nunca se cancela nada.
@@ -35,17 +36,20 @@ public class ProcessAccountDeletionService implements ProcessAccountDeletionUseC
     private final AccountErasurePort erasure;
     private final UserRepository users;
     private final CredentialStore credentials;
+    private final ProfilePhotoStorage photos;
     private final AuditLogger audit;
     private final Clock clock;
     private final int maxAttempts;
 
     public ProcessAccountDeletionService(AccountDeletionStore deletions, AccountErasurePort erasure,
                                          UserRepository users, CredentialStore credentials,
-                                         AuditLogger audit, Clock clock, int maxAttempts) {
+                                         ProfilePhotoStorage photos, AuditLogger audit, Clock clock,
+                                         int maxAttempts) {
         this.deletions = deletions;
         this.erasure = erasure;
         this.users = users;
         this.credentials = credentials;
+        this.photos = photos;
         this.audit = audit;
         this.clock = clock;
         this.maxAttempts = maxAttempts;
@@ -83,6 +87,8 @@ public class ProcessAccountDeletionService implements ProcessAccountDeletionUseC
                 current = current.withCatalogDone();
                 deletions.save(current);
             }
+            // Idempotente: si falla, el reintento vuelve a borrar sin error lo que ya no esta.
+            photos.deleteAll(ProfilePhotos.folderOf(userId));
             users.deleteById(userId);
             deletions.delete(userId);
             audit.record(new AuditLogger.AuditEvent(ACTION, target, "SUCCESS", null));

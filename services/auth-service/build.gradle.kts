@@ -29,6 +29,10 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
+    // Foto de perfil (F10) en el bucket S3 de Floci. Misma version que catalog-service.
+    implementation(platform("software.amazon.awssdk:bom:2.29.52"))
+    implementation("software.amazon.awssdk:s3")
+
     // JWT (firma/verificación)
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")

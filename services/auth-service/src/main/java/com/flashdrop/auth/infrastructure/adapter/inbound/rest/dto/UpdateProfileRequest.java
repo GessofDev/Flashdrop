@@ -6,7 +6,8 @@ import jakarta.validation.constraints.Size;
 /**
  * Cuerpo de {@code PUT /auth/profile}.
  *
- * <p>No trae email ni rut porque no son editables. Si el cliente los manda
+ * <p>No trae email ni rut porque no son editables. Tampoco la foto: se sube
+ * por {@code POST /auth/profile/photo}; un {@code photo} que llegue aca se ignora. Si el cliente los manda
  * igual, se descartan al deserializar y no llegan al caso de uso. No se
  * rechazan con 400: Spring Boot apaga FAIL_ON_UNKNOWN_PROPERTIES de forma
  * global, y {@code @JsonIgnoreProperties(ignoreUnknown = false)} no lo vuelve
@@ -18,7 +19,6 @@ import jakarta.validation.constraints.Size;
 public record UpdateProfileRequest(
         @NotBlank @Size(max = 100) String name,
         @NotBlank @Size(max = 100) String lastName,
-        String phone,
-        @Size(max = 2048) String photo
+        String phone
 ) {
 }

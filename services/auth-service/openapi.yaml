@@ -266,6 +266,125 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/profile/photo:
+    post:
+      tags: [Users]
+      summary: Subir o reemplazar la foto de perfil (F10)
+      description: |
+        Multipart con el campo `file`. Acepta JPEG o PNG (reconocidos por su contenido),
+        de hasta 2 MB y 4000 x 4000 px. Se guarda reducida a 512 px como JPEG y sin
+        metadatos (EXIF/GPS) en un bucket privado. Maximo 5 subidas cada 5 minutos.
+        Responde el mismo UserProfile que GET /auth/profile, con `photo` actualizado.
+      operationId: uploadProfilePhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Foto guardada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: "No es JPEG ni PNG, el tipo declarado no coincide, la imagen esta danada o falta el campo `file` (AUTH_PHOTO_INVALID / VALIDATION_ERROR)"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token inválido o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Supera 2 MB o 4000 x 4000 px (AUTH_PHOTO_TOO_LARGE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas subidas seguidas (AUTH_RATE_LIMITED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Almacenamiento de fotos no configurado o sin respuesta; la foto anterior se mantiene
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Users]
+      summary: Leer la foto de perfil propia (F10)
+      description: |
+        Devuelve el JPEG. Usar la URL que entrega `UserProfile.photo` (lleva `?v=`, que cambia
+        con cada foto). Se puede guardar un dia en la cache del dispositivo (`Cache-Control: private`).
+      operationId: getProfilePhoto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: v
+          in: query
+          required: false
+          description: Version de la foto; solo sirve para invalidar la cache del cliente.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Foto
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Token inválido o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El usuario no tiene foto (AUTH_PHOTO_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Almacenamiento de fotos no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Users]
+      summary: Quitar la foto de perfil (F10)
+      description: Idempotente. Responde 204 aunque el usuario no tuviera foto.
+      operationId: deleteProfilePhoto
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Foto quitada
+        '401':
+          description: Token inválido o ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /auth/account:
     delete:
       tags: [Users]
@@ -797,8 +916,12 @@ components:
           example: "12.345.678-9"
         photo:
           type: string
-          description: URL de la foto de perfil
-          example: "https://almacenamiento.flashdrop.cl/fotos/user123.jpg"
+          nullable: true
+          description: |
+            Ruta de la foto de perfil en el gateway, o null si no tiene. Se pide con el
+            mismo token (GET /auth/profile/photo). El parametro `v` cambia con cada foto nueva.
+            No se edita por PUT /auth/profile: se sube por POST /auth/profile/photo.
+          example: "/auth/profile/photo?v=5b1f1c2e-7d3a-4c8e-9f10-2a6b4c8d0e12"
         roles:
           type: array
           items:

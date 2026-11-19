@@ -18,6 +18,7 @@ import com.flashdrop.auth.application.port.outbound.AccountErasurePort;
 import com.flashdrop.auth.application.port.outbound.AuditLogger;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
 import com.flashdrop.auth.application.port.outbound.PasswordHasher;
+import com.flashdrop.auth.application.port.outbound.ProfilePhotoStorage;
 import com.flashdrop.auth.application.port.outbound.RateLimiter;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
@@ -41,9 +42,9 @@ public class AccountDeletionConfig {
     @Bean
     ProcessAccountDeletionUseCase processAccountDeletionUseCase(
             AccountDeletionStore deletions, AccountErasurePort erasure, UserRepository users,
-            CredentialStore credentials, AuditLogger audit,
+            CredentialStore credentials, ProfilePhotoStorage photos, AuditLogger audit,
             @Value("${auth.account-deletion.max-attempts:20}") int maxAttempts) {
-        return new ProcessAccountDeletionService(deletions, erasure, users, credentials, audit,
+        return new ProcessAccountDeletionService(deletions, erasure, users, credentials, photos, audit,
                 Clock.systemUTC(), maxAttempts);
     }
 

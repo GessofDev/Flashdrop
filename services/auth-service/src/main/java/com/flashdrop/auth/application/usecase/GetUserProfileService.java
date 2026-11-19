@@ -20,6 +20,6 @@ public class GetUserProfileService implements GetUserProfileUseCase {
                 .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado: " + userId));
 
         return new UserProfile(user.id(), user.name(), user.lastName(), user.email().value(),
-                user.phone(), user.rut(), user.photo(), user.roleNames());
+                user.phone(), user.rut(), ProfilePhotos.urlFor(user.photo(), user.id()), user.roleNames());
     }
 }

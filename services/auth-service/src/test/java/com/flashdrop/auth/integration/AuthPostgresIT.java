@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -268,7 +269,8 @@ class AuthPostgresIT {
         assertEquals("Nico", fila.get("name"));
         assertEquals("Leiva", fila.get("last_name"));
         assertEquals("+56944446666", fila.get("phone"));
-        assertEquals("https://img.flashdrop.cl/perfil.png", fila.get("photo"));
+        // F10: la foto ya no se cambia por PUT; un "photo" en el cuerpo se ignora.
+        assertNull(fila.get("photo"));
         assertEquals("perfil@flashdrop.cl", fila.get("email"));
         assertEquals(true, fila.get("movio"), "updated_at no se actualizo");
         assertEquals(1, jdbc.queryForObject(
