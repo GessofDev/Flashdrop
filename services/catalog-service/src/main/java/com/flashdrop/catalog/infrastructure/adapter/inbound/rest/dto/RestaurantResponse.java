@@ -19,7 +19,8 @@ public record RestaurantResponse(
         Double ratingAverage,
         long ratingCount,
         BigDecimal latitude,
-        BigDecimal longitude
+        BigDecimal longitude,
+        BigDecimal deliveryRadiusKm
 ) {
     /**
      * @param rating promedio cacheado de las calificaciones del local; sin
@@ -39,7 +40,8 @@ public record RestaurantResponse(
                 summary.average(),
                 summary.count(),
                 restaurant.getLatitude(),
-                restaurant.getLongitude()
+                restaurant.getLongitude(),
+                restaurant.getDeliveryRadiusKm()
         );
     }
 }

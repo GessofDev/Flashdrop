@@ -16,6 +16,7 @@ import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantRatingStatsUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreHoursUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreLocationUseCase;
+import com.flashdrop.catalog.application.usecase.SetStoreDeliveryRadiusUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreOpenStatusUseCase;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.model.RatingSummary;
@@ -24,6 +25,7 @@ import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.OpeningHour
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.RestaurantResponse;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreHoursRequest;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreLocationRequest;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreDeliveryRadiusRequest;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreOpenStatusRequest;
 
 import jakarta.validation.Valid;
@@ -37,6 +39,7 @@ public class MyStoreRestaurantController {
     private final SetStoreOpenStatusUseCase setStoreOpenStatusUseCase;
     private final SetStoreHoursUseCase setStoreHoursUseCase;
     private final SetStoreLocationUseCase setStoreLocationUseCase;
+    private final SetStoreDeliveryRadiusUseCase setStoreDeliveryRadiusUseCase;
     private final GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase;
     private final Clock clock;
 
@@ -45,6 +48,7 @@ public class MyStoreRestaurantController {
             SetStoreOpenStatusUseCase setStoreOpenStatusUseCase,
             SetStoreHoursUseCase setStoreHoursUseCase,
             SetStoreLocationUseCase setStoreLocationUseCase,
+            SetStoreDeliveryRadiusUseCase setStoreDeliveryRadiusUseCase,
             GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase,
             Clock clock
     ) {
@@ -52,6 +56,7 @@ public class MyStoreRestaurantController {
         this.setStoreOpenStatusUseCase = setStoreOpenStatusUseCase;
         this.setStoreHoursUseCase = setStoreHoursUseCase;
         this.setStoreLocationUseCase = setStoreLocationUseCase;
+        this.setStoreDeliveryRadiusUseCase = setStoreDeliveryRadiusUseCase;
         this.getRestaurantRatingStatsUseCase = getRestaurantRatingStatsUseCase;
         this.clock = clock;
     }
@@ -90,6 +95,14 @@ public class MyStoreRestaurantController {
                 request.latitude(),
                 request.longitude()
         ));
+    }
+
+    @PutMapping("/delivery-radius")
+    public RestaurantResponse updateDeliveryRadius(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateStoreDeliveryRadiusRequest request
+    ) {
+        return toResponse(setStoreDeliveryRadiusUseCase.execute(userId(jwt), request.deliveryRadiusKm()));
     }
 
     private RestaurantResponse toResponse(Restaurant restaurant) {

@@ -12,9 +12,15 @@ public record InternalRestaurantDto(
         Long userId,
         Boolean open,
         BigDecimal latitude,
-        BigDecimal longitude
+        BigDecimal longitude,
+        BigDecimal deliveryRadiusKm
 ) {
     public InternalRestaurantDto(Long id, String name, String address, Long userId, Boolean open) {
-        this(id, name, address, userId, open, null, null);
+        this(id, name, address, userId, open, null, null, null);
+    }
+
+    public InternalRestaurantDto(Long id, String name, String address, Long userId, Boolean open,
+                                 BigDecimal latitude, BigDecimal longitude) {
+        this(id, name, address, userId, open, latitude, longitude, null);
     }
 }

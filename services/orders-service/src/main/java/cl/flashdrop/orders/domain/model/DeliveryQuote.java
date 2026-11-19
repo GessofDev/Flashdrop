@@ -5,8 +5,8 @@ import java.math.BigDecimal;
 /**
  * Costo de envio de un pedido y como se calculo.
  *
- * <p>{@code defaultFee = true} indica que se cobro el envio de respaldo (no habia tarifa cargada o
- * el destino no traia coordenadas); en ese caso vehiculo, dimension y desglose no aplican.</p>
+ * <p>{@code defaultFee = true} indica que se cobro el envio de respaldo por no haber tarifa;
+ * vehiculo, dimension y desglose no aplican. La cobertura se valida incluso en ese caso.</p>
  */
 public record DeliveryQuote(BigDecimal deliveryFee, Vehicle vehicle, Integer dimension, BigDecimal distanceKm,
                             BigDecimal dimensionCost, BigDecimal distanceCost, boolean defaultFee) {

@@ -38,4 +38,6 @@ public interface RestaurantRepositoryPort {
     Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours);
 
     Optional<Restaurant> updateLocation(Long restaurantId, BigDecimal latitude, BigDecimal longitude);
+
+    Optional<Restaurant> updateDeliveryRadius(Long restaurantId, BigDecimal deliveryRadiusKm);
 }

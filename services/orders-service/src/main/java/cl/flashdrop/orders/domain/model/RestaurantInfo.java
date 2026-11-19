@@ -21,6 +21,7 @@ public class RestaurantInfo {
     private final String address;
     private final BigDecimal latitude;
     private final BigDecimal longitude;
+    private final BigDecimal deliveryRadiusKm;
 
     @Builder.Default
     private final boolean open = true;
