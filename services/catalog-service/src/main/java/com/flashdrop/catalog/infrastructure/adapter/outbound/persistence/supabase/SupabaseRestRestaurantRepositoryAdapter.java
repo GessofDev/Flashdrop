@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.supabase;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -118,7 +119,8 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
 
     // Perfil legado: el alta administrativa requiere el perfil postgres.
     @Override
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+                             BigDecimal latitude, BigDecimal longitude) {
         throw new UnsupportedOperationException("El alta de locales requiere el perfil postgres");
     }
 
@@ -131,6 +133,11 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
     @Override
     public Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours) {
         throw new UnsupportedOperationException("La apertura del local requiere el perfil postgres");
+    }
+
+    @Override
+    public Optional<Restaurant> updateLocation(Long restaurantId, BigDecimal latitude, BigDecimal longitude) {
+        throw new UnsupportedOperationException("La ubicacion del local requiere el perfil postgres");
     }
 
     private List<RestaurantRow> fetchRestaurants(String url) {

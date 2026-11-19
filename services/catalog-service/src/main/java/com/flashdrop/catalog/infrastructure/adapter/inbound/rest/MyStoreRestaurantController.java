@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantRatingStatsUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreHoursUseCase;
+import com.flashdrop.catalog.application.usecase.SetStoreLocationUseCase;
 import com.flashdrop.catalog.application.usecase.SetStoreOpenStatusUseCase;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.model.RatingSummary;
@@ -22,6 +23,7 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.OpeningHoursDto;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.RestaurantResponse;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreHoursRequest;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreLocationRequest;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.UpdateStoreOpenStatusRequest;
 
 import jakarta.validation.Valid;
@@ -34,6 +36,7 @@ public class MyStoreRestaurantController {
     private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final SetStoreOpenStatusUseCase setStoreOpenStatusUseCase;
     private final SetStoreHoursUseCase setStoreHoursUseCase;
+    private final SetStoreLocationUseCase setStoreLocationUseCase;
     private final GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase;
     private final Clock clock;
 
@@ -41,12 +44,14 @@ public class MyStoreRestaurantController {
             GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
             SetStoreOpenStatusUseCase setStoreOpenStatusUseCase,
             SetStoreHoursUseCase setStoreHoursUseCase,
+            SetStoreLocationUseCase setStoreLocationUseCase,
             GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase,
             Clock clock
     ) {
         this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
         this.setStoreOpenStatusUseCase = setStoreOpenStatusUseCase;
         this.setStoreHoursUseCase = setStoreHoursUseCase;
+        this.setStoreLocationUseCase = setStoreLocationUseCase;
         this.getRestaurantRatingStatsUseCase = getRestaurantRatingStatsUseCase;
         this.clock = clock;
     }
@@ -72,6 +77,18 @@ public class MyStoreRestaurantController {
         return toResponse(setStoreHoursUseCase.execute(
                 userId(jwt),
                 request.hours().stream().map(OpeningHoursDto::toDomain).toList()
+        ));
+    }
+
+    @PutMapping("/location")
+    public RestaurantResponse updateLocation(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateStoreLocationRequest request
+    ) {
+        return toResponse(setStoreLocationUseCase.execute(
+                userId(jwt),
+                request.latitude(),
+                request.longitude()
         ));
     }
 

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -32,17 +33,38 @@ class CreateRestaurantUseCaseTest {
     @Test
     void execute_withNameAndOwner_createsAClosedRestaurant() {
         when(restaurants.findByUserId(5L)).thenReturn(Optional.empty());
-        when(restaurants.create("Local", "Calle 1", 5L, false)).thenReturn(stored(5L));
+        when(restaurants.create("Local", "Calle 1", 5L, false, null, null)).thenReturn(stored(5L));
 
         Restaurant result = useCase.execute("  Local ", " Calle 1 ", 5L);
 
         assertThat(result.getId()).isEqualTo(9L);
-        verify(restaurants).create("Local", "Calle 1", 5L, false);
+        verify(restaurants).create("Local", "Calle 1", 5L, false, null, null);
+    }
+
+    @Test
+    void execute_withCoordinates_forwardsCoordinatesToRepository() {
+        BigDecimal lat = new BigDecimal("-33.448900");
+        BigDecimal lng = new BigDecimal("-70.669300");
+        Restaurant saved = new Restaurant(9L, null, "Local", "Calle 1", LocalDateTime.now(), false, List.of(), lat, lng);
+        when(restaurants.create("Local", "Calle 1", null, false, lat, lng)).thenReturn(saved);
+
+        Restaurant result = useCase.execute("Local", "Calle 1", null, lat, lng);
+
+        assertThat(result.getLatitude()).isEqualByComparingTo(lat);
+        assertThat(result.getLongitude()).isEqualByComparingTo(lng);
+        verify(restaurants).create("Local", "Calle 1", null, false, lat, lng);
+    }
+
+    @Test
+    void execute_withHalfCoordinates_isRejected() {
+        assertThatThrownBy(() -> useCase.execute("Local", "Calle 1", null, new BigDecimal("-33.45"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
     void execute_withoutOwner_createsWithoutCheckingOwnership() {
-        when(restaurants.create("Local", null, null, false)).thenReturn(stored(null));
+        when(restaurants.create("Local", null, null, false, null, null)).thenReturn(stored(null));
 
         useCase.execute("Local", "  ", null);
 
@@ -53,7 +75,7 @@ class CreateRestaurantUseCaseTest {
     void execute_withBlankName_isRejected() {
         assertThatThrownBy(() -> useCase.execute("  ", "Calle", null))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean());
+        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -68,6 +90,6 @@ class CreateRestaurantUseCaseTest {
 
         assertThatThrownBy(() -> useCase.execute("Otro", "Calle", 5L))
                 .isInstanceOf(OwnerAlreadyAssignedException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean());
+        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
     }
 }

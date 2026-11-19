@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -110,6 +111,46 @@ class MyStoreRestaurantControllerIT {
                 "{}"
         }) {
             mockMvc.perform(put("/api/catalog/my/restaurant/hours")
+                            .with(ownerJwt(1L))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void locationIsUpdatedClearedAndVisibleInternally() throws Exception {
+        mockMvc.perform(put("/api/catalog/my/restaurant/location")
+                        .with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"latitude\":-33.448900,\"longitude\":-70.669300}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").value(-33.448900))
+                .andExpect(jsonPath("$.longitude").value(-70.669300));
+
+        mockMvc.perform(get("/api/internal/restaurants/1").header("X-Internal-Api-Key", "dev-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").value(-33.448900))
+                .andExpect(jsonPath("$.longitude").value(-70.669300));
+
+        mockMvc.perform(put("/api/catalog/my/restaurant/location")
+                        .with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"latitude\":null,\"longitude\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latitude").value(nullValue()))
+                .andExpect(jsonPath("$.longitude").value(nullValue()));
+    }
+
+    @Test
+    void invalidLocationIsRejected() throws Exception {
+        for (String body : new String[] {
+                "{\"latitude\":-33.448900,\"longitude\":null}",
+                "{\"latitude\":null,\"longitude\":-70.669300}",
+                "{\"latitude\":91.0,\"longitude\":-70.669300}",
+                "{\"latitude\":-33.448900,\"longitude\":181.0}"
+        }) {
+            mockMvc.perform(put("/api/catalog/my/restaurant/location")
                             .with(ownerJwt(1L))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))

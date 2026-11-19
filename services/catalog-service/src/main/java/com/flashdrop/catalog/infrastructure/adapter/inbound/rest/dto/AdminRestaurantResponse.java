@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.flashdrop.catalog.domain.model.Restaurant;
@@ -11,7 +12,9 @@ public record AdminRestaurantResponse(
         String address,
         Long ownerUserId,
         boolean acceptingOrders,
-        boolean open
+        boolean open,
+        BigDecimal latitude,
+        BigDecimal longitude
 ) {
     public static AdminRestaurantResponse fromDomain(Restaurant restaurant, LocalDateTime now) {
         return new AdminRestaurantResponse(
@@ -20,6 +23,8 @@ public record AdminRestaurantResponse(
                 restaurant.getAddress(),
                 restaurant.getUserId(),
                 restaurant.isAcceptingOrders(),
-                restaurant.isOpenAt(now));
+                restaurant.isOpenAt(now),
+                restaurant.getLatitude(),
+                restaurant.getLongitude());
     }
 }

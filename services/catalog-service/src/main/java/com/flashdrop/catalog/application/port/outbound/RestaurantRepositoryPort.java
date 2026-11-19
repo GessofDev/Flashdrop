@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.application.port.outbound;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,7 +20,12 @@ public interface RestaurantRepositoryPort {
 
     Optional<Restaurant> assignOwner(Long restaurantId, Long userId);
 
-    Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders);
+    Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+                      BigDecimal latitude, BigDecimal longitude);
+
+    default Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
+        return create(name, address, ownerUserId, acceptingOrders, null, null);
+    }
 
     /**
      * Elimina el vinculo del restaurante con su dueno (cuenta eliminada) y lo deja cerrado. El restaurante
@@ -30,4 +36,6 @@ public interface RestaurantRepositoryPort {
     Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders);
 
     Optional<Restaurant> replaceHours(Long restaurantId, List<OpeningHours> hours);
+
+    Optional<Restaurant> updateLocation(Long restaurantId, BigDecimal latitude, BigDecimal longitude);
 }

@@ -1,5 +1,6 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,8 +72,10 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
 
     @Override
     @Transactional
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
-        return repository.save(RestaurantEntity.create(name, address, ownerUserId, acceptingOrders)).toDomain();
+    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+                             BigDecimal latitude, BigDecimal longitude) {
+        return repository.save(RestaurantEntity.create(
+                name, address, ownerUserId, acceptingOrders, latitude, longitude)).toDomain();
     }
 
     @Override
@@ -91,6 +94,16 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
         return repository.findById(restaurantId)
                 .map(entity -> {
                     entity.replaceHours(hours);
+                    return entity.toDomain();
+                });
+    }
+
+    @Override
+    @Transactional
+    public Optional<Restaurant> updateLocation(Long restaurantId, BigDecimal latitude, BigDecimal longitude) {
+        return repository.findById(restaurantId)
+                .map(entity -> {
+                    entity.changeLocation(latitude, longitude);
                     return entity.toDomain();
                 });
     }
