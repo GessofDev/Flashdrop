@@ -81,6 +81,18 @@ public class Order {
     /** Hasta cuando la tienda debe aceptar el pedido ya pagado. Se fija al aprobarse el pago. */
     private OffsetDateTime storeResponseDueAt;
 
+    // -------------------------------------------------------
+    // Pedidos que nadie atiende (F7)
+    // -------------------------------------------------------
+
+    /** Cuando la tienda acepto el pedido (paso de Nuevo pedido a Preparando / Listo para retiro). */
+    private OffsetDateTime acceptedAt;
+    /** Hasta cuando se espera un repartidor; se cuenta desde que la tienda acepto. */
+    private OffsetDateTime courierDueAt;
+    /** Codigo de {@link CancellationReason} cuando el sistema cancela solo el pedido. */
+    private String cancelReason;
+    private OffsetDateTime cancelledAt;
+
     /**
      * Código visible para el cliente dueño. Dato de presentación: lo calcula el caso de uso que
      * consulta el pedido, no se persiste y es {@code null} para cualquier otro rol.

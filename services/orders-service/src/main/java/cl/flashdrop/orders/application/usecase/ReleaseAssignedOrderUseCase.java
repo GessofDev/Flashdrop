@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.application.usecase;
 
+import cl.flashdrop.orders.application.service.OrderPolicyResolver;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.DeliveryOperation;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +31,8 @@ public class ReleaseAssignedOrderUseCase {
     private final OrderRepositoryPort orderRepository;
     private final DeliveryPort deliveryPort;
     private final DeliveryOperationRepositoryPort deliveryOperationRepository;
+    private final OrderPolicyResolver policyResolver;
+    private final Clock clock;
 
     public void execute(UUID orderId, UUID userId, String reason, String correlationId) {
         UUID deliveryId = deliveryPort.findDeliveryIdByUserId(userId)
@@ -101,6 +105,10 @@ public class ReleaseAssignedOrderUseCase {
         if (expectedDeliveryId.equals(order.getDeliveryId())) {
             order.setDeliveryId(null);
             orderRepository.save(order);
+            // El pedido vuelve a la bolsa: se espera un repartidor otra vez desde ahora (F7), si no, quedaria
+            // vencido de inmediato y se cancelaria en el siguiente ciclo.
+            orderRepository.resetCourierDeadline(orderId, OffsetDateTime.now(clock)
+                    .plusMinutes(policyResolver.effectiveFor(order.getRestaurantId()).courierWaitMinutes()));
         }
 
         DeliveryOperation op = deliveryOperationRepository.findByIdForUpdate(operationId)

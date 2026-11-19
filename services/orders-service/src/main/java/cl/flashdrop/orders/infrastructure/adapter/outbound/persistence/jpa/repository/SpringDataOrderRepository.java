@@ -48,6 +48,34 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     int confirmPayment(@Param("id") Long id, @Param("expected") String expected,
                        @Param("status") String status, @Param("due") OffsetDateTime due);
 
+    /** La tienda acepta: cambia de estado y registra la aceptacion y el plazo de espera de repartidor (F7). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = :acceptedAt, o.courierDueAt = :courierDueAt "
+            + "WHERE o.id = :id AND o.status = :expected")
+    int acceptByStore(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
+                      @Param("acceptedAt") OffsetDateTime acceptedAt, @Param("courierDueAt") OffsetDateTime courierDueAt);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.status = :status AND o.storeResponseDueAt IS NOT NULL "
+            + "AND o.storeResponseDueAt <= :now ORDER BY o.storeResponseDueAt")
+    List<OrderEntity> findStoreResponseOverdue(@Param("status") String status, @Param("now") OffsetDateTime now,
+                                              Pageable pageable);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.status IN :statuses AND o.deliveryId IS NULL "
+            + "AND o.courierDueAt IS NOT NULL AND o.courierDueAt <= :now ORDER BY o.courierDueAt")
+    List<OrderEntity> findCourierWaitOverdue(@Param("statuses") Collection<String> statuses,
+                                            @Param("now") OffsetDateTime now, Pageable pageable);
+
+    /** Cancela solo si sigue en el estado esperado y sin repartidor (F7). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :cancelled, o.cancelReason = :reason, o.cancelledAt = :now "
+            + "WHERE o.id = :id AND o.status = :expected AND o.deliveryId IS NULL")
+    int cancelUnattended(@Param("id") Long id, @Param("expected") String expected, @Param("cancelled") String cancelled,
+                         @Param("reason") String reason, @Param("now") OffsetDateTime now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.courierDueAt = :due WHERE o.id = :id")
+    int resetCourierDeadline(@Param("id") Long id, @Param("due") OffsetDateTime due);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OrderEntity o SET o.status = :status WHERE o.id = :id AND o.status = :expected")
     int updateStatusIfCurrent(@Param("id") Long id, @Param("expected") String expected,

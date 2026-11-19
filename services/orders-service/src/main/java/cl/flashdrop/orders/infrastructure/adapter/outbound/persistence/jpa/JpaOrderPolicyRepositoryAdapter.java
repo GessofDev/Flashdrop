@@ -47,6 +47,7 @@ public class JpaOrderPolicyRepositoryAdapter implements OrderPolicyRepositoryPor
         entity.setPaymentExpirationMinutes(policy.getPaymentExpirationMinutes());
         entity.setStoreResponseMinutes(policy.getStoreResponseMinutes());
         entity.setCustomerCancelWindowMinutes(policy.getCustomerCancelWindowMinutes());
+        entity.setCourierWaitMinutes(policy.getCourierWaitMinutes());
         entity.setUpdatedByUserId(updatedByUserId == null ? null : IdConverter.toLong(updatedByUserId));
         entity.setUpdatedAt(now);
         return toDomain(repository.save(entity));
@@ -58,6 +59,7 @@ public class JpaOrderPolicyRepositoryAdapter implements OrderPolicyRepositoryPor
                 .paymentExpirationMinutes(e.getPaymentExpirationMinutes())
                 .storeResponseMinutes(e.getStoreResponseMinutes())
                 .customerCancelWindowMinutes(e.getCustomerCancelWindowMinutes())
+                .courierWaitMinutes(e.getCourierWaitMinutes())
                 .build();
     }
 }

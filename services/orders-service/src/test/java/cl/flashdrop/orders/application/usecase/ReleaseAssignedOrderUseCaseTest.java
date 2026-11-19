@@ -55,10 +55,15 @@ class ReleaseAssignedOrderUseCaseTest {
     private DeliveryOperationRepositoryPort deliveryOperationRepository;
 
     private ReleaseAssignedOrderUseCase useCase;
+    private cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver;
 
     @BeforeEach
     void setUp() {
-        useCase = new ReleaseAssignedOrderUseCase(orderRepository, deliveryPort, deliveryOperationRepository);
+        policyResolver = org.mockito.Mockito.mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class);
+        org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
+        useCase = new ReleaseAssignedOrderUseCase(orderRepository, deliveryPort, deliveryOperationRepository,
+                policyResolver, java.time.Clock.systemUTC());
     }
 
     @Test

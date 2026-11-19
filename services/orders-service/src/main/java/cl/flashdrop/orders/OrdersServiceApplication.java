@@ -3,6 +3,7 @@ package cl.flashdrop.orders;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * FlashDrop - Orders Service
@@ -12,6 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  * asignación de repartidores y actualización de estados.
  */
 @SpringBootApplication
+@EnableScheduling
 @ConfigurationPropertiesScan
 public class OrdersServiceApplication {
 

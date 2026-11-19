@@ -128,7 +128,9 @@ class OrdersE2ESimulatedTest {
         ReflectionTestUtils.setField(createOrderUseCase, "defaultEstimatedMinutes", 20);
 
         UpdateOrderStatusUseCase updateOrderStatusUseCase = new UpdateOrderStatusUseCase(
-                orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter, clientAdapter);
+                orderRepositoryAdapter, deliveryAdapter, eventPublisher, catalogAdapter, clientAdapter,
+                org.mockito.Mockito.mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class),
+                java.time.Clock.systemUTC());
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         ListOrdersUseCase listOrdersUseCase = new ListOrdersUseCase(

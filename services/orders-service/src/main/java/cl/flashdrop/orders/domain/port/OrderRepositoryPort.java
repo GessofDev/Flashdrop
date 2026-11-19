@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.domain.port;
 
+import cl.flashdrop.orders.domain.model.CancellationReason;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 
@@ -86,6 +87,39 @@ public interface OrderRepositoryPort {
      * verificar el codigo de entrega para que intentos simultaneos se procesen de a uno.
      */
     Optional<Order> findByIdForUpdate(UUID id);
+
+    /**
+     * La tienda acepta el pedido: pasa de {@code expected} a {@code status} y, en la misma sentencia, queda
+     * registrado cuando lo acepto y hasta cuando se espera un repartidor (F7). {@code false} si el pedido
+     * ya no estaba en {@code expected}.
+     */
+    default boolean acceptByStore(UUID orderId, OrderStatus expected, OrderStatus status,
+                                  OffsetDateTime acceptedAt, OffsetDateTime courierDueAt) {
+        return updateStatusIfCurrent(orderId, expected, status);
+    }
+
+    /** Pedidos "Nuevo pedido" cuyo plazo de respuesta de la tienda ya vencio, los mas atrasados primero. */
+    default List<Order> findStoreResponseOverdue(OffsetDateTime now, int limit) {
+        return List.of();
+    }
+
+    /** Pedidos aceptados por la tienda, sin repartidor, cuya espera de repartidor ya vencio. */
+    default List<Order> findCourierWaitOverdue(OffsetDateTime now, int limit) {
+        return List.of();
+    }
+
+    /**
+     * Cancela un pedido que nadie atendio solo si sigue en {@code expected} y sin repartidor, dejando el
+     * motivo y la hora (F7). Una sola sentencia condicional: no pisa una aceptacion ni un repartidor que
+     * toma el pedido en ese mismo instante.
+     */
+    default boolean cancelUnattended(UUID orderId, OrderStatus expected, CancellationReason reason, OffsetDateTime now) {
+        return false;
+    }
+
+    /** Un repartidor libero el pedido: se vuelve a esperar uno desde {@code courierDueAt}. */
+    default void resetCourierDeadline(UUID orderId, OffsetDateTime courierDueAt) {
+    }
 
     /**
      * Persiste el estado del codigo de entrega del pedido (version, intentos fallidos y

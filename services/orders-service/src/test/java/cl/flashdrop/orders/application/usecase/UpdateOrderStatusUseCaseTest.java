@@ -58,6 +58,11 @@ class UpdateOrderStatusUseCaseTest {
     @Mock
     private ClientPort clientPort;
 
+    @Mock
+    private cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver;
+
+    private static final java.time.OffsetDateTime NOW = java.time.OffsetDateTime.parse("2026-11-19T12:00:00Z");
+
     private UpdateOrderStatusUseCase useCase;
 
     private static final UUID ORDER_ID = UUID.randomUUID();
@@ -71,8 +76,12 @@ class UpdateOrderStatusUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        useCase = new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort);
+        useCase = new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort,
+                policyResolver, java.time.Clock.fixed(NOW.toInstant(), java.time.ZoneOffset.UTC));
         org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(orderRepository.acceptByStore(any(), any(), any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(any()))
+                .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
         ReflectionTestUtils.setField(useCase, "statusUpdatedRoutingKey", "order.status.updated");
     }
 
@@ -175,7 +184,8 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Preparando", RESTAURANTE, USER_ID);
 
-        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO);
+        verify(orderRepository).acceptByStore(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO,
+                NOW, NOW.plusMinutes(20));
         verify(deliveryPort).updateRouteStatusByOrder(ORDER_ID, "Preparando");
 
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);

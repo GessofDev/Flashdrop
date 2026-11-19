@@ -9,6 +9,7 @@ import cl.flashdrop.orders.application.usecase.ListAvailableOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.application.usecase.VerifyDeliveryCodeUseCase;
+import cl.flashdrop.orders.domain.model.CancellationReason;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.ReceptionMode;
 import cl.flashdrop.orders.domain.model.Role;
@@ -259,6 +260,11 @@ public class OrderController {
      * <p>Delegates to {@link OrderIdResolver} so the rule has a single source: the
      * same criterion applies to every endpoint that takes an order id in the path.</p>
      */
+    private static String cancelMessage(Order order) {
+        CancellationReason reason = CancellationReason.fromCode(order.getCancelReason());
+        return reason == null ? null : reason.getMessage();
+    }
+
     private static UUID resolveOrderId(String rawOrderId) {
         return OrderIdResolver.resolve(rawOrderId);
     }
@@ -280,6 +286,9 @@ public class OrderController {
                 .status(order.getStatus().getValue())
                 .address(order.getAddress())
                 .commune(order.getCommune())
+                .cancelReason(order.getCancelReason())
+                .cancelReasonMessage(cancelMessage(order))
+                .cancelledAt(order.getCancelledAt())
                 .subtotal(order.getSubtotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())
@@ -382,6 +391,9 @@ public class OrderController {
                 .status(order.getStatus().getValue())
                 .address(order.getAddress())
                 .commune(order.getCommune())
+                .cancelReason(order.getCancelReason())
+                .cancelReasonMessage(cancelMessage(order))
+                .cancelledAt(order.getCancelledAt())
                 .subtotal(order.getSubtotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())
