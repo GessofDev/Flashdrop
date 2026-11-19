@@ -8,17 +8,26 @@
 
 ### 1. La tienda toma todo pedido pagado (sin aceptarlo a mano)
 
-Cuando el pago se aprueba, el pedido pasa **directo de "Pendiente de pago" a "Preparando"**. Ya no existe la espera de que el restaurante acepte cada pedido, ni un plazo de respuesta de la tienda. Si el restaurante no puede preparar un pedido, lo **rechaza** (`Preparando → Rechazado`), que antes solo podía hacer sobre un "Nuevo pedido". Solo es posible mientras no hay repartidor asignado (con repartidor sigue valiendo "contacta a soporte").
+Cuando el pago se aprueba, el pedido pasa **directo de "Pendiente de pago" a "Preparando"**. Ya no existe la espera de que el restaurante acepte cada pedido, ni un plazo de respuesta de la tienda.
+
+**Verificar si hay repartidores disponibles es decisión del restaurante.** Desde ese momento puede:
+
+- **Continuar** con el pedido, o
+- **Rechazarlo** (`Preparando → Rechazado`) si decide que no puede atenderlo. Solo es posible mientras no hay repartidor asignado (con repartidor sigue valiendo "contacta a soporte").
+
+El sistema no decide por él ni asigna repartidor a la fuerza.
 
 > Este cambio **reemplaza** lo que describía el PR 1 (pago aprobado → "Nuevo pedido" con plazo de respuesta de la tienda). El PR 1 por sí solo deja el pedido en "Nuevo pedido"; este PR lo cambia a "Preparando". Por eso conviene fusionarlos juntos y en orden.
 
-### 2. Pedido sin repartidor
+### 2. El flujo del repartidor no cambia
 
-Un pedido tomado por la tienda que sigue **sin repartidor** pasada la **espera de repartidor** se cancela solo y pasa a **Cancelado** con motivo `NO_COURIER`.
+El repartidor **solo toma el pedido cuando está "Listo para retiro"** (el listado de disponibles ya funciona así). Si pasado el tiempo parametrizable **nadie lo toma**, el pedido se cancela solo y pasa a **Cancelado** con motivo `NO_COURIER`.
 
-- La espera se cuenta **desde que el pedido entra** (el pago aprobado) y es parametrizable por el administrador (`courierWaitMinutes`, 20 min por defecto), igual para todos los locales.
+- **Cuándo empieza a correr la espera:** desde que el pedido queda **"Listo para retiro"**, que es cuando un repartidor puede tomarlo. Un pedido que sigue en "Preparando" **nunca** se cancela por falta de repartidor: el tiempo de cocina no cuenta.
+- **Cuánto dura:** `courierWaitMinutes`, parametrizable por el administrador (20 min por defecto), igual para todos los locales.
+- **Cuándo se detiene:** en cuanto un repartidor toma el pedido, deja de aplicarse.
 - Solo se avisa al cliente cuando se cancela: ve "Cancelado" con `cancelReason`, `cancelReasonMessage` y `cancelledAt` (listado y detalle). No hay avisos de espera.
-- **Sin carreras.** La cancelación es una sola sentencia condicional (sigue en el estado esperado y sin repartidor). Si un repartidor toma el pedido justo antes, no se cancela.
+- **Sin carreras.** La cancelación es una sola sentencia condicional (sigue en "Listo para retiro" y sin repartidor). Si un repartidor lo toma justo antes, no se cancela.
 - **Delivery.** La ruta se cierra como "Cancelado" en la misma transacción; si Delivery falla se deshace la cancelación y se reintenta en el siguiente ciclo. Se publica `order.status.updated` con el campo nuevo `reason`.
 - **Liberación.** Si un repartidor libera un pedido, la espera se reinicia desde ese momento.
 - La tarea corre cada 60 s (`flashdrop.orders.timeouts.courier-wait-delay-ms`), hasta 50 pedidos por ciclo.
@@ -36,13 +45,13 @@ Contrato en `services/orders-service/openapi.yaml`.
 
 ## Migración
 
-`V14__unattended_orders.sql` (idempotente): `order_policies.courier_wait_minutes` (CHECK 1..1440; la fila global queda en 20) y, en `orders`: `accepted_at` (cuándo la tienda tomó el pedido), `courier_due_at`, `cancel_reason`, `cancelled_at`, con un índice parcial para la tarea.
+`V14__unattended_orders.sql` (idempotente): `order_policies.courier_wait_minutes` (CHECK 1..1440; la fila global queda en 20) y, en `orders`: `accepted_at` (cuándo la tienda tomó el pedido), `courier_due_at` (hasta cuándo se espera un repartidor, desde que queda listo), `cancel_reason`, `cancelled_at`, con un índice parcial para la tarea.
 
 ## ⚠️ Puntos a tener en cuenta
 
-- **Espera de repartidor vs. tiempo de cocina.** Como el plazo corre desde el pago, un pedido que tarde más en prepararse que la espera de repartidor se cancelaría aunque la tienda lo esté haciendo. Hoy los repartidores solo ven pedidos en "Listo para retiro". Conviene fijar `courierWaitMinutes` por encima del tiempo típico de preparación, o decidir después si el repartidor debe ver los pedidos desde "Preparando".
 - **Se activan las tareas programadas en Orders** (`@EnableScheduling`). Hasta ahora no estaban habilitadas, así que `PendingDeliveryOperationRecoveryService` (recuperación de liberaciones y anulaciones pendientes, cada 60 s) **no corría**. Con este PR empieza a correr.
-- **Los pedidos que ya existen no se cancelan solos.** No tienen plazo guardado (`courier_due_at` nulo). Solo aplica a pedidos pagados desde este despliegue.
+- **Los pedidos que ya existen no se cancelan solos.** No tienen plazo guardado (`courier_due_at` nulo). Solo aplica a pedidos que queden "Listo para retiro" desde este despliegue.
+- **Un pedido que el restaurante nunca deja listo** no tiene plazo propio: se queda en "Preparando" hasta que el restaurante lo marque listo o lo rechace. Es una decisión de este diseño (el criterio es del restaurante); si más adelante se quiere un tope, se agrega aparte.
 - **Devolución del dinero.** Cuando la tienda rechaza o el sistema cancela un pedido ya pagado, el pago no se devuelve (fuera de alcance, queda anotado).
 
 ## Configuración nueva
@@ -55,21 +64,22 @@ Los plazos (minutos) están en la base y los edita el administrador. Valores ini
 
 ## Pruebas
 
-- **Unitarias:** pago aprobado → Preparando con la espera de repartidor, tarea y cancelador (un fallo no frena a los demás; se deshace si Delivery falla), rechazo del restaurante desde Preparando (y bloqueado con repartidor asignado), liberación, controlador del administrador y la regla "plazos solo globales".
-- **Contra PostgreSQL real:** el pago confirma una sola vez y deja `accepted_at` y `courier_due_at`; búsqueda de pedidos vencidos; cancelación condicional que no pisa a un repartidor que toma el pedido; reinicio del plazo al liberar.
-- Totales: 541 unitarias y 19 de integración en verde.
+- **Unitarias:** pago aprobado → Preparando (sin fijar la espera de repartidor); dejar el pedido listo fija la espera; tarea y cancelador (un fallo no frena a los demás; se deshace si Delivery falla); rechazo del restaurante desde Preparando (y bloqueado con repartidor asignado); liberación; controlador del administrador y la regla "plazos solo globales".
+- **Contra PostgreSQL real:** el pago confirma una sola vez y deja `accepted_at` sin `courier_due_at`; dejar listo fija el plazo y conserva la hora de toma; la tarea solo ve pedidos "Listo para retiro" sin repartidor (uno en "Preparando" nunca vence); la cancelación no pisa a un repartidor que toma el pedido; reinicio del plazo al liberar.
+- Totales: 544 unitarias y 19 de integración en verde.
 
 ## Pendientes para otros equipos (fuera de este alcance)
 
 ### App (Javier) y panel del restaurante
-1. El pedido pagado llega al restaurante ya en **"Preparando"**: la pantalla de "aceptar / rechazar" desaparece. Debe poder **rechazar** un pedido en Preparando (`PUT /api/orders/{id}/status` con `Rechazado`) si no puede prepararlo, y marcarlo "Listo para retiro" cuando esté.
-2. Cliente: mostrar "Cancelado" con `cancelReasonMessage` ("No se encontro un repartidor a tiempo"). No prometer tiempos de espera.
-3. Tras pagar, el estado que se espera es "Preparando" (no "Nuevo pedido").
+1. El pedido pagado llega al restaurante ya en **"Preparando"**: desaparece la pantalla de "aceptar / rechazar". El restaurante debe poder **rechazar** un pedido en Preparando (`PUT /api/orders/{id}/status` con `Rechazado`) si decide que no puede atenderlo, y marcarlo "Listo para retiro" cuando esté.
+2. Panel del restaurante: orientarlo a **revisar si hay repartidores disponibles** al recibir el pedido (hoy el backend no expone un conteo de repartidores disponibles; si se quiere mostrar, hay que agregarlo en Delivery).
+3. Cliente: mostrar "Cancelado" con `cancelReasonMessage` ("No se encontro un repartidor a tiempo"). No prometer tiempos de espera.
+4. Tras pagar, el estado que se espera es "Preparando" (no "Nuevo pedido").
 
 ### Web / administración
 - Pantalla del administrador para `GET/PUT /api/admin/order-policy`. El gateway debe enrutar `/api/admin/**` hacia Orders (anotado en el PR 1).
 
 ### Fuera de alcance, queda anotado
 - Devolución del dinero de pedidos rechazados o cancelados.
-- Vencimiento de pedidos sin pagar.
+- Vencimiento de pedidos sin pagar y tope para pedidos que quedan en "Preparando".
 - Avisos por correo o notificación (basta con ver el estado y el motivo).

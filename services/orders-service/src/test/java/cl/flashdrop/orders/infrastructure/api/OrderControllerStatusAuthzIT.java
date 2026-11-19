@@ -83,6 +83,7 @@ class OrderControllerStatusAuthzIT {
                         policyResolver, java.time.Clock.systemUTC());
         org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(orderRepository.acceptByStore(any(), any(), any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(orderRepository.markReadyForPickup(any(), any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(any()))
                 .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");

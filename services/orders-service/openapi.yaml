@@ -419,8 +419,8 @@ paths:
       summary: Reemplazar los plazos globales de los pedidos
       description: |
         Plazos en minutos (1 a 1440; la ventana de cancelación del cliente admite 0).
-        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que el pedido entra (se paga y la tienda
-          lo toma de inmediato). Si pasa el plazo sin repartidor, el pedido se cancela solo (`NO_COURIER`).
+        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que el pedido queda "Listo para retiro" (el
+          repartidor solo puede tomarlo entonces). Si pasa el plazo sin que nadie lo tome, el pedido se cancela solo (`NO_COURIER`).
           **Es el mismo para todos los locales**: una tienda no lo elige.
         La tienda ya no acepta los pedidos a mano ni tiene un plazo de respuesta: todo pedido pagado queda en
         `Preparando` y, si no puede prepararlo, lo rechaza (`Preparando → Rechazado`).
@@ -534,7 +534,7 @@ paths:
 
         | Rol | Transiciones permitidas |
         |---|---|
-        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` (si no puede prepararlo; solo sin repartidor asignado) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
+        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` (decisión del restaurante, p. ej. si no hay repartidores; solo sin repartidor asignado) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
         | `Repartidor` | `Listo para retiro → Retirado` (y, para pedidos legacy, `En camino → Retirado`) |
         | `Cliente` | ninguna |
 
@@ -1525,7 +1525,7 @@ components:
           example: 5
         courierWaitMinutes:
           type: integer
-          description: Espera de repartidor desde que el pedido entra (se paga y la tienda lo toma). Global, no lo elige la tienda.
+          description: Espera de repartidor desde que el pedido queda listo para retiro. Global, no lo elige la tienda.
           example: 20
 
     OrderQuote:

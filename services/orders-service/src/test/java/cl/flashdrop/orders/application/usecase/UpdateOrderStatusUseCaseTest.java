@@ -80,6 +80,7 @@ class UpdateOrderStatusUseCaseTest {
                 policyResolver, java.time.Clock.fixed(NOW.toInstant(), java.time.ZoneOffset.UTC));
         org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(orderRepository.acceptByStore(any(), any(), any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(orderRepository.markReadyForPickup(any(), any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(any()))
                 .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
         ReflectionTestUtils.setField(useCase, "statusUpdatedRoutingKey", "order.status.updated");
@@ -129,6 +130,18 @@ class UpdateOrderStatusUseCaseTest {
         assertThrows(StatusTransitionForbiddenException.class,
                 () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
         assertNothingPersisted();
+    }
+
+    /** La espera de repartidor cuenta desde que el pedido queda listo para retiro, no desde la cocina. */
+    @Test
+    void dejarElPedidoListoParaRetiroFijaLaEsperaDeRepartidor() {
+        givenOrder(OrderStatus.PREPARANDO, null);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+
+        useCase.execute(ORDER_ID, "Listo para retiro", RESTAURANTE, USER_ID);
+
+        verify(orderRepository).markReadyForPickup(ORDER_ID, OrderStatus.PREPARANDO, NOW, NOW.plusMinutes(20));
+        verify(orderRepository, never()).updateStatusIfCurrent(any(), any(), any());
     }
 
     /** La tienda toma todo pedido pagado (queda en Preparando); si no puede prepararlo, lo rechaza desde ahi. */
@@ -200,8 +213,8 @@ class UpdateOrderStatusUseCaseTest {
 
         useCase.execute(ORDER_ID, "Preparando", RESTAURANTE, USER_ID);
 
-        verify(orderRepository).acceptByStore(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO,
-                NOW, NOW.plusMinutes(20));
+        // Pedido antiguo aceptado a mano: registra la hora de toma, pero NO fija la espera de repartidor (aun no esta listo).
+        verify(orderRepository).acceptByStore(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO, NOW, null);
         verify(deliveryPort).updateRouteStatusByOrder(ORDER_ID, "Preparando");
 
         ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);

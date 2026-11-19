@@ -52,6 +52,13 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     int acceptByStore(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
                       @Param("acceptedAt") OffsetDateTime acceptedAt, @Param("courierDueAt") OffsetDateTime courierDueAt);
 
+    /** Listo para retiro: queda fija la espera de repartidor; la hora de toma de la tienda se conserva (F7). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = COALESCE(o.acceptedAt, :now), "
+            + "o.courierDueAt = :courierDueAt WHERE o.id = :id AND o.status = :expected")
+    int markReadyForPickup(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
+                           @Param("now") OffsetDateTime now, @Param("courierDueAt") OffsetDateTime courierDueAt);
+
     @Query("SELECT o FROM OrderEntity o WHERE o.status IN :statuses AND o.deliveryId IS NULL "
             + "AND o.courierDueAt IS NOT NULL AND o.courierDueAt <= :now ORDER BY o.courierDueAt")
     List<OrderEntity> findCourierWaitOverdue(@Param("statuses") Collection<String> statuses,

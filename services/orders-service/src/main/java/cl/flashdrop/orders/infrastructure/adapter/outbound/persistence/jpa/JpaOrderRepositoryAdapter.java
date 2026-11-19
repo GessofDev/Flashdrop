@@ -209,7 +209,7 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
     @Transactional(readOnly = true)
     public List<Order> findCourierWaitOverdue(OffsetDateTime now, int limit) {
         return mapWithItems(orderRepository.findCourierWaitOverdue(
-                List.of(OrderStatus.PREPARANDO.getValue(), OrderStatus.LISTO_PARA_RETIRO.getValue()),
+                List.of(OrderStatus.LISTO_PARA_RETIRO.getValue()),
                 now, PageRequest.of(0, limit)));
     }
 
@@ -228,9 +228,16 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
-    public boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt, OffsetDateTime courierDueAt) {
+    public boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt) {
         return orderRepository.acceptByStore(IdConverter.toLong(orderId), OrderStatus.PENDIENTE_PAGO.getValue(),
-                OrderStatus.PREPARANDO.getValue(), acceptedAt, courierDueAt) == 1;
+                OrderStatus.PREPARANDO.getValue(), acceptedAt, null) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean markReadyForPickup(UUID orderId, OrderStatus expected, OffsetDateTime now, OffsetDateTime courierDueAt) {
+        return orderRepository.markReadyForPickup(IdConverter.toLong(orderId), expected.getValue(),
+                OrderStatus.LISTO_PARA_RETIRO.getValue(), now, courierDueAt) == 1;
     }
 
     @Override

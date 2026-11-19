@@ -135,19 +135,24 @@ public class UpdateOrderStatusUseCase {
     }
 
     /**
-     * Aceptar un pedido (de "Nuevo pedido" a "Preparando" o "Listo para retiro") deja registrada la hora de
-     * aceptacion y el plazo para encontrar repartidor (F7), en la misma sentencia que cambia el estado.
+     * Persiste el cambio de estado. Dos casos llevan datos de F7 en la misma sentencia:
+     * <ul>
+     *   <li>Dejar el pedido listo para retiro fija hasta cuando se espera un repartidor (la espera cuenta desde
+     *       que el repartidor puede tomarlo, no desde la cocina).</li>
+     *   <li>Aceptar a mano un pedido antiguo en "Nuevo pedido" (ya no se crean asi) registra la hora de toma.</li>
+     * </ul>
      */
     private boolean persistStatus(Order order, OrderStatus newStatus) {
-        boolean accepting = order.getStatus() == OrderStatus.NUEVO_PEDIDO
-                && (newStatus == OrderStatus.PREPARANDO || newStatus == OrderStatus.LISTO_PARA_RETIRO);
-        if (!accepting) {
-            return orderRepository.updateStatusIfCurrent(order.getId(), order.getStatus(), newStatus);
-        }
         OffsetDateTime now = OffsetDateTime.now(clock);
-        OrderPolicy.Effective policy = policyResolver.effectiveFor(order.getRestaurantId());
-        return orderRepository.acceptByStore(order.getId(), order.getStatus(), newStatus,
-                now, now.plusMinutes(policy.courierWaitMinutes()));
+        if (newStatus == OrderStatus.LISTO_PARA_RETIRO) {
+            OrderPolicy.Effective policy = policyResolver.effectiveFor(order.getRestaurantId());
+            return orderRepository.markReadyForPickup(order.getId(), order.getStatus(), now,
+                    now.plusMinutes(policy.courierWaitMinutes()));
+        }
+        if (order.getStatus() == OrderStatus.NUEVO_PEDIDO && newStatus == OrderStatus.PREPARANDO) {
+            return orderRepository.acceptByStore(order.getId(), order.getStatus(), newStatus, now, null);
+        }
+        return orderRepository.updateStatusIfCurrent(order.getId(), order.getStatus(), newStatus);
     }
 
     private void validateRestaurantOwnership(Order order, UUID currentUserId) {

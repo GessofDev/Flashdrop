@@ -118,20 +118,20 @@ class DeliveryTariffAndPaymentConfirmationDbTest extends PostgresIntegrationTest
     }
 
     @Test
-    void confirmarElPagoHaceQueLaTiendaTomeElPedidoUnaSolaVezYFijaLaEsperaDeRepartidor() {
+    void confirmarElPagoHaceQueLaTiendaTomeElPedidoUnaSolaVezSinFijarAunLaEsperaDeRepartidor() {
         Order saved = pendingOrder();
         OffsetDateTime now = OffsetDateTime.now().withNano(0);
-        OffsetDateTime due = now.plusMinutes(20);
 
-        assertTrue(orders.confirmPayment(saved.getId(), now, due));
+        assertTrue(orders.confirmPayment(saved.getId(), now));
         Order loaded = orders.findById(saved.getId()).orElseThrow();
         assertEquals(OrderStatus.PREPARANDO, loaded.getStatus());
         assertEquals(now.toInstant(), loaded.getAcceptedAt().toInstant());
-        assertEquals(due.toInstant(), loaded.getCourierDueAt().toInstant());
+        // La espera de repartidor empieza cuando el pedido queda listo para retiro, no al pagar.
+        assertNull(loaded.getCourierDueAt());
         assertNull(loaded.getStoreResponseDueAt());
 
-        // Un segundo aviso (o una carrera) ya no encuentra el pedido pendiente y no mueve el plazo.
-        assertFalse(orders.confirmPayment(saved.getId(), now.plusMinutes(5), due.plusMinutes(5)));
-        assertEquals(due.toInstant(), orders.findById(saved.getId()).orElseThrow().getCourierDueAt().toInstant());
+        // Un segundo aviso (o una carrera) ya no encuentra el pedido pendiente y no mueve la hora de toma.
+        assertFalse(orders.confirmPayment(saved.getId(), now.plusMinutes(5)));
+        assertEquals(now.toInstant(), orders.findById(saved.getId()).orElseThrow().getAcceptedAt().toInstant());
     }
 }

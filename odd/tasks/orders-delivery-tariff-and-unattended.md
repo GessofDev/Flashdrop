@@ -20,7 +20,7 @@ S5 — Dimensión y distancia
 > Dimensión 1 a 10 por producto, guardada en Catalog. Distancia en línea recta entre coordenadas del local y del destino.
 
 S6 — Pedidos sin atender
-> La tienda toma todo pedido pagado de inmediato (Preparando), sin aceptarlo a mano; si no puede prepararlo, lo rechaza. El pedido sin repartidor pasada la espera global (contada desde que entra) se cancela solo. Plazo parametrizable por el administrador. Solo se avisa al cliente cuando se cancela. Las devoluciones están fuera de alcance.
+> La tienda toma todo pedido pagado de inmediato (Preparando), sin aceptarlo a mano. Verificar si hay repartidores disponibles es decision del restaurante: puede rechazar el pedido o continuar. El repartidor solo toma el pedido cuando esta listo para retiro; si pasada la espera global (contada desde que queda listo) nadie lo toma, se cancela solo. Plazo parametrizable por el administrador. Solo se avisa al cliente cuando se cancela. Las devoluciones están fuera de alcance.
 
 ## Tasks
 
@@ -58,3 +58,5 @@ L8 — 2026-11-19 — PR 2 implemented on `feat/orders-unattended-timeouts` (bas
 L9 — 2026-11-19 — Enabling `@EnableScheduling` also starts `PendingDeliveryOperationRecoveryService`, which existed but never ran in orders. Orders created before this change have no deadlines and are never auto-cancelled. A courier release resets the courier deadline so the released order is not cancelled right away.
 
 L10 — 2026-11-19 — Change of direction (user): the restaurant no longer accepts each order by hand. When the payment is approved the order goes straight from "Pendiente de pago" to "Preparando" (`accepted_at` and `courier_due_at` are set in the same UPDATE); if the store cannot prepare it, it rejects it (`Preparando -> Rechazado`, only without an assigned courier). The store-response timeout job, the `STORE_NO_RESPONSE` reason and the `storeResponseMinutes` policy field were removed from the API (the DB column stays unused). The courier wait now counts from the payment. Known tradeoff: couriers only see "Listo para retiro", so a long preparation can exceed the courier wait.
+
+L11 — 2026-11-19 — Refinement (user): the courier flow does not change — a courier can only take an order that is "Listo para retiro" — so the courier wait is no longer counted from the payment but from the moment the order becomes "Listo para retiro" (`courier_due_at` is set by `markReadyForPickup`, not by the payment). An order still in "Preparando" never expires for lack of a courier. Whether couriers are available is the restaurant's call: it can reject the order (Preparando -> Rechazado, only without an assigned courier) or continue. Supersedes the "courier wait counts from the payment" part of L10 and removes its known tradeoff.

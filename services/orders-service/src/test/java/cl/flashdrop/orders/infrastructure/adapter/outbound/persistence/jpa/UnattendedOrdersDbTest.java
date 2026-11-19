@@ -59,25 +59,50 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
     // ------------------------- aceptacion manual (pedidos antiguos en Nuevo pedido) -------------------------
 
     @Test
-    void aceptarGuardaLaHoraYElPlazoParaEncontrarRepartidor() {
+    void aceptarAMano_guardaLaHoraDeToma() {
         Order pedido = order(OrderStatus.NUEVO_PEDIDO, now.plusMinutes(5), null, null);
 
-        assertTrue(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO,
-                now, now.plusMinutes(20)));
+        assertTrue(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO, now, null));
+
+        Order loaded = orders.findById(pedido.getId()).orElseThrow();
+        assertEquals(OrderStatus.PREPARANDO, loaded.getStatus());
+        assertEquals(now.toInstant(), loaded.getAcceptedAt().toInstant());
+        // Aceptar no fija la espera de repartidor: esa corre solo cuando el pedido queda listo para retiro.
+        assertNull(loaded.getCourierDueAt());
+        // Una segunda aceptacion (o una carrera) no encuentra el pedido en Nuevo pedido.
+        assertFalse(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO, now, null));
+    }
+
+    @Test
+    void dejarElPedidoListoFijaLaEsperaDeRepartidorYConservaLaHoraDeToma() {
+        // El pedido se paga (la tienda lo toma) y mas tarde queda listo para retiro.
+        Order pedido = order(OrderStatus.PENDIENTE_PAGO, null, null, null);
+        assertTrue(orders.confirmPayment(pedido.getId(), now.minusMinutes(30)));
+        assertNull(orders.findById(pedido.getId()).orElseThrow().getCourierDueAt());
+
+        assertTrue(orders.markReadyForPickup(pedido.getId(), OrderStatus.PREPARANDO, now, now.plusMinutes(20)));
 
         Order loaded = orders.findById(pedido.getId()).orElseThrow();
         assertEquals(OrderStatus.LISTO_PARA_RETIRO, loaded.getStatus());
-        assertEquals(now.toInstant(), loaded.getAcceptedAt().toInstant());
+        assertEquals(now.minusMinutes(30).toInstant(), loaded.getAcceptedAt().toInstant());
         assertEquals(now.plusMinutes(20).toInstant(), loaded.getCourierDueAt().toInstant());
-        // Una segunda aceptacion (o una carrera) no encuentra el pedido en Nuevo pedido.
-        assertFalse(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO,
-                now, now.plusMinutes(99)));
+        // Si el pedido ya no estaba en Preparando (carrera), no se mueve ni se pisa el plazo.
+        assertFalse(orders.markReadyForPickup(pedido.getId(), OrderStatus.PREPARANDO, now, now.plusMinutes(99)));
+        assertEquals(now.plusMinutes(20).toInstant(),
+                orders.findById(pedido.getId()).orElseThrow().getCourierDueAt().toInstant());
+    }
+
+    @Test
+    void unPedidoQueSigueEnPreparandoNuncaVencePorFaltaDeRepartidor() {
+        Order cocinando = order(OrderStatus.PREPARANDO, null, null, null);
+
+        assertFalse(ids(orders.findCourierWaitOverdue(now.plusDays(7), 100)).contains(cocinando.getId()));
     }
 
     // ------------------------- sin repartidor -------------------------
 
     @Test
-    void soloSeEncuentranLosAceptadosSinRepartidorConLaEsperaVencida() {
+    void soloSeEncuentranLosListosParaRetiroSinRepartidorConLaEsperaVencida() {
         UUID repartidor = IdConverter.toUuid(9L);
         Order sinRepartidor = order(OrderStatus.LISTO_PARA_RETIRO, null, now.minusMinutes(1), null);
         Order preparando = order(OrderStatus.PREPARANDO, null, now.minusMinutes(3), null);
@@ -89,7 +114,8 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
         List<UUID> found = ids(orders.findCourierWaitOverdue(now, 100));
 
         assertTrue(found.contains(sinRepartidor.getId()));
-        assertTrue(found.contains(preparando.getId()));
+        // En Preparando no corre la espera de repartidor: el repartidor solo puede tomar el pedido cuando esta listo.
+        assertFalse(found.contains(preparando.getId()));
         assertFalse(found.contains(conRepartidor.getId()));
         assertFalse(found.contains(enPlazo.getId()));
         assertFalse(found.contains(nuevo.getId()));
@@ -108,9 +134,9 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
 
     @Test
     void cancelarPorFaltaDeRepartidorDejaElMotivo() {
-        Order pedido = order(OrderStatus.PREPARANDO, null, now.minusMinutes(1), null);
+        Order pedido = order(OrderStatus.LISTO_PARA_RETIRO, null, now.minusMinutes(1), null);
 
-        assertTrue(orders.cancelUnattended(pedido.getId(), OrderStatus.PREPARANDO, CancellationReason.NO_COURIER, now));
+        assertTrue(orders.cancelUnattended(pedido.getId(), OrderStatus.LISTO_PARA_RETIRO, CancellationReason.NO_COURIER, now));
 
         Order loaded = orders.findById(pedido.getId()).orElseThrow();
         assertEquals(OrderStatus.CANCELADO, loaded.getStatus());
