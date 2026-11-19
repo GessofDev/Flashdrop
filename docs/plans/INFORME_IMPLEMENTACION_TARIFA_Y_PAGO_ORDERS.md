@@ -14,7 +14,7 @@
 | Al aprobarse el pago | El pedido pasa directo a Preparando (la tienda lo toma), se registra `accepted_at`, se **crea la ruta en Delivery** (con coordenadas del local, distancia y tiempo) y se publica `order.created`. Antes esto ocurría al crear el pedido. |
 | Pago rechazado | El pago queda `RECHAZADO`, el pedido sigue pendiente y el cliente reintenta con el mismo pedido. |
 | Envío | `costo por dimensión + costo por distancia`, desde dos tablas que edita el administrador. La dimensión del pedido es la suma de `cantidad × dimensión` y define el vehículo (MOTO, BICI o AUTO). |
-| Respaldo | Sin rangos cargados, o destino sin coordenadas: **$2.500** (`orders.delivery-fee`). Con tarifa activa y destino pero local sin pin: error claro "El local no tiene ubicacion configurada". |
+| Respaldo | Solo cuando el administrador no cargó rangos de tarifa: **$2.500** (`orders.delivery-fee`). Desde la cobertura de despacho (PR #111) las coordenadas del destino son obligatorias y el local debe tener ubicación y radio de despacho; si no, el pedido se rechaza con un error claro. |
 | Distancia | Línea recta (haversine) entre el pin del local (Catalog) y el destino, detrás de `DistanceCalculator` (reemplazable por mapas). |
 | Catalog | `products.dimension` (1 a 10, opcional). Se expone en `/api/internal/products` y los dueños pueden fijarla al crear o editar. Sin valor, Orders usa `orders.default-product-dimension` (1). |
 | Administrador | No hay rol Admin: lo es quien tiene Cliente, Restaurante y Repartidor a la vez (`AdminAccess`, un solo punto). Los endpoints `/api/admin/**` responden 403 al resto. |
@@ -63,7 +63,7 @@ Todas son idempotentes (`IF NOT EXISTS`) y no borran datos. `V10` de Orders ya e
 
 ### App (Javier)
 1. Soportar el estado **"Pendiente de pago"** antes de que se active el cobro: hoy las apps no lo conocen. **Hay que desplegar la app antes, o a la vez, que este cambio.**
-2. Enviar `latitude` y `longitude` del destino en `POST /api/orders` y en la cotización. Sin ellas se cobra el respaldo.
+2. Enviar `latitude` y `longitude` del destino en `POST /api/orders` y en la cotización: son **obligatorias** (sin ellas se rechaza: "Selecciona una direccion con ubicacion para validar la cobertura").
 3. Llamar a `POST /api/orders/delivery-quote` y mostrar subtotal, envío y total **antes** de pagar.
 4. Pantalla de pago simulada: abrir `paymentUrl` (`fake://flashdrop-pay/{txId}`), mostrar dos botones y llamar a `POST /api/payments/fake/{txId}/resolve` con `APPROVED` o `REJECTED`.
 5. Tras pagar, consultar `GET /api/orders/{id}/payments` hasta que `orderStatus` sea "Preparando" (aprobado; la tienda toma el pedido) o `paymentStatus` sea `RECHAZADO` (permitir reintentar con `POST /api/orders/{id}/payments`).
@@ -77,7 +77,7 @@ Todas son idempotentes (`IF NOT EXISTS`) y no borran datos. `V10` de Orders ya e
 
 ### Infraestructura
 - Crear el secreto `flashdrop/payment-webhook-secret` y referenciarlo en la task definition de Orders (`PAYMENT_WEBHOOK_SECRET`).
-- Ensayar las migraciones de Orders V6 a V13 sobre una copia de la base real antes de desplegar (fuera de alcance, pero recomendado: `PaymentsMigrationUpgradeTest` ya cubre el escenario en CI).
+- Ensayar las migraciones de Orders (V6 a V14) y de Catalog (V9 dimensión del producto y V10 radio de despacho) sobre una copia de la base real antes de desplegar, por el procedimiento de Sebastián (fuera de alcance, pero recomendado: `PaymentsMigrationUpgradeTest` ya cubre el escenario de Orders en CI).
 
 ### Fuera de alcance, queda anotado
 - Pedidos sin pagar no vencen todavía (existe el plazo `payment_expires_at`, pero no hay tarea que los cancele).

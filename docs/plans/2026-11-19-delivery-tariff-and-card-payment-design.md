@@ -17,7 +17,7 @@ Resuelve dos brechas de `FlashDrop-1.0-Analisis-Brechas`: **F8** (pago solo decl
 | Envío | Costo = costo por dimensión + costo por distancia, ambos desde tablas editables por el administrador. |
 | Dimensión | Escala 1 a 10 por producto. La del pedido es la suma de cantidad × dimensión. Define el vehículo (moto, bici, auto). |
 | Distancia | Línea recta (haversine) entre local y destino, detrás de `DistanceCalculator`, reemplazable por un servicio de mapas. |
-| Respaldo | Sin rangos cargados, o destino sin coordenadas: envío de $2.500 (`orders.delivery-fee`). Local sin pin con tarifa activa: error claro. |
+| Respaldo | Solo si el administrador no cargó rangos de tarifa: envío de $2.500 (`orders.delivery-fee`). Las coordenadas del destino son obligatorias y la cobertura (radio del local) se valida siempre, con o sin tarifa (PR #111). |
 | Cuándo se calcula | Antes de pagar (cotización) y recalculado por el servidor al crear el pedido. |
 | Administrador | No existe un rol Admin: es quien tiene Cliente, Restaurante y Repartidor a la vez (igual que Auth). Los endpoints `/api/admin/**` usan esa regla en un solo punto. |
 | Plazos (F7) | La tienda toma todo pedido pagado sin aceptarlo a mano. La espera de repartidor es global (la fija el administrador), cuenta desde el pago y, vencida sin repartidor, cancela el pedido. Sin aviso previo al cliente. |
