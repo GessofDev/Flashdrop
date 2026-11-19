@@ -26,11 +26,11 @@ S6 — Pedidos sin atender
 
 PR 1 — Tarifas y pago (`feat/orders-delivery-tariff`)
 
-T1 | S1-S6 | inline | `docs(orders): plan tariff, card payment and unattended orders`
-T2 | S4 | inline | `feat(orders): add admin access rule and delivery destination coordinates`
-T3 | S4,S5 | inline | `feat(orders): add parametric delivery tariff and quote endpoint`
-T4 | S1-S3 | inline | `feat(orders): add card payment flow with simulated gateway`
-T5 | S5 | inline | `feat(catalog): add product dimension`
+T1 | S1-S6 | inline | `docs(orders): plan tariff, card payment and unattended orders` (`6fcff01`)
+T2 | S4 | inline | `feat(orders): add admin access rule and delivery destination coordinates` (`397ac5f`)
+T3 | S4,S5 | inline | `feat(orders): add parametric delivery tariff and quote endpoint` (`4209b70`)
+T4 | S1-S3 | inline | `feat(orders): add card payment flow with simulated gateway` (`7fa8b43`, tests `1dcd815`)
+T5 | S5 | inline | `feat(catalog): add product dimension` (`c860663`)
 
 PR 2 — Pedidos sin tomar (`feat/orders-unattended-timeouts`)
 
@@ -46,3 +46,9 @@ L2 — 2026-11-19 — `main` already carries store coordinates (Catalog V8) and 
 L3 — 2026-11-19 — No Admin role exists: the administrator is whoever holds Cliente, Restaurante and Repartidor together (`AdminAccess` in auth-service). Orders mirrors the rule in one place.
 
 L4 — 2026-11-19 — Fallback: no tariff ranges loaded, or destination without coordinates, charges the current $2.500 (`orders.delivery-fee`). Store without a pin while a tariff is active returns a clear error.
+
+L5 — 2026-11-19 — PR 1 implemented on `feat/orders-delivery-tariff`. Orders unit suite 517+ green; DB tests against real Postgres cover the tariff tables, the atomic payment confirmation and V1-V13 on a base with legacy orders. Catalog tests green (Gradle, from `services/catalog-service`). Report: `docs/plans/INFORME_IMPLEMENTACION_TARIFA_Y_PAGO_ORDERS.md`.
+
+L6 — 2026-11-19 — Decision: the delivery route is created when the payment is approved (not at order creation), so Delivery never sees unpaid orders. To keep what the app sent (distance, minutes) the order now stores `distance_km` and `estimated_minutes` (V13).
+
+L7 — 2026-11-19 — Found while testing: Hibernate schema validation caught `smallint` vs `integer` on `products.dimension`; migration fixed before commit.
