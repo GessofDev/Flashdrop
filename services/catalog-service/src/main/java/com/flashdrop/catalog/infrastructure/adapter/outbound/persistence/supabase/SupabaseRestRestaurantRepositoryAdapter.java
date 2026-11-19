@@ -153,6 +153,11 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
         return Arrays.asList(rows);
     }
 
+    @Override
+    public Optional<Restaurant> updateDeliveryRadius(Long restaurantId, BigDecimal deliveryRadiusKm) {
+        throw new UnsupportedOperationException("La cobertura requiere el perfil postgres");
+    }
+
     private record RestaurantRow(
             Long id,
             @JsonProperty("user_id") Long userId,

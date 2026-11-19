@@ -18,9 +18,8 @@ import java.util.List;
 /**
  * Calcula el costo de envio de un pedido (F8) a partir de la tarifa que define el administrador.
  *
- * <p>Reglas de respaldo: sin rangos cargados, o con un destino sin coordenadas (pedidos de apps que
- * aun no las envian), se cobra el envio de {@code orders.delivery-fee}. Si hay tarifa y destino pero
- * el local no tiene pin, se rechaza con un error claro: no se inventa un precio.</p>
+ * <p>La cobertura siempre se valida antes de cotizar o crear pedidos. Sin rangos de tarifa se
+ * conserva el envio de respaldo, pero nunca se omiten las coordenadas ni el radio del local.</p>
  */
 @Service
 @Profile({"postgres", "default"})
@@ -52,18 +51,34 @@ public class DeliveryFeeCalculator {
             throw new OrderDomainException("La latitud y la longitud del destino deben enviarse juntas");
         }
         if (destinationLatitude == null) {
-            return DeliveryQuote.fallback(fallbackFee, null);
-        }
-        DeliveryTariff tariff = tariffs.find();
-        if (tariff.isEmpty()) {
-            return DeliveryQuote.fallback(fallbackFee, null);
+            throw new OrderDomainException("Selecciona una direccion con ubicacion para validar la cobertura");
         }
         if (restaurant == null || restaurant.getLatitude() == null || restaurant.getLongitude() == null) {
             throw new OrderDomainException("El local no tiene ubicacion configurada: no se puede calcular el envio");
         }
+        validateCoordinates(destinationLatitude, destinationLongitude);
+        BigDecimal radius = restaurant.getDeliveryRadiusKm();
+        if (radius == null || radius.compareTo(BigDecimal.ONE) < 0
+                || radius.compareTo(BigDecimal.valueOf(50)) > 0) {
+            throw new OrderDomainException("El local no tiene radio de despacho configurado");
+        }
         BigDecimal km = distances.kmBetween(restaurant.getLatitude(), restaurant.getLongitude(),
                 destinationLatitude, destinationLongitude);
+        if (km.compareTo(radius) > 0) {
+            throw new OrderDomainException("El local no realiza entregas en esta direccion: fuera de su radio de despacho");
+        }
+        DeliveryTariff tariff = tariffs.find();
+        if (tariff.isEmpty()) {
+            return DeliveryQuote.fallback(fallbackFee, km);
+        }
         return tariff.quote(orderDimension(lines), km);
+    }
+
+    private void validateCoordinates(BigDecimal latitude, BigDecimal longitude) {
+        if (latitude.abs().compareTo(BigDecimal.valueOf(90)) > 0
+                || longitude.abs().compareTo(BigDecimal.valueOf(180)) > 0) {
+            throw new OrderDomainException("Las coordenadas del destino no son validas");
+        }
     }
 
     /** Dimension del pedido: suma de cantidad x dimension de cada producto (sin dato, la por defecto). */

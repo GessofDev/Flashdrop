@@ -38,6 +38,8 @@ class CreateOrderUseCaseIntegrationTest {
     private OrderRepositoryPort orderRepository;
     private ClientPort clientPort;
     private EventPublisherPort eventPublisher;
+    private PaymentRepositoryPort paymentRepository;
+    private PaymentGatewayPort paymentGateway;
     private CreateOrderUseCase useCase;
 
     private UUID userId;
@@ -68,9 +70,9 @@ class CreateOrderUseCaseIntegrationTest {
         when(tariffRepository.find()).thenReturn(cl.flashdrop.orders.domain.model.DeliveryTariff.empty());
         clientPort = mock(ClientPort.class);
         eventPublisher = mock(EventPublisherPort.class);
-        PaymentRepositoryPort paymentRepository = mock(PaymentRepositoryPort.class);
+        paymentRepository = mock(PaymentRepositoryPort.class);
         when(paymentRepository.save(any(cl.flashdrop.orders.domain.model.Payment.class))).thenAnswer(i -> i.getArgument(0));
-        PaymentGatewayPort paymentGateway = mock(PaymentGatewayPort.class);
+        paymentGateway = mock(PaymentGatewayPort.class);
         when(paymentGateway.providerName()).thenReturn("FAKE");
         when(paymentGateway.createSession(any(), any(), any()))
                 .thenReturn(new PaymentGatewayPort.PaymentSession("tx-it", "fake://flashdrop-pay/tx-it"));
@@ -81,7 +83,8 @@ class CreateOrderUseCaseIntegrationTest {
         useCase = new CreateOrderUseCase(orderRepository, catalogAdapter, clientPort,
                 new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("it-secret"),
                 new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
-                        tariffRepository, null, BigDecimal.valueOf(2500), 1),
+                        tariffRepository, new cl.flashdrop.orders.infrastructure.adapter.outbound.geo.HaversineDistanceCalculator(),
+                        BigDecimal.valueOf(2500), 1),
                 paymentRepository, paymentGateway, policyResolver, java.time.Clock.systemUTC());
 
         // Inject @Value fields via reflection (not available outside Spring context)
@@ -114,6 +117,8 @@ class CreateOrderUseCaseIntegrationTest {
         CreateOrderCommand command = CreateOrderCommand.builder()
                 .userId(userId)
                 .address("Av. Providencia 1200")
+                .deliveryLatitude(new BigDecimal("-33.44"))
+                .deliveryLongitude(new BigDecimal("-70.66"))
                 .paymentMethod("Tarjeta")
                 .items(List.of(
                         CreateOrderCommand.ItemRequest.builder()
@@ -131,6 +136,36 @@ class CreateOrderUseCaseIntegrationTest {
 
         verify(orderRepository).save(any(Order.class));
         verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void execute_outsideRadius_doesNotSaveOrder() {
+        MockCatalogServer.stubGetProductsByIdsOkSingle(wireMock, 101L, 7L, "Burger", "Food", "img.jpg", 1000, true);
+        MockCatalogServer.stubGetRestaurantByIdOk(wireMock, 7L, "Local", "Calle", 42L);
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        CreateOrderCommand command = CreateOrderCommand.builder().userId(userId).address("Calle lejana 123")
+                .paymentMethod("Tarjeta").deliveryLatitude(new BigDecimal("-34"))
+                .deliveryLongitude(new BigDecimal("-70.66"))
+                .items(List.of(CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()))
+                .build();
+        OrderDomainException error = assertThrows(OrderDomainException.class, () -> useCase.execute(command));
+        assertTrue(error.getMessage().contains("fuera de su radio"));
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(paymentGateway, paymentRepository);
+    }
+
+    @Test
+    void execute_withoutDestination_doesNotSaveOrder() {
+        MockCatalogServer.stubGetProductsByIdsOkSingle(wireMock, 101L, 7L, "Burger", "Food", "img.jpg", 1000, true);
+        MockCatalogServer.stubGetRestaurantByIdOk(wireMock, 7L, "Local", "Calle", 42L);
+        when(clientPort.findClientIdByUserId(userId)).thenReturn(Optional.of(clientId));
+        CreateOrderCommand command = CreateOrderCommand.builder().userId(userId).address("Calle sin pin 123")
+                .paymentMethod("Tarjeta")
+                .items(List.of(CreateOrderCommand.ItemRequest.builder().productId(productId).quantity(1).build()))
+                .build();
+        assertThrows(OrderDomainException.class, () -> useCase.execute(command));
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(paymentGateway, paymentRepository);
     }
 
     @Test

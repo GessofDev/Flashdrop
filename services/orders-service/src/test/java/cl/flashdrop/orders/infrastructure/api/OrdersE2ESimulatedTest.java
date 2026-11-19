@@ -117,11 +117,14 @@ class OrdersE2ESimulatedTest {
                 mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class);
         org.mockito.Mockito.when(policyResolver.effectiveFor(org.mockito.ArgumentMatchers.any())).thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5));
 
+        cl.flashdrop.orders.domain.port.DeliveryTariffRepositoryPort tariffRepository =
+                mock(cl.flashdrop.orders.domain.port.DeliveryTariffRepositoryPort.class);
+        org.mockito.Mockito.when(tariffRepository.find()).thenReturn(cl.flashdrop.orders.domain.model.DeliveryTariff.empty());
         CreateOrderUseCase createOrderUseCase = new CreateOrderUseCase(
                 orderRepositoryAdapter, catalogAdapter, clientAdapter,
                 new cl.flashdrop.orders.infrastructure.adapter.outbound.code.HmacDeliveryCodeAdapter("e2e-secret"),
                 new cl.flashdrop.orders.application.service.DeliveryFeeCalculator(
-                        mock(cl.flashdrop.orders.domain.port.DeliveryTariffRepositoryPort.class), null,
+                        tariffRepository, new cl.flashdrop.orders.infrastructure.adapter.outbound.geo.HaversineDistanceCalculator(),
                         BigDecimal.valueOf(2500), 1),
                 paymentRepository, paymentGateway, policyResolver, java.time.Clock.systemUTC());
         ReflectionTestUtils.setField(createOrderUseCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
@@ -183,7 +186,7 @@ class OrdersE2ESimulatedTest {
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("{\"id\":7,\"name\":\"Burgers House\",\"address\":\"Los Leones 300\",\"userId\":42}")));
+                        .withBody("{\"id\":7,\"name\":\"Burgers House\",\"address\":\"Los Leones 300\",\"userId\":42,\"latitude\":-33.45,\"longitude\":-70.66,\"deliveryRadiusKm\":5}")));
 
         // 3. Auth (C-4): GET /api/internal/users/1
         wireMock.stubFor(get(urlEqualTo("/api/internal/users/1"))
@@ -290,6 +293,8 @@ class OrdersE2ESimulatedTest {
         createReq.setPaymentMethod("Tarjeta");
         createReq.setProductId(PRODUCT_ID);
         createReq.setQuantity(2);
+        createReq.setLatitude(new BigDecimal("-33.44"));
+        createReq.setLongitude(new BigDecimal("-70.66"));
 
         ApiResponse<CreatedOrderResult> createResponse = orderController.createOrder(createReq, null);
 

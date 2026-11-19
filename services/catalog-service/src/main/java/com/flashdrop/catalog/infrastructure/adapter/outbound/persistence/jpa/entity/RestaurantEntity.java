@@ -50,6 +50,9 @@ public class RestaurantEntity {
     @Column(precision = 9, scale = 6)
     private BigDecimal longitude;
 
+    @Column(name = "delivery_radius_km", precision = 4, scale = 2)
+    private BigDecimal deliveryRadiusKm;
+
     // EAGER porque toDomain corre fuera de la sesión; SUBSELECT evita una consulta
     // por local al listar el marketplace.
     @ElementCollection(fetch = FetchType.EAGER)
@@ -98,6 +101,10 @@ public class RestaurantEntity {
     public Restaurant toDomain() {
         return new Restaurant(id, userId, name, address, createdAt, acceptingOrders,
                 hours.stream().map(RestaurantHoursEmbeddable::toDomain).toList(),
-                latitude, longitude);
+                latitude, longitude, deliveryRadiusKm);
+    }
+
+    public void changeDeliveryRadius(BigDecimal deliveryRadiusKm) {
+        this.deliveryRadiusKm = deliveryRadiusKm;
     }
 }

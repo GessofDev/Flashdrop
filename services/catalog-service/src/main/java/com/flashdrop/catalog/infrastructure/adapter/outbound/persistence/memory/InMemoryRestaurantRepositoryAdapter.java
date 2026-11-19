@@ -53,7 +53,7 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), userId, restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
-                restaurant.getLatitude(), restaurant.getLongitude()));
+                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm()));
     }
 
     @Override
@@ -61,7 +61,7 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return findByUserId(userId).flatMap(owned -> replace(owned.getId(), restaurant -> new Restaurant(
                 restaurant.getId(), null, restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), false, restaurant.getHours(),
-                restaurant.getLatitude(), restaurant.getLongitude())));
+                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm())));
     }
 
     @Override
@@ -79,7 +79,7 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), acceptingOrders, restaurant.getHours(),
-                restaurant.getLatitude(), restaurant.getLongitude()));
+                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm()));
     }
 
     @Override
@@ -87,7 +87,7 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), hours,
-                restaurant.getLatitude(), restaurant.getLongitude()));
+                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm()));
     }
 
     @Override
@@ -95,7 +95,15 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
                 restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
-                latitude, longitude));
+                latitude, longitude, restaurant.getDeliveryRadiusKm()));
+    }
+
+    @Override
+    public Optional<Restaurant> updateDeliveryRadius(Long restaurantId, BigDecimal deliveryRadiusKm) {
+        return replace(restaurantId, restaurant -> new Restaurant(
+                restaurant.getId(), restaurant.getUserId(), restaurant.getName(), restaurant.getAddress(),
+                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
+                restaurant.getLatitude(), restaurant.getLongitude(), deliveryRadiusKm));
     }
 
     private Optional<Restaurant> replace(Long restaurantId, UnaryOperator<Restaurant> change) {

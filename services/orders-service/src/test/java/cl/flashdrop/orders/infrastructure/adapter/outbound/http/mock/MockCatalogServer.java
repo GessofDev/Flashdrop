@@ -66,7 +66,7 @@ public final class MockCatalogServer {
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody(String.format(
-                                "{\"id\":%d,\"name\":\"%s\",\"address\":\"%s\",\"userId\":%d}",
+                                "{\"id\":%d,\"name\":\"%s\",\"address\":\"%s\",\"userId\":%d,\"latitude\":-33.45,\"longitude\":-70.66,\"deliveryRadiusKm\":5}",
                                 id, name, address, userId))));
     }
 

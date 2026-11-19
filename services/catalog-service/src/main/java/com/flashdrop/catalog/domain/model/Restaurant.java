@@ -16,6 +16,7 @@ public class Restaurant {
     private boolean acceptingOrders;
     private List<OpeningHours> hours;
     private Coordinates coordinates;
+    private BigDecimal deliveryRadiusKm;
 
     public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt) {
         this(id, userId, name, address, createdAt, true, List.of(), null, null);
@@ -29,6 +30,12 @@ public class Restaurant {
     public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt,
                       boolean acceptingOrders, List<OpeningHours> hours,
                       BigDecimal latitude, BigDecimal longitude) {
+        this(id, userId, name, address, createdAt, acceptingOrders, hours, latitude, longitude, null);
+    }
+
+    public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt,
+                      boolean acceptingOrders, List<OpeningHours> hours,
+                      BigDecimal latitude, BigDecimal longitude, BigDecimal deliveryRadiusKm) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre del restaurante es obligatorio");
         }
@@ -41,6 +48,7 @@ public class Restaurant {
         this.acceptingOrders = acceptingOrders;
         this.hours = List.copyOf(hours);
         this.coordinates = Coordinates.ofNullable(latitude, longitude);
+        this.deliveryRadiusKm = deliveryRadiusKm;
     }
 
     /**
@@ -88,5 +96,9 @@ public class Restaurant {
 
     public BigDecimal getLongitude() {
         return coordinates == null ? null : coordinates.longitude();
+    }
+
+    public BigDecimal getDeliveryRadiusKm() {
+        return deliveryRadiusKm;
     }
 }

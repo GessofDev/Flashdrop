@@ -70,6 +70,17 @@ class JpaRestaurantRepositoryAdapterIT {
     }
 
     @Test
+    void updateRadius_persistsAndEnforcesDatabaseRange() {
+        repository.updateDeliveryRadius(1L, new java.math.BigDecimal("5.25"));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(repository.findById(1L).orElseThrow().getDeliveryRadiusKm())
+                .isEqualByComparingTo("5.25");
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbc.update("update restaurant set delivery_radius_km = 0 where id = 1"));
+    }
+
+    @Test
     void create_withoutOwner_persistsAClosedRestaurantWithNullOwner() {
         jdbc.queryForObject("select setval(pg_get_serial_sequence('restaurant', 'id'), 100)", Long.class);
 

@@ -40,7 +40,8 @@ class DeliveryFeeCalculatorTest {
 
     private static RestaurantInfo restaurantAt(String lat, String lon) {
         return RestaurantInfo.builder().restaurantId(UUID.randomUUID()).name("Local").address("Calle 1")
-                .latitude(lat == null ? null : bd(lat)).longitude(lon == null ? null : bd(lon)).build();
+                .latitude(lat == null ? null : bd(lat)).longitude(lon == null ? null : bd(lon))
+                .deliveryRadiusKm(bd("10")).build();
     }
 
     private static DeliveryFeeCalculator.Line line(Integer dimension, int qty) {
@@ -56,10 +57,9 @@ class DeliveryFeeCalculatorTest {
     }
 
     @Test
-    void sinCoordenadasDeDestinoSeCobraElEnvioDeRespaldo() {
-        DeliveryQuote q = calculator.calculate(List.of(line(3, 1)), restaurantAt("-33.45", "-70.66"), null, null);
-        assertTrue(q.defaultFee());
-        assertEquals(FALLBACK, q.deliveryFee());
+    void calculate_missingDestination_rejectsInsteadOfBypassingCoverage() {
+        assertThrows(OrderDomainException.class, () -> calculator.calculate(
+                List.of(line(3, 1)), restaurantAt("-33.45", "-70.66"), null, null));
     }
 
     @Test
@@ -102,5 +102,35 @@ class DeliveryFeeCalculatorTest {
     void latitudSinLongitudSeRechaza() {
         assertThrows(OrderDomainException.class, () -> calculator.calculate(
                 List.of(line(3, 1)), restaurantAt("-33.45", "-70.66"), bd("-33.44"), null));
+    }
+
+    @Test
+    void calculate_outsideRadius_rejectsEvenWithoutTariff() {
+        when(tariffs.find()).thenReturn(DeliveryTariff.empty());
+        OrderDomainException error = assertThrows(OrderDomainException.class, () -> calculator.calculate(
+                List.of(line(1, 1)), restaurantAt("-33.45", "-70.66"), bd("-34"), bd("-70.66")));
+        assertTrue(error.getMessage().contains("fuera de su radio"));
+    }
+
+    @Test
+    void calculate_missingRadius_rejects() {
+        RestaurantInfo unconfigured = RestaurantInfo.builder().latitude(bd("-33.45"))
+                .longitude(bd("-70.66")).build();
+        assertThrows(OrderDomainException.class, () -> calculator.calculate(
+                List.of(line(1, 1)), unconfigured, bd("-33.44"), bd("-70.66")));
+    }
+
+    @Test
+    void calculate_boundary_includesRoundedDistance() {
+        RestaurantInfo boundary = RestaurantInfo.builder().latitude(bd("-33.45"))
+                .longitude(bd("-70.66")).deliveryRadiusKm(bd("1.11")).build();
+        assertEquals(bd("1.11"), calculator.calculate(List.of(line(1, 1)), boundary,
+                bd("-33.44"), bd("-70.66")).distanceKm());
+    }
+
+    @Test
+    void calculate_invalidCoordinates_rejects() {
+        assertThrows(OrderDomainException.class, () -> calculator.calculate(
+                List.of(line(1, 1)), restaurantAt("-33.45", "-70.66"), bd("91"), bd("-70.66")));
     }
 }

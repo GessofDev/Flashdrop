@@ -36,6 +36,62 @@ class MyStoreRestaurantControllerIT {
     private Clock clock;
 
     @Test
+    void radius_ownerCanConfigureAndFilterWithoutExposingOtherStores() throws Exception {
+        mockMvc.perform(put("/api/catalog/my/restaurant/location").with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"latitude\":-33.45,\"longitude\":-70.66}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius").with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"deliveryRadiusKm\":5}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.deliveryRadiusKm").value(5));
+        mockMvc.perform(get("/catalog/restaurants?latitude=-33.44&longitude=-70.66"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(1));
+        mockMvc.perform(get("/catalog/restaurants?latitude=-34&longitude=-70.66"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0)));
+        mockMvc.perform(get("/api/internal/restaurants/1").header("X-Internal-Api-Key", "dev-key"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.deliveryRadiusKm").value(5));
+    }
+
+    @Test
+    void radius_invalidRequestsAndWrongRole_reject() throws Exception {
+        for (String body : new String[]{"{}", "{\"deliveryRadiusKm\":0}", "{\"deliveryRadiusKm\":51}",
+                "{\"deliveryRadiusKm\":5.123}"}) {
+            mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius").with(ownerJwt(1L))
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius")
+                        .with(jwt().jwt(token -> token.subject("1"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_Cliente")))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"deliveryRadiusKm\":5}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/catalog/restaurants?latitude=-33.44"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/catalog/restaurants?latitude=91&longitude=0"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void radius_authenticatedOwner_cannotUpdateSomeoneElsesStore() throws Exception {
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius").with(ownerJwt(99L))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"deliveryRadiusKm\":10}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/catalog/my/restaurant").with(ownerJwt(1L)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.deliveryRadiusKm").value(nullValue()));
+    }
+
+    @Test
+    void radius_missingLocation_rejectsUntilOwnerSetsPin() throws Exception {
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius").with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"deliveryRadiusKm\":5}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"deliveryRadiusKm\":5}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void endpointsRequireTheRestaurantRole() throws Exception {
         mockMvc.perform(get("/api/catalog/my/restaurant"))
                 .andExpect(status().isUnauthorized());

@@ -107,4 +107,13 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
                     return entity.toDomain();
                 });
     }
+
+    @Override
+    @Transactional
+    public Optional<Restaurant> updateDeliveryRadius(Long restaurantId, BigDecimal deliveryRadiusKm) {
+        return repository.findById(restaurantId).map(entity -> {
+            entity.changeDeliveryRadius(deliveryRadiusKm);
+            return entity.toDomain();
+        });
+    }
 }

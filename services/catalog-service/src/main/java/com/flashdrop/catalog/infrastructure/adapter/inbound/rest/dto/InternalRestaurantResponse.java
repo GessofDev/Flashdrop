@@ -12,7 +12,8 @@ public record InternalRestaurantResponse(
         String address,
         boolean open,
         BigDecimal latitude,
-        BigDecimal longitude
+        BigDecimal longitude,
+        BigDecimal deliveryRadiusKm
 ) {
     public static InternalRestaurantResponse fromDomain(Restaurant restaurant, LocalDateTime now) {
         return new InternalRestaurantResponse(
@@ -22,7 +23,8 @@ public record InternalRestaurantResponse(
                 restaurant.getAddress(),
                 restaurant.isOpenAt(now),
                 restaurant.getLatitude(),
-                restaurant.getLongitude()
+                restaurant.getLongitude(),
+                restaurant.getDeliveryRadiusKm()
         );
     }
 }

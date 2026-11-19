@@ -15,6 +15,10 @@ POST /catalog/products
 POST /catalog/products/validate
 GET  /catalog/categories
 GET  /catalog/restaurants
+GET  /catalog/restaurants?latitude=-33.45&longitude=-70.66
+GET  /api/catalog/my/restaurant
+PUT  /api/catalog/my/restaurant/location
+PUT  /api/catalog/my/restaurant/delivery-radius
 GET  /api/internal/products?ids=1,2,3
 GET  /api/internal/restaurants/{restaurantId}
 GET  /api/internal/restaurants?userId={userId}
@@ -42,6 +46,33 @@ reemplaza al dueño actual y rechaza asignar un usuario que ya tenga otro local.
 Todos los endpoints `/api/catalog/my/**` requieren un Bearer JWT emitido por Auth
 con el rol `Restaurante`. El claim `roles` es una lista y se mapean todos sus
 valores como authorities de Spring.
+
+### Cobertura por radio (F11)
+
+El propietario fija el pin con `PUT /api/catalog/my/restaurant/location`
+(`{"latitude":-33.45,"longitude":-70.66}`) y el radio con
+`PUT /api/catalog/my/restaurant/delivery-radius` (`{"deliveryRadiusKm":5}`).
+El radio admite de 1 a 50 km, hasta dos decimales, y requiere un pin configurado.
+El restaurante se deriva del JWT: no se acepta un ID de otro propietario.
+
+`GET /catalog/restaurants?latitude=...&longitude=...` devuelve solo los locales
+cuyo radio incluye el destino. La distancia geografica usa haversine, en linea
+recta y redondeada a dos decimales, igual que Orders; el limite se incluye.
+Ambas coordenadas deben enviarse juntas y dentro de sus rangos geograficos.
+El listado sin parametros conserva su comportamiento para otros consumidores.
+Las respuestas publica e interna incluyen `deliveryRadiusKm`.
+
+Sin pin o sin radio no existe cobertura. La migracion **V10 de Catalog** agrega
+`restaurant.delivery_radius_km` sin asignar cobertura por defecto a los locales
+existentes. Antes de activar la app filtrada, aplicar la migracion y configurar
+los pins y radios reales. Orders revalida en cotizacion y creacion, incluso si
+no hay tarifa cargada; no basta con filtrar la interfaz. Cambiar el radio no
+modifica pedidos existentes. La comuna viaja junto al destino, pero no decide
+la cobertura geografica.
+
+Coordinar con los consumidores web y moviles: deben enviar coordenadas al
+crear pedidos. No desplegar Orders con esta regla antes de actualizar esos
+consumidores y configurar los locales.
 
 El CRUD owner deriva el restaurante desde el `sub` del JWT: nunca confia en un
 `restaurantId` enviado por la app. `DELETE` es un soft delete que marca el
