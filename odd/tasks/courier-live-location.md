@@ -25,9 +25,15 @@ T1 | S1-S5 | inline | `docs(delivery): document courier live location design` (`
 T2 | S5 | inline | `feat(catalog): add manual store coordinates` (PR 1 · WU-1)
 T3 | S1,S5 | inline | `feat(delivery): store pickup coordinates and client user id on routes` (PR 2 · WU-2)
 T4 | S4,S5 | inline | `feat(orders): propagate pickup coordinates for claimable orders` (PR 2 · WU-3)
-T5 | S2 | pending | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
-T6 | S2 | pending | `feat(delivery): add redis courier location store and erasure hook` (PR 3 · WU-5)
-T7 | S1,S3 | pending | `feat(delivery): add courier location report and customer polling endpoints` (PR 3 · WU-6)
+T5 | S2 | inline | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
+T6 | S2 | inline | `feat(delivery): add redis courier location store and erasure hook` (PR 3 · WU-5)
+T7 | S1,S3 | inline | `feat(delivery): add courier location report and customer polling endpoints` (`a1dfd1f`, PR 3 · WU-6)
+
+Merge commits (PR base realignment, not spec work):
+
+M1 | S5 | inline | `Merge remote-tracking branch 'origin/main' into feat/courier-location-pickup-coords` (`e1e5672`, PR 2)
+M2 | S1-S5 | inline | `Merge remote-tracking branch 'origin/main' into feat/courier-live-location` (`9511724`, PR 3)
+M3 | S1-S5 | inline | `Merge branch 'feat/courier-location-pickup-coords' into feat/courier-live-location` (`3029fc6`, PR 3)
 
 ## Log
 
@@ -56,3 +62,23 @@ L10 — 2026-11-19 — The claimable order list is served by `orders-service` (`
 L11 — 2026-11-19 — Design approved: "si". Design document: `docs/plans/2026-11-19-courier-live-location-design.md`.
 
 L12 — 2026-11-19 — Implementation plan written in `docs/plans/2026-11-19-courier-live-location-implementation.md` (3 chained PRs, WU-1 through WU-6). Key codebase findings incorporated: (a) `orders-service` has no `delivery_routes` table so no Orders migration is needed; (b) `internal.delivery_routes` lacks `client_user_id`, so WU-2 adds `client_user_id varchar(64)` to authorize 5–10s customer polling locally in `delivery-service` without a per-poll internal HTTP call to `orders-service`.
+
+L13 — 2026-11-19 — All 6 work units implemented and verified on `feat/courier-live-location` (T2 `227c09a`, T3 `bed67fa`, T4 `cb53b5a`, T5 `560837a`, T6 `0388935`, T7 `a1dfd1f`).
+
+L14 — 2026-11-19 — Chained PR base realignment. PR #106 merged into `main` as merge commit `6ef332d` (the repo uses merge commits, not squash), so PR #107's base was changed from `feat/courier-location-catalog` to `main` with `gh pr edit 107 --base main`. No rebase or force-push was needed: the original commits survive in `main`.
+
+L15 — 2026-11-19 — PR #107 reported `CONFLICTING`. Root cause: PR #105 (`feat/order-commune`, merge commit `a0b8087`) landed in `main` before PR #106 and touched the same delivery/orders files as PR #107. Secondary cause: duplicate Flyway version — `main` already had `V9__delivery_routes_commune.sql` while PR #107 carried `V9__delivery_routes_pickup_coordinates.sql`.
+
+L16 — 2026-11-19 — Resolution of PR #107 (merge commit `e1e5672`): `origin/main` was merged into `feat/courier-location-pickup-coords` and the 8 conflicted files were resolved by combining the `commune` field (from #105) with the pickup coordinates (from #107) — `CreateDeliveryRouteRequest`, `RouteResponse`, `ListDeliveryRoutesUseCaseImpl`, `UpdateRouteStatusUseCaseImpl`, `DeliveryRoute`, `InternalRoutesController`, `JpaRouteRepositoryAdapter`, `AvailableDeliveryOrderResponse`. The pickup-coordinates migration was renumbered `V9` → `V10` to remove the duplicate Flyway version. `gateway/docker/scripts/lib/common.sh` kept `main`'s version (the `ce134f5` `db_kind=parts` fix).
+
+L17 — 2026-11-19 — PR #108 got the same treatment, in parallel with PR #107's CI: `origin/main` merged into `feat/courier-live-location` (`9511724`), the 8 conflicted files resolved by copying the already-validated `e1e5672` versions (PR #108 does not touch those files), and the branch migration renumbered `V9` → `V10`. A second merge of the PR #107 branch tip (`3029fc6`) produced zero tree changes, proving both branches carry identical content for the shared files.
+
+L18 — 2026-11-19 — Verification after the merges: `delivery-service` `./gradlew :delivery-service:test` BUILD SUCCESSFUL (including `RedisCourierLocationStoreAdapterIT` with Docker), `orders-service` `./mvnw test` 460 tests / 0 failures, `gateway` `pnpm build` (tsc) clean and `pnpm test` 405 tests / 0 failures. PR #107 CI: 4/4 checks green. PR #108: MERGEABLE / CLEAN with its own 880-line diff, CI running.
+
+L19 — 2026-11-19 — Delivery shape for the past-400-line slice: PR #108 carries 1211 authored changed lines since `origin/main`, already split by the chained-PR plan into WU-4/WU-5/WU-6 (T5, T6, T7). The merge commits M1–M3 add no spec content and stay on their own PR branches; the slice boundary for the feature remains PR #3 of 3.
+
+L20 — 2026-11-19 — Pending: PR #108's base must be switched from `feat/courier-location-pickup-coords` to `main` once PR #107 is merged by the reviewer, so the diff does not mix both PRs.
+
+L21 — 2026-11-19 — PR #107 merged into `main` by the reviewer as merge commit `1e83e94`. PR #108's base was switched to `main` with `gh pr edit 108 --base main`; its diff is now 900 additions / 8 deletions over 25 files, containing only PR #108's own payload. `origin/main` was merged into `feat/courier-live-location` again to satisfy the "Proteger Main" ruleset requirement that the branch be up to date — the merge produced zero tree changes, confirming both branches carry identical content for every shared file. The ruleset also requires 1 approving review (`required_approving_review_count: 1`, `require_code_owner_review: false`), which the repository owner provides.
+
+L22 — 2026-11-19 — Final verification of PR #108: `delivery-service CI` and `Gateway CI` green on head `1acd5d0`; local `merge-tree` between `origin/main` and `feat/courier-live-location` reports no conflicts; Flyway versions in `main` are `V9__delivery_routes_commune.sql` + `V10__delivery_routes_pickup_coordinates.sql`, with no duplicate version.

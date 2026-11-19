@@ -1,7 +1,9 @@
 package com.flashdrop.delivery.infrastructure.exception;
 
+import com.flashdrop.delivery.domain.exception.CourierLocationNotFoundException;
 import com.flashdrop.delivery.domain.exception.DeliveryPersonAlreadyExistsException;
 import com.flashdrop.delivery.domain.exception.DeliveryPersonNotFoundException;
+import com.flashdrop.delivery.domain.exception.NoActiveRouteException;
 import com.flashdrop.delivery.domain.exception.OrderClaimFailedException;
 import com.flashdrop.delivery.domain.exception.RouteAlreadyAssignedException;
 import com.flashdrop.delivery.domain.exception.RouteNotFoundException;
@@ -66,6 +68,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRouteNotFound(RouteNotFoundException ex) {
         log.error("Route not found: {}", ex.getMessage());
         return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(CourierLocationNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleCourierLocationNotFound(CourierLocationNotFoundException ex) {
+        log.debug("Courier location not found: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(NoActiveRouteException.class)
+    public ResponseEntity<Map<String, Object>> handleNoActiveRoute(NoActiveRouteException ex) {
+        log.warn("Courier has no active route: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     /**

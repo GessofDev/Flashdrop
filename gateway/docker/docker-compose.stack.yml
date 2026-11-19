@@ -32,6 +32,7 @@ networks:
 
 volumes:
   redis-data:
+  redis-delivery-data:
 
 # Los seis llevan `restart: unless-stopped`. Sin eso, un reinicio del servidor
 # deja el stack entero abajo y hay que levantarlo a mano --- es el mismo problema
@@ -53,6 +54,22 @@ services:
     networks: [stack]
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ===========================================================================
+  # redis-delivery — dedicado a ubicacion en vivo de repartidores (aislado de redis-cache)
+  # ===========================================================================
+  redis-delivery:
+    image: redis:7-alpine
+    container_name: stack-redis-delivery
+    restart: unless-stopped
+    networks: [stack, floci_default]
+    volumes:
+      - redis-delivery-data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -239,6 +256,11 @@ services:
       - AUTH_SERVICE_ISSUER=flashdrop-auth
       - ORDERS_SERVICE_URL=http://orders-service:8083
       - DELIVERY_CLAIM_DELEGATE_TO_ORDERS=${DELIVERY_CLAIM_DELEGATE:-true}
+      - DELIVERY_REDIS_URL=${DELIVERY_REDIS_URL:-redis://redis-delivery:6379}
+      - DELIVERY_LOCATION_TTL_SECONDS=${DELIVERY_LOCATION_TTL_SECONDS:-30}
+    depends_on:
+      redis-delivery:
+        condition: service_healthy
     ports:
       - '127.0.0.1:8084:8084'
     healthcheck:

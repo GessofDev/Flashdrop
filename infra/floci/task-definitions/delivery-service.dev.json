@@ -58,6 +58,14 @@
         {
           "name": "DELIVERY_CLAIM_DELEGATE_TO_ORDERS",
           "value": "true"
+        },
+        {
+          "name": "DELIVERY_REDIS_URL",
+          "value": "redis://redis-delivery:6379"
+        },
+        {
+          "name": "DELIVERY_LOCATION_TTL_SECONDS",
+          "value": "30"
         }
       ],
       "secrets": [
