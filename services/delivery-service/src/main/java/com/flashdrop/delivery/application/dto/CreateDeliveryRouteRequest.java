@@ -23,6 +23,8 @@ public record CreateDeliveryRouteRequest(
         String status,
         @Pattern(regexp = "(?i)NORMAL|SEGURO", message = "receptionMode must be NORMAL or SEGURO")
         String receptionMode,
+        @Size(max = 120, message = "commune must be at most 120 characters")
+        String commune,
         @DecimalMin(value = "-90.0", message = "pickupLatitude must be between -90 and 90")
         @DecimalMax(value = "90.0", message = "pickupLatitude must be between -90 and 90")
         BigDecimal pickupLatitude,
@@ -35,13 +37,21 @@ public record CreateDeliveryRouteRequest(
 
     public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
                                       Double distanceKm, Integer estimatedMinutes, String status) {
-        this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, null, null, null, null);
+        this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status,
+                null, null, null, null, null);
     }
 
     public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
                                       Double distanceKm, Integer estimatedMinutes, String status,
                                       String receptionMode) {
         this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, receptionMode,
-                null, null, null);
+                null, null, null, null);
+    }
+
+    public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
+                                      Double distanceKm, Integer estimatedMinutes, String status,
+                                      String receptionMode, String commune) {
+        this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, receptionMode,
+                commune, null, null, null);
     }
 }

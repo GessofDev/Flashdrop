@@ -55,6 +55,7 @@ public class InternalRoutesController {
         );
 
         route.setReceptionMode(request.receptionMode());
+        route.setCommune(request.commune());
         route.setPickupCoordinates(request.pickupLatitude(), request.pickupLongitude());
         route.setClientUserId(request.clientUserId());
 
@@ -137,6 +138,7 @@ public class InternalRoutesController {
                 null,
                 route.getReceptionMode(),
                 route.isDeliveryPinRequired(),
+                route.getCommune(),
                 route.getPickupLatitude(),
                 route.getPickupLongitude()
         );

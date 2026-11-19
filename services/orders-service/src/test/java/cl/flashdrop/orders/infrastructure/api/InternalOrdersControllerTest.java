@@ -53,6 +53,7 @@ class InternalOrdersControllerTest {
                 .deliveryId(deliveryId)
                 .status(OrderStatus.EN_CAMINO)
                 .address("Av. Providencia 1200, Santiago")
+                .commune("Providencia")
                 .total(BigDecimal.valueOf(25000))
                 .build();
 
@@ -66,6 +67,7 @@ class InternalOrdersControllerTest {
                 .andExpect(jsonPath("$[0].deliveryId").value(9))
                 .andExpect(jsonPath("$[0].status").value("En camino"))
                 .andExpect(jsonPath("$[0].address").value("Av. Providencia 1200, Santiago"))
+                .andExpect(jsonPath("$[0].commune").value("Providencia"))
                 .andExpect(jsonPath("$[0].total").doesNotExist());
     }
 
