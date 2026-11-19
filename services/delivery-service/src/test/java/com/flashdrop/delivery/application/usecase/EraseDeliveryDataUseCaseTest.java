@@ -14,6 +14,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import com.flashdrop.delivery.application.port.outbound.CourierLocationStore;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 import com.flashdrop.delivery.domain.model.DeliveryPerson;
@@ -22,7 +23,8 @@ class EraseDeliveryDataUseCaseTest {
 
     private final RouteRepository routes = mock(RouteRepository.class);
     private final DeliveryPersonRepository persons = mock(DeliveryPersonRepository.class);
-    private final EraseDeliveryDataUseCase useCase = new EraseDeliveryDataUseCase(routes, persons);
+    private final CourierLocationStore locationStore = mock(CourierLocationStore.class);
+    private final EraseDeliveryDataUseCase useCase = new EraseDeliveryDataUseCase(routes, persons, locationStore);
 
     @Test
     void anonymizeClientRoutes_delegatesTheOrderIds() {
@@ -32,14 +34,15 @@ class EraseDeliveryDataUseCaseTest {
     }
 
     @Test
-    void eraseCourier_unlinksTheRoutesAndThenDeletesTheProfile() {
+    void eraseCourier_unlinksRoutesDeletesLiveLocationAndDeletesProfile() {
         when(persons.findByUserId("77")).thenReturn(Optional.of(new DeliveryPerson(5L, "77", null, Instant.now())));
 
         boolean erased = useCase.eraseCourier("77");
 
         assertThat(erased).isTrue();
-        InOrder order = inOrder(routes, persons);
+        InOrder order = inOrder(routes, locationStore, persons);
         order.verify(routes).clearDeliveryPerson(5L);
+        order.verify(locationStore).deleteByDeliveryPersonId(5L);
         order.verify(persons).deleteByUserId("77");
     }
 
@@ -49,6 +52,7 @@ class EraseDeliveryDataUseCaseTest {
 
         assertThat(useCase.eraseCourier("99")).isFalse();
         verify(routes, never()).clearDeliveryPerson(org.mockito.ArgumentMatchers.anyLong());
+        verify(locationStore, never()).deleteByDeliveryPersonId(org.mockito.ArgumentMatchers.anyLong());
         verify(persons, never()).deleteByUserId(org.mockito.ArgumentMatchers.anyString());
     }
 }

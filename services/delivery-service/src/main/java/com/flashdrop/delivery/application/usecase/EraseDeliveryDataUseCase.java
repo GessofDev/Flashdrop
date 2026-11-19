@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.flashdrop.delivery.application.port.outbound.CourierLocationStore;
 import com.flashdrop.delivery.application.port.outbound.DeliveryPersonRepository;
 import com.flashdrop.delivery.application.port.outbound.RouteRepository;
 
@@ -18,10 +19,16 @@ public class EraseDeliveryDataUseCase {
 
     private final RouteRepository routes;
     private final DeliveryPersonRepository persons;
+    private final CourierLocationStore locationStore;
 
-    public EraseDeliveryDataUseCase(RouteRepository routes, DeliveryPersonRepository persons) {
+    public EraseDeliveryDataUseCase(
+            RouteRepository routes,
+            DeliveryPersonRepository persons,
+            CourierLocationStore locationStore
+    ) {
         this.routes = routes;
         this.persons = persons;
+        this.locationStore = locationStore;
     }
 
     /** Direcciones de entrega de un cliente que elimina su cuenta (Orders informa sus pedidos). */
@@ -30,12 +37,13 @@ public class EraseDeliveryDataUseCase {
         return routes.anonymizeDeliveryAddresses(orderIds);
     }
 
-    /** Perfil de repartidor: se desvincula de sus rutas y se borra. */
+    /** Perfil de repartidor: se desvincula de sus rutas, limpia su ubicacion en vivo y se borra. */
     @Transactional
     public boolean eraseCourier(String userId) {
         return persons.findByUserId(userId)
                 .map(person -> {
                     routes.clearDeliveryPerson(person.getId());
+                    locationStore.deleteByDeliveryPersonId(person.getId());
                     persons.deleteByUserId(userId);
                     return true;
                 })
