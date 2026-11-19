@@ -11,8 +11,9 @@ import com.flashdrop.auth.domain.valueobject.Phone;
 /**
  * Edición del perfil propio ({@code PUT /auth/profile}).
  *
- * <p>Reemplaza los cuatro campos editables completos: el teléfono o la foto
- * que lleguen en null quedan en null. Así se quitan, sin un endpoint aparte.
+ * <p>Reemplaza los tres campos editables completos: el teléfono que llegue en
+ * null queda en null. La foto se conserva: solo cambia por
+ * {@code /auth/profile/photo}, que la valida y la guarda en el almacenamiento.
  *
  * <p>El teléfono pasa por {@link Phone}, igual que en el alta. Sin eso el mismo
  * número podría quedar guardado con y sin espacios, y la restricción única de
@@ -35,10 +36,11 @@ public class UpdateUserProfileService implements UpdateUserProfileUseCase {
         String phone = command.phone() == null ? null : new Phone(command.phone()).value();
 
         User guardado = users.save(actual.conPerfil(
-                command.name(), command.lastName(), phone, command.photo()));
+                command.name(), command.lastName(), phone, actual.photo()));
 
         return new UserProfile(guardado.id(), guardado.name(), guardado.lastName(),
-                guardado.email().value(), guardado.phone(), guardado.rut(), guardado.photo(),
+                guardado.email().value(), guardado.phone(), guardado.rut(),
+                ProfilePhotos.urlFor(guardado.photo(), guardado.id()),
                 guardado.roleNames());
     }
 }

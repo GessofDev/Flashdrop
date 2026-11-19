@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -24,7 +25,9 @@ import java.util.Optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -258,5 +261,57 @@ class ApplicationStartupTest {
                                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
+
+    // ------------------------------------------------------------------ foto de perfil (F10)
+
+    /** Sin token responde el controlador (401), no el denyAll (403), en los tres metodos. */
+    @Test
+    void fotoDePerfilSinTokenDevuelve401YNo403() throws Exception {
+        mvc.perform(get("/auth/profile/photo")).andExpect(status().isUnauthorized());
+        mvc.perform(delete("/auth/profile/photo")).andExpect(status().isUnauthorized());
+        mvc.perform(multipart("/auth/profile/photo")
+                        .file(new MockMultipartFile("file", "f.jpg", "image/jpeg", new byte[] {1})))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * Con un JWT real la subida atraviesa la seguridad, el multipart y el procesador de
+     * imagenes. Sin AUTH_PHOTO_STORAGE_ENABLED el almacenamiento no esta configurado: 503,
+     * y el usuario no se toca.
+     */
+    @Test
+    void subirFotoSinAlmacenamientoConfiguradoDevuelve503() throws Exception {
+        when(users.findById(1L)).thenReturn(Optional.of(new User(
+                1L, new Email("cliente@demo.cl"), null, "Cliente", "Demo",
+                "+56911111111", null, List.of(), Instant.now())));
+        when(credentials.isActive(1L)).thenReturn(true);
+        String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
+
+        java.awt.image.BufferedImage image =
+                new java.awt.image.BufferedImage(40, 40, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.io.ByteArrayOutputStream jpeg = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "jpeg", jpeg);
+
+        mvc.perform(multipart("/auth/profile/photo")
+                        .file(new MockMultipartFile("file", "f.jpg", "image/jpeg", jpeg.toByteArray()))
+                        .header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"));
+        org.mockito.Mockito.verify(users, org.mockito.Mockito.never()).save(any());
+    }
+
+    /** Usuario sin foto: 404 a traves de la cadena real. */
+    @Test
+    void leerFotoDeUnUsuarioSinFotoDevuelve404() throws Exception {
+        when(users.findById(1L)).thenReturn(Optional.of(new User(
+                1L, new Email("cliente@demo.cl"), null, "Cliente", "Demo",
+                "+56911111111", null, List.of(), Instant.now())));
+        when(credentials.isActive(1L)).thenReturn(true);
+        String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
+
+        mvc.perform(get("/auth/profile/photo").header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("AUTH_PHOTO_NOT_FOUND"));
     }
 }

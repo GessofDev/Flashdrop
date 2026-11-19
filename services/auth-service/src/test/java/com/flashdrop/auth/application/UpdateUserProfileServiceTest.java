@@ -38,7 +38,7 @@ class UpdateUserProfileServiceTest {
     void setUp() {
         when(users.findById(1L)).thenReturn(Optional.of(new User(
                 1L, new Email("cliente@demo.cl"), "11.111.111-1", "Cliente", "Demo",
-                "+56911111111", "https://img/vieja.png",
+                "+56911111111", "avatars/1/5b1f1c2e-0000-4000-8000-000000000001.jpg",
                 List.of(new Role(1L, "Cliente", "/client")), ALTA)));
         // El adaptador real devuelve lo que guardo; aca se imita eso.
         when(users.save(any())).thenAnswer(invocacion -> invocacion.getArgument(0));
@@ -47,13 +47,14 @@ class UpdateUserProfileServiceTest {
     @Test
     void editaLosCamposYDevuelveElPerfilActualizado() {
         var perfil = service.updateProfile(1L, new UpdateUserProfileCommand(
-                "Nico", "Leiva", "+56999998888", "https://img/nueva.png"));
+                "Nico", "Leiva", "+56999998888"));
 
         assertEquals(1L, perfil.userId());
         assertEquals("Nico", perfil.name());
         assertEquals("Leiva", perfil.lastName());
         assertEquals("+56999998888", perfil.phone());
-        assertEquals("https://img/nueva.png", perfil.photo());
+        // La foto no cambia por PUT: se conserva y se expone como URL de auth.
+        assertEquals("/auth/profile/photo?v=5b1f1c2e-0000-4000-8000-000000000001", perfil.photo());
         assertEquals(List.of("Cliente"), perfil.roles());
     }
 
@@ -61,7 +62,7 @@ class UpdateUserProfileServiceTest {
      *  el save reescribe todas las columnas. */
     @Test
     void guardaConservandoEmailRutRolesYFechaDeAlta() {
-        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", null, null));
+        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", null));
 
         User guardado = guardado();
         assertEquals("cliente@demo.cl", guardado.email().value());
@@ -74,7 +75,7 @@ class UpdateUserProfileServiceTest {
      *  sin espacios, y la restriccion unica no lo veria repetido. */
     @Test
     void elTelefonoSeNormalizaIgualQueEnElAlta() {
-        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", "+56 9 8888 7777", null));
+        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", "+56 9 8888 7777"));
 
         assertEquals("+56988887777", guardado().phone());
     }
@@ -82,19 +83,20 @@ class UpdateUserProfileServiceTest {
     @Test
     void telefonoInvalidoSeRechazaSinGuardar() {
         assertThrows(InvalidUserException.class, () -> service.updateProfile(1L,
-                new UpdateUserProfileCommand("Nico", "Leiva", "123", null)));
+                new UpdateUserProfileCommand("Nico", "Leiva", "123")));
 
         verify(users, never()).save(any());
     }
 
-    /** Reemplazo completo: telefono y foto en null los quitan. */
+    /** Reemplazo completo: el telefono en null lo quita. La foto se conserva:
+     *  solo cambia por /auth/profile/photo (F10). */
     @Test
-    void telefonoYFotoEnNullQuedanVacios() {
-        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", null, null));
+    void telefonoEnNullQuedaVacioYLaFotoSeConserva() {
+        service.updateProfile(1L, new UpdateUserProfileCommand("Nico", "Leiva", null));
 
         User guardado = guardado();
         assertNull(guardado.phone());
-        assertNull(guardado.photo());
+        assertEquals("avatars/1/5b1f1c2e-0000-4000-8000-000000000001.jpg", guardado.photo());
     }
 
     /** Plan de pruebas §2.1: propagación del conflicto (409) ante colisión de teléfono.
@@ -107,7 +109,7 @@ class UpdateUserProfileServiceTest {
                 .when(users).save(any());
 
         assertThrows(DataIntegrityViolationException.class, () -> service.updateProfile(1L,
-                new UpdateUserProfileCommand("Nico", "Leiva", "+56999998888", null)));
+                new UpdateUserProfileCommand("Nico", "Leiva", "+56999998888")));
     }
 
     @Test
@@ -115,7 +117,7 @@ class UpdateUserProfileServiceTest {
         when(users.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(UserNotFoundException.class, () -> service.updateProfile(99L,
-                new UpdateUserProfileCommand("Nico", "Leiva", null, null)));
+                new UpdateUserProfileCommand("Nico", "Leiva", null)));
 
         verify(users, never()).save(any());
     }

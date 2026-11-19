@@ -276,8 +276,7 @@ class AuthControllerTest {
     // ------------------------------------------------------ PUT /auth/profile
 
     private static final String PERFIL_VALIDO = """
-            {"name":"Nico","lastName":"Leiva","phone":"+56999998888",
-             "photo":"https://img.flashdrop.cl/perfil.png"}
+            {"name":"Nico","lastName":"Leiva","phone":"+56999998888"}
             """;
 
     private void tokenDelUsuario(long userId) {
@@ -291,7 +290,7 @@ class AuthControllerTest {
         tokenDelUsuario(1L);
         when(updateUserProfile.updateProfile(eq(1L), any())).thenReturn(new UserProfile(
                 1L, "Nico", "Leiva", "cliente@demo.cl", "+56999998888", null,
-                "https://img.flashdrop.cl/perfil.png", List.of("Cliente")));
+                "/auth/profile/photo?v=abc", List.of("Cliente")));
 
         mvc.perform(put("/auth/profile").header("Authorization", "Bearer un-token")
                         .contentType(APPLICATION_JSON).content(PERFIL_VALIDO))

@@ -12,6 +12,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +75,42 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccountErasureUnavailableException.class)
     public ResponseEntity<ApiError> handleErasureUnavailable(AccountErasureUnavailableException ex) {
         return build(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), ex.getMessage());
+    }
+
+    // --- Foto de perfil (F10) ---
+
+    @ExceptionHandler(InvalidProfilePhotoException.class)
+    public ResponseEntity<ApiError> handleInvalidPhoto(InvalidProfilePhotoException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage());
+    }
+
+    @ExceptionHandler(ProfilePhotoTooLargeException.class)
+    public ResponseEntity<ApiError> handlePhotoTooLarge(ProfilePhotoTooLargeException ex) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, ex.code(), ex.getMessage());
+    }
+
+    /** El archivo supera spring.servlet.multipart.max-file-size antes de llegar al controlador. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "AUTH_PHOTO_TOO_LARGE", "La foto supera el límite de 2 MB");
+    }
+
+    /** Falta el campo {@code file} o el cuerpo no es multipart valido: error del llamador, no 500. */
+    @ExceptionHandler({MissingServletRequestPartException.class, MultipartException.class})
+    public ResponseEntity<ApiError> handleBadMultipart(Exception ex) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Falta la foto en el campo 'file'");
+    }
+
+    @ExceptionHandler(ProfilePhotoNotFoundException.class)
+    public ResponseEntity<ApiError> handlePhotoNotFound(ProfilePhotoNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.code(), ex.getMessage());
+    }
+
+    @ExceptionHandler(PhotoStorageUnavailableException.class)
+    public ResponseEntity<ApiError> handlePhotoStorageUnavailable(PhotoStorageUnavailableException ex) {
+        log.warn("Almacenamiento de fotos no disponible: {}",
+                ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), "El almacenamiento de fotos no está disponible");
     }
 
     @ExceptionHandler(AccessForbiddenException.class)

@@ -63,4 +63,13 @@ public class User {
     public User conPerfil(String name, String lastName, String phone, String photo) {
         return new User(id, email, rut, name, lastName, phone, photo, roles, createdAt);
     }
+
+    /**
+     * Copia con otra foto de perfil (la clave del objeto en el almacenamiento,
+     * o null para quitarla). Conserva todo lo demas por la misma razon que
+     * {@link #conPerfil}.
+     */
+    public User conFoto(String photo) {
+        return new User(id, email, rut, name, lastName, phone, photo, roles, createdAt);
+    }
 }

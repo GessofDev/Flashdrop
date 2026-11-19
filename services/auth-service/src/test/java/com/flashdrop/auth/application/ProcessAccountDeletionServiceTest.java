@@ -26,10 +26,12 @@ import com.flashdrop.auth.application.port.outbound.AccountDeletionStore;
 import com.flashdrop.auth.application.port.outbound.AccountErasurePort;
 import com.flashdrop.auth.application.port.outbound.AuditLogger;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.ProfilePhotoStorage;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
 import com.flashdrop.auth.application.usecase.ProcessAccountDeletionService;
 import com.flashdrop.auth.domain.exception.AccountDeletionBlockedException;
 import com.flashdrop.auth.domain.exception.AccountErasureUnavailableException;
+import com.flashdrop.auth.domain.exception.PhotoStorageUnavailableException;
 import com.flashdrop.auth.domain.model.AccountDeletion;
 import com.flashdrop.auth.domain.model.AccountDeletion.Status;
 
@@ -43,9 +45,10 @@ class ProcessAccountDeletionServiceTest {
     private final AccountErasurePort erasure = mock(AccountErasurePort.class);
     private final UserRepository users = mock(UserRepository.class);
     private final CredentialStore credentials = mock(CredentialStore.class);
+    private final ProfilePhotoStorage photos = mock(ProfilePhotoStorage.class);
     private final AuditLogger audit = mock(AuditLogger.class);
     private final ProcessAccountDeletionService service = new ProcessAccountDeletionService(
-            deletions, erasure, users, credentials, audit, Clock.fixed(NOW, ZoneOffset.UTC), 5);
+            deletions, erasure, users, credentials, photos, audit, Clock.fixed(NOW, ZoneOffset.UTC), 5);
 
     private static AccountDeletion pending(boolean orders, boolean delivery, boolean catalog, int attempts) {
         return new AccountDeletion(USER, Status.PENDING, attempts, orders, delivery, catalog, NOW, null);
@@ -62,12 +65,30 @@ class ProcessAccountDeletionServiceTest {
         int completed = service.processDue();
 
         assertEquals(1, completed);
-        InOrder order = inOrder(erasure, users, deletions);
+        InOrder order = inOrder(erasure, photos, users, deletions);
         order.verify(erasure).eraseOrders(USER);
         order.verify(erasure).eraseDelivery(USER);
         order.verify(erasure).eraseCatalog(USER);
+        order.verify(photos).deleteAll("avatars/42/");
         order.verify(users).deleteById(USER);
         order.verify(deletions).delete(USER);
+    }
+
+    /** F10: si el bucket no responde, el usuario no se borra (su foto quedaria huerfana) y se reintenta. */
+    @Test
+    void processDue_whenThePhotoCannotBeDeleted_schedulesARetry_andDoesNotDeleteTheUser() {
+        due(pending(true, true, true, 0));
+        doThrow(new PhotoStorageUnavailableException("Floci no responde")).when(photos).deleteAll("avatars/42/");
+
+        int completed = service.processDue();
+
+        assertEquals(0, completed);
+        verify(users, never()).deleteById(any());
+        verify(deletions, never()).delete(any());
+        ArgumentCaptor<AccountDeletion> saved = forClass(AccountDeletion.class);
+        verify(deletions).save(saved.capture());
+        assertEquals(1, saved.getValue().attempts());
+        assertEquals(Status.PENDING, saved.getValue().status());
     }
 
     @Test
@@ -117,7 +138,7 @@ class ProcessAccountDeletionServiceTest {
     @Test
     void processDue_backoffIsCappedAtOneHour() {
         ProcessAccountDeletionService patient = new ProcessAccountDeletionService(
-                deletions, erasure, users, credentials, audit, Clock.fixed(NOW, ZoneOffset.UTC), 50);
+                deletions, erasure, users, credentials, photos, audit, Clock.fixed(NOW, ZoneOffset.UTC), 50);
         due(pending(false, false, false, 10));
         doThrow(new AccountErasureUnavailableException("x")).when(erasure).eraseOrders(USER);
 

@@ -113,6 +113,14 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-}
+      # Foto de perfil (F10): bucket privado de Floci. Apagado, auth arranca y
+      # subir una foto responde 503. Las claves van solo en el .env.
+      - AUTH_PHOTO_STORAGE_ENABLED=${AUTH_PHOTO_STORAGE_ENABLED:-false}
+      - S3_ENDPOINT=http://floci:4566/
+      - S3_AVATARS_BUCKET=${AUTH_AVATARS_BUCKET:-flashdrop-avatars}
+      - S3_REGION=${AUTH_S3_REGION:-us-east-1}
+      - S3_ACCESS_KEY=${AUTH_S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${AUTH_S3_SECRET_KEY:-}
       # Eliminacion de cuenta (F5): Auth coordina el borrado de datos en los demas servicios.
       - ORDERS_SERVICE_URL=http://orders-service:8083
       - DELIVERY_SERVICE_URL=http://delivery-service:8084
