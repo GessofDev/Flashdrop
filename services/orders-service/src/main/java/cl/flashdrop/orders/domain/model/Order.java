@@ -81,6 +81,18 @@ public class Order {
     /** Hasta cuando la tienda debe aceptar el pedido ya pagado. Se fija al aprobarse el pago. */
     private OffsetDateTime storeResponseDueAt;
 
+    // -------------------------------------------------------
+    // Pedidos que nadie atiende (F7)
+    // -------------------------------------------------------
+
+    /** Cuando la tienda acepto el pedido (paso de Nuevo pedido a Preparando / Listo para retiro). */
+    private OffsetDateTime acceptedAt;
+    /** Hasta cuando se espera un repartidor; se cuenta desde que la tienda acepto. */
+    private OffsetDateTime courierDueAt;
+    /** Codigo de {@link CancellationReason} cuando el sistema cancela solo el pedido. */
+    private String cancelReason;
+    private OffsetDateTime cancelledAt;
+
     /**
      * Código visible para el cliente dueño. Dato de presentación: lo calcula el caso de uso que
      * consulta el pedido, no se persiste y es {@code null} para cualquier otro rol.
@@ -143,12 +155,15 @@ public class Order {
      * quedaron en ese estado deben poder terminar su ciclo.
      */
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-            // Solo el sistema confirma el pago (a Nuevo pedido); ningun rol puede fijar ese estado.
+            // Solo el sistema confirma el pago: el pedido pagado pasa directo a Preparando (la tienda lo toma sin
+            // aceptarlo a mano) mediante una sentencia propia, sin pasar por esta tabla; ningun rol puede hacerlo.
             OrderStatus.PENDIENTE_PAGO, EnumSet.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
             OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO,
                     OrderStatus.CANCELADO, OrderStatus.RECHAZADO),
-            OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO),
-            OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO),
+            // Si la tienda no puede preparar un pedido que ya tomo, lo rechaza (cancela) desde Preparando.
+            OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
+            // Tambien puede rechazarlo si ya esta listo (con o sin repartidor asignado); retirado ya no.
+            OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO, OrderStatus.RECHAZADO),
             OrderStatus.RETIRADO, EnumSet.of(OrderStatus.ENTREGADO, OrderStatus.EN_CAMINO),
             OrderStatus.EN_CAMINO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
             OrderStatus.ENTREGADO, EnumSet.noneOf(OrderStatus.class)

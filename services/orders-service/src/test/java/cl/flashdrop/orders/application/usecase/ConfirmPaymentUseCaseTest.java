@@ -1,10 +1,8 @@
 package cl.flashdrop.orders.application.usecase;
 
-import cl.flashdrop.orders.application.service.OrderPolicyResolver;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.DeliveryRoute;
 import cl.flashdrop.orders.domain.model.Order;
-import cl.flashdrop.orders.domain.model.OrderPolicy;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Payment;
 import cl.flashdrop.orders.domain.model.PaymentMethod;
@@ -48,7 +46,6 @@ class ConfirmPaymentUseCaseTest {
     @Mock private ClientPort clientPort;
     @Mock private DeliveryPort deliveryPort;
     @Mock private EventPublisherPort eventPublisher;
-    @Mock private OrderPolicyResolver policyResolver;
 
     private ConfirmPaymentUseCase useCase;
 
@@ -60,7 +57,7 @@ class ConfirmPaymentUseCaseTest {
     @BeforeEach
     void setUp() {
         useCase = new ConfirmPaymentUseCase(paymentRepository, orderRepository, catalogPort, clientPort,
-                deliveryPort, eventPublisher, policyResolver, Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
+                deliveryPort, eventPublisher, Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
         ReflectionTestUtils.setField(useCase, "defaultDistanceKm", BigDecimal.valueOf(3.2));
         ReflectionTestUtils.setField(useCase, "defaultEstimatedMinutes", 20);
         ReflectionTestUtils.setField(useCase, "orderCreatedRoutingKey", "order.created");
@@ -83,11 +80,10 @@ class ConfirmPaymentUseCaseTest {
     }
 
     @Test
-    void pagoAprobadoActivaElPedidoFijaElPlazoDeLaTiendaCreaLaRutaYPublicaElEvento() {
+    void pagoAprobadoHaceQueLaTiendaTomeElPedidoCreaLaRutaYPublicaElEvento() {
         Payment payment = pendingPayment();
         stubFound(payment, order(OrderStatus.PENDIENTE_PAGO));
-        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5));
-        when(orderRepository.confirmPayment(orderId, NOW.plusMinutes(10))).thenReturn(true);
+        when(orderRepository.confirmPayment(orderId, NOW)).thenReturn(true);
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(RestaurantInfo.builder()
                 .restaurantId(restaurantId).name("Burgers House").address("Los Leones 300")
                 .latitude(new BigDecimal("-33.4")).longitude(new BigDecimal("-70.6")).build()));
@@ -148,7 +144,6 @@ class ConfirmPaymentUseCaseTest {
     @Test
     void siElPedidoDejoDeEstarPendienteEnMedioDeLaConfirmacionNoSeCreaLaRuta() {
         stubFound(pendingPayment(), order(OrderStatus.PENDIENTE_PAGO));
-        when(policyResolver.effectiveFor(restaurantId)).thenReturn(new OrderPolicy.Effective(15, 10, 5));
         when(orderRepository.confirmPayment(any(), any())).thenReturn(false);
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ORDER_NOT_PENDING, useCase.execute("FAKE", "tx-1", true, "APPROVED"));

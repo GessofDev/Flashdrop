@@ -12,7 +12,7 @@ Resuelve dos brechas de `FlashDrop-1.0-Analisis-Brechas`: **F8** (pago solo decl
 | --- | --- |
 | Medio de pago | Solo Tarjeta. Efectivo y Transferencia siguen en el modelo, pero el sistema los rechaza al llegar. |
 | Pasarela | Interfaz `PaymentGatewayPort` con una versión simulada (aprobado / rechazado). La real la reemplaza sin tocar casos de uso. |
-| Estados | El pedido nace "Pendiente de pago" y pasa a "Nuevo pedido" al aprobarse el pago. |
+| Estados | El pedido nace "Pendiente de pago". Al aprobarse el pago la tienda lo toma de inmediato: pasa directo a "Preparando", sin aceptarlo a mano. Si no puede prepararlo, lo rechaza. |
 | Pago rechazado | El cliente reintenta con el mismo pedido. |
 | Envío | Costo = costo por dimensión + costo por distancia, ambos desde tablas editables por el administrador. |
 | Dimensión | Escala 1 a 10 por producto. La del pedido es la suma de cantidad × dimensión. Define el vehículo (moto, bici, auto). |
@@ -20,7 +20,7 @@ Resuelve dos brechas de `FlashDrop-1.0-Analisis-Brechas`: **F8** (pago solo decl
 | Respaldo | Sin rangos cargados, o destino sin coordenadas: envío de $2.500 (`orders.delivery-fee`). Local sin pin con tarifa activa: error claro. |
 | Cuándo se calcula | Antes de pagar (cotización) y recalculado por el servidor al crear el pedido. |
 | Administrador | No existe un rol Admin: es quien tiene Cliente, Restaurante y Repartidor a la vez (igual que Auth). Los endpoints `/api/admin/**` usan esa regla en un solo punto. |
-| Plazos (F7) | Globales, solo los fija el administrador. Tienda sin respuesta y sin repartidor cancelan el pedido. Sin aviso previo al cliente. |
+| Plazos (F7) | La tienda toma todo pedido pagado sin aceptarlo a mano. La espera de repartidor es global (la fija el administrador), cuenta desde el pago y, vencida sin repartidor, cancela el pedido. Sin aviso previo al cliente. |
 | Fuera de alcance | Ejecución de devoluciones, vencimiento de pedidos sin pagar, pedidos fuera de rango, envío gratis, comisión, mapas, apps y web. |
 
 ## Cálculo del envío
@@ -38,7 +38,7 @@ Reglas de las tablas: el primer rango parte en 0, no hay solapes ni huecos y el 
 
 1. `POST /api/orders` valida, calcula el envío y crea el pedido en "Pendiente de pago" con su pago abierto. Responde con el enlace de pago.
 2. El cliente paga en la pantalla de la pasarela. La pasarela avisa a `POST /api/payments/webhook` (con firma).
-3. Aprobado: el pedido pasa a "Nuevo pedido", se fija `store_response_due_at`, se crea la ruta en Delivery y se publica `order.created`.
+3. Aprobado: el pedido pasa directo a "Preparando" (la tienda lo toma), se fija la espera de repartidor, se crea la ruta en Delivery y se publica `order.created`.
 4. Rechazado: el pago queda rechazado y el pedido sigue pendiente. `POST /api/orders/{id}/payments` abre otro intento.
 5. Con la pasarela simulada, `POST /api/payments/fake/{txId}/resolve` permite elegir aprobar o rechazar desde la app.
 

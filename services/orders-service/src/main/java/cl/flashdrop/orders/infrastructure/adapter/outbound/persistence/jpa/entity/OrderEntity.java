@@ -87,4 +87,16 @@ public class OrderEntity {
 
     @Column(name = "store_response_due_at")
     private OffsetDateTime storeResponseDueAt;
+
+    @Column(name = "accepted_at")
+    private OffsetDateTime acceptedAt;
+
+    @Column(name = "courier_due_at")
+    private OffsetDateTime courierDueAt;
+
+    @Column(name = "cancel_reason", length = 40)
+    private String cancelReason;
+
+    @Column(name = "cancelled_at")
+    private OffsetDateTime cancelledAt;
 }

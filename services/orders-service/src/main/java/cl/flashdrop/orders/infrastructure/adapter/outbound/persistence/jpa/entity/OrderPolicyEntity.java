@@ -31,6 +31,9 @@ public class OrderPolicyEntity {
     @Column(name = "customer_cancel_window_minutes")
     private Integer customerCancelWindowMinutes;
 
+    @Column(name = "courier_wait_minutes")
+    private Integer courierWaitMinutes;
+
     @Column(name = "updated_by_user_id")
     private Long updatedByUserId;
 

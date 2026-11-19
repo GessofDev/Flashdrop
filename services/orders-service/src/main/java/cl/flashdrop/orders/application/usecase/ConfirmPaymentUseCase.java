@@ -1,10 +1,8 @@
 package cl.flashdrop.orders.application.usecase;
 
-import cl.flashdrop.orders.application.service.OrderPolicyResolver;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.model.DeliveryRoute;
 import cl.flashdrop.orders.domain.model.Order;
-import cl.flashdrop.orders.domain.model.OrderPolicy;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Payment;
 import cl.flashdrop.orders.domain.model.PaymentStatus;
@@ -30,8 +28,9 @@ import java.util.UUID;
  * Caso de uso: aplicar el resultado de un pago que informa la pasarela (F8).
  *
  * <ul>
- *   <li><b>Aprobado:</b> el pago queda aprobado y el pedido pasa de "Pendiente de pago" a
- *       "Nuevo pedido", con el plazo de respuesta de la tienda fijado desde ese instante. Recién
+ *   <li><b>Aprobado:</b> el pago queda aprobado y el pedido pasa de "Pendiente de pago" directo a
+ *       "Preparando" (la tienda toma todo pedido pagado, sin aceptarlo a mano). La espera de repartidor no corre
+ *       todavia: empieza cuando el pedido queda listo para retiro. Recién
  *       ahí se crea la ruta de entrega y se publica {@code order.created}.</li>
  *   <li><b>Rechazado:</b> el pago queda rechazado y el pedido sigue pendiente; el cliente puede
  *       reintentar con el mismo pedido ({@link RetryPaymentUseCase}).</li>
@@ -61,7 +60,6 @@ public class ConfirmPaymentUseCase {
     private final ClientPort clientPort;
     private final DeliveryPort deliveryPort;
     private final EventPublisherPort eventPublisher;
-    private final OrderPolicyResolver policyResolver;
     private final Clock clock;
 
     @Value("${orders.default-distance-km:3.2}")
@@ -106,8 +104,9 @@ public class ConfirmPaymentUseCase {
             return Outcome.ORDER_NOT_PENDING;
         }
 
-        OrderPolicy.Effective policy = policyResolver.effectiveFor(order.getRestaurantId());
-        boolean activated = orderRepository.confirmPayment(order.getId(), now.plusMinutes(policy.storeResponseMinutes()));
+        // La tienda toma todo pedido pagado: pasa directo a Preparando. La espera de repartidor no corre todavia:
+        // empieza cuando el pedido queda listo para retiro, que es cuando un repartidor puede tomarlo.
+        boolean activated = orderRepository.confirmPayment(order.getId(), now);
         if (!activated) {
             log.warn("El pedido {} dejo de estar pendiente mientras se confirmaba su pago", order.getId());
             return Outcome.ORDER_NOT_PENDING;
@@ -119,9 +118,9 @@ public class ConfirmPaymentUseCase {
                 .clientId(order.getClientId())
                 .restaurantId(order.getRestaurantId())
                 .total(order.getTotal())
-                .status(OrderStatus.NUEVO_PEDIDO.getValue())
+                .status(OrderStatus.PREPARANDO.getValue())
                 .build());
-        log.info("Pedido {} pagado: pasa a Nuevo pedido", order.getId());
+        log.info("Pedido {} pagado: la tienda lo toma, pasa a Preparando", order.getId());
         return Outcome.ORDER_ACTIVATED;
     }
 

@@ -20,6 +20,9 @@ public class OrderStatusUpdatedEvent {
     private final String previousStatus;
     private final String newStatus;
 
+    /** Codigo del motivo cuando el sistema cancela solo el pedido (F7); {@code null} en los demas cambios. */
+    private final String reason;
+
     @Builder.Default
     private final OffsetDateTime occurredAt = OffsetDateTime.now();
 }

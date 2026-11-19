@@ -167,14 +167,17 @@ class PaymentRefundPolicyDomainTest {
     }
 
     @Test
-    void storeOverridesOnlyWhatItSetsAndInheritsTheRest() {
+    void storeOverridesPaymentAndCancelWindowButNeverTheStoreResponseTime() {
         OrderPolicy store = OrderPolicy.builder().restaurantId(UUID.randomUUID())
-                .storeResponseMinutes(20).customerCancelWindowMinutes(0).build();
+                .paymentExpirationMinutes(30).storeResponseMinutes(20).courierWaitMinutes(99)
+                .customerCancelWindowMinutes(0).build();
 
         OrderPolicy.Effective e = OrderPolicy.resolve(global(15, 10, 5), store);
 
-        assertEquals(15, e.paymentExpirationMinutes());
-        assertEquals(20, e.storeResponseMinutes());
+        assertEquals(30, e.paymentExpirationMinutes());
+        // F7: el plazo de la tienda y la espera de repartidor son solo globales; lo que traiga la tienda se ignora.
+        assertEquals(10, e.storeResponseMinutes());
+        assertEquals(OrderPolicy.DEFAULT_COURIER_WAIT_MINUTES, e.courierWaitMinutes());
         // 0 es un valor valido ("no se puede cancelar") y NO debe confundirse con "no configurado".
         assertEquals(0, e.customerCancelWindowMinutes());
     }

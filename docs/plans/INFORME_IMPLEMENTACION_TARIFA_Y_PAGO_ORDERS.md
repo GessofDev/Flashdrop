@@ -9,9 +9,9 @@
 | Tema | Resultado |
 | --- | --- |
 | Medio de pago | Solo Tarjeta (valor por defecto si no viene). Efectivo, Transferencia o cualquier otro valor se rechazan con 400 "Medio de pago no disponible". Siguen en el modelo y los pedidos históricos se leen igual. |
-| Estados | El pedido nace **Pendiente de pago** con su cobro abierto. Pasa a **Nuevo pedido** cuando el pago se aprueba. |
+| Estados | El pedido nace **Pendiente de pago** con su cobro abierto. Pasa directo a **Preparando** cuando el pago se aprueba: la tienda toma todo pedido pagado (ver F7). |
 | Pasarela | `PaymentGatewayPort` + adaptador simulado `FakePaymentGateway` (aprobado / rechazado). La real se cambia con `orders.payment.provider` sin tocar casos de uso. |
-| Al aprobarse el pago | El pedido pasa a Nuevo pedido, se fija `store_response_due_at` (plazo global de la tienda), se **crea la ruta en Delivery** (con coordenadas del local, distancia y tiempo) y se publica `order.created`. Antes esto ocurría al crear el pedido. |
+| Al aprobarse el pago | El pedido pasa directo a Preparando (la tienda lo toma), se registra `accepted_at`, se **crea la ruta en Delivery** (con coordenadas del local, distancia y tiempo) y se publica `order.created`. Antes esto ocurría al crear el pedido. |
 | Pago rechazado | El pago queda `RECHAZADO`, el pedido sigue pendiente y el cliente reintenta con el mismo pedido. |
 | Envío | `costo por dimensión + costo por distancia`, desde dos tablas que edita el administrador. La dimensión del pedido es la suma de `cantidad × dimensión` y define el vehículo (MOTO, BICI o AUTO). |
 | Respaldo | Sin rangos cargados, o destino sin coordenadas: **$2.500** (`orders.delivery-fee`). Con tarifa activa y destino pero local sin pin: error claro "El local no tiene ubicacion configurada". |
@@ -66,7 +66,7 @@ Todas son idempotentes (`IF NOT EXISTS`) y no borran datos. `V10` de Orders ya e
 2. Enviar `latitude` y `longitude` del destino en `POST /api/orders` y en la cotización. Sin ellas se cobra el respaldo.
 3. Llamar a `POST /api/orders/delivery-quote` y mostrar subtotal, envío y total **antes** de pagar.
 4. Pantalla de pago simulada: abrir `paymentUrl` (`fake://flashdrop-pay/{txId}`), mostrar dos botones y llamar a `POST /api/payments/fake/{txId}/resolve` con `APPROVED` o `REJECTED`.
-5. Tras pagar, consultar `GET /api/orders/{id}/payments` hasta que `orderStatus` sea "Nuevo pedido" (aprobado) o `paymentStatus` sea `RECHAZADO` (permitir reintentar con `POST /api/orders/{id}/payments`).
+5. Tras pagar, consultar `GET /api/orders/{id}/payments` hasta que `orderStatus` sea "Preparando" (aprobado; la tienda toma el pedido) o `paymentStatus` sea `RECHAZADO` (permitir reintentar con `POST /api/orders/{id}/payments`).
 6. Enviar un `Idempotency-Key` por intento de compra, para que un reintento por red no duplique el pedido.
 7. Quitar Efectivo y Transferencia de las opciones de pago.
 8. (Etapa Catalog) Campo de dimensión 1 a 10 al crear o editar un producto.

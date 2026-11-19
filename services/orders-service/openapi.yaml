@@ -102,8 +102,8 @@ paths:
       description: |
         Crea un nuevo pedido **pendiente de pago** (estado `Pendiente de pago`) con su cobro abierto en la pasarela.
         El envío lo calcula el servidor (tarifa del administrador) y se cobra antes de pagar; la app puede
-        mostrarlo antes con `POST /api/orders/delivery-quote`. El pedido pasa a `Nuevo pedido` recién cuando el
-        pago se aprueba. Header opcional `Idempotency-Key` (máx. 64): la misma llave del mismo cliente devuelve
+        mostrarlo antes con `POST /api/orders/delivery-quote`. Cuando el pago se aprueba, la tienda toma el pedido de
+        inmediato (`Preparando`, sin aceptarlo a mano). Header opcional `Idempotency-Key` (máx. 64): la misma llave del mismo cliente devuelve
         el mismo pedido. Valida que los productos existan
         consultando al catalog-service.
       operationId: createOrder
@@ -289,7 +289,7 @@ paths:
       summary: Estado del pago de un pedido
       description: |
         Solo el cliente dueño. La app consulta este endpoint mientras espera la confirmación: cuando
-        `orderStatus` pasa a `Nuevo pedido` el pago fue aprobado; si `paymentStatus` es `RECHAZADO` puede reintentar.
+        `orderStatus` pasa a `Preparando` el pago fue aprobado (la tienda toma el pedido); si `paymentStatus` es `RECHAZADO` puede reintentar.
       operationId: getOrderPayment
       parameters:
         - name: id
@@ -338,7 +338,7 @@ paths:
       description: |
         Sin JWT: se autentica con el header `X-Payment-Signature` (secreto compartido
         `orders.payment.webhook-secret`, Secrets Manager `flashdrop/payment-webhook-secret`). Es idempotente.
-        Aprobado: el pedido pasa a `Nuevo pedido`, se fija el plazo de respuesta de la tienda, se crea la ruta
+        Aprobado: el pedido pasa directo a `Preparando` (la tienda lo toma), se fija la espera de repartidor, se crea la ruta
         de entrega y se publica `order.created`. Rechazado: el pedido sigue pendiente de pago.
       operationId: paymentWebhook
       parameters:
@@ -398,6 +398,53 @@ paths:
           description: Resultado aplicado
         '403':
           description: No es el cliente dueño del pedido
+
+  /api/admin/order-policy:
+    get:
+      tags: [Admin]
+      summary: Ver los plazos globales de los pedidos
+      description: Solo administradores (Cliente + Restaurante + Repartidor a la vez; 403 si no).
+      operationId: getOrderPolicy
+      responses:
+        '200':
+          description: Plazos vigentes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPolicy'
+        '403':
+          description: No es administrador
+    put:
+      tags: [Admin]
+      summary: Reemplazar los plazos globales de los pedidos
+      description: |
+        Plazos en minutos (1 a 1440; la ventana de cancelación del cliente admite 0).
+        - `courierWaitMinutes`: cuánto se espera un repartidor, contado desde que el pedido queda "Listo para retiro" (el
+          repartidor solo puede tomarlo entonces). Si pasa el plazo sin que nadie lo tome, el pedido se cancela solo (`NO_COURIER`).
+          **Es el mismo para todos los locales**: una tienda no lo elige.
+        La tienda ya no acepta los pedidos a mano ni tiene un plazo de respuesta: todo pedido pagado queda en
+        `Preparando` y, si no puede prepararlo, lo rechaza (`Preparando → Rechazado`, o `Listo para retiro → Rechazado` si ya había repartidor; en ese caso se cancela también la ruta del repartidor).
+        Las tareas revisan cada minuto. Al cancelar se cierra la ruta en Delivery y se publica el cambio de estado.
+        El cliente solo se entera cuando el pedido pasa a "Cancelado" (con su motivo); las devoluciones están fuera
+        de alcance.
+      operationId: replaceOrderPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPolicy'
+      responses:
+        '200':
+          description: Plazos guardados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: No es administrador
 
   /api/admin/delivery-tariff:
     get:
@@ -487,7 +534,7 @@ paths:
 
         | Rol | Transiciones permitidas |
         |---|---|
-        | `Restaurante` | `Nuevo pedido → Preparando`, `Preparando → Listo para retiro`, `Nuevo pedido → Listo para retiro` (atajo) |
+        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` y `Listo para retiro → Rechazado` (decisión del restaurante, p. ej. si no hay repartidores; también con repartidor asignado: se cierra su ruta) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
         | `Repartidor` | `Listo para retiro → Retirado` (y, para pedidos legacy, `En camino → Retirado`) |
         | `Cliente` | ninguna |
 
@@ -1236,6 +1283,19 @@ components:
         status:
           type: string
           example: Nuevo pedido
+        cancelReason:
+          type: string
+          enum: [NO_COURIER]
+          description: |
+            Solo si el sistema canceló solo el pedido porque nadie lo atendió: `NO_COURIER` (no se encontró
+            repartidor a tiempo). Ausente en los demás casos.
+        cancelReasonMessage:
+          type: string
+          description: Texto listo para mostrar junto al estado "Cancelado".
+          example: No se encontro un repartidor a tiempo
+        cancelledAt:
+          type: string
+          format: date-time
         address:
           type: string
           example: "Av. Providencia 1200, Santiago"
@@ -1450,6 +1510,23 @@ components:
           type: integer
         status:
           type: string
+
+    OrderPolicy:
+      type: object
+      required: [paymentExpirationMinutes, customerCancelWindowMinutes, courierWaitMinutes]
+      properties:
+        paymentExpirationMinutes:
+          type: integer
+          description: Plazo para pagar un pedido pendiente de pago.
+          example: 15
+        customerCancelWindowMinutes:
+          type: integer
+          description: Minutos desde la compra en que el cliente puede cancelar (0 = no puede).
+          example: 5
+        courierWaitMinutes:
+          type: integer
+          description: Espera de repartidor desde que el pedido queda listo para retiro. Global, no lo elige la tienda.
+          example: 20
 
     OrderQuote:
       type: object

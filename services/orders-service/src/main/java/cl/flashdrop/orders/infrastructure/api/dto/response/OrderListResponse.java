@@ -19,6 +19,15 @@ public class OrderListResponse {
     private final String status;
     private final String address;
     private final String commune;
+
+    /** Si el sistema cancelo solo el pedido (F7): codigo del motivo, texto para mostrar y cuando. Sino, ausentes. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private final String cancelReason;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private final String cancelReasonMessage;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private final OffsetDateTime cancelledAt;
+
     private final BigDecimal subtotal;
     private final BigDecimal deliveryFee;
     private final BigDecimal total;

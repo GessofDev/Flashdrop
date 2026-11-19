@@ -55,10 +55,15 @@ class ReleaseAssignedOrderUseCaseTest {
     private DeliveryOperationRepositoryPort deliveryOperationRepository;
 
     private ReleaseAssignedOrderUseCase useCase;
+    private cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver;
 
     @BeforeEach
     void setUp() {
-        useCase = new ReleaseAssignedOrderUseCase(orderRepository, deliveryPort, deliveryOperationRepository);
+        policyResolver = org.mockito.Mockito.mock(cl.flashdrop.orders.application.service.OrderPolicyResolver.class);
+        org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
+        useCase = new ReleaseAssignedOrderUseCase(orderRepository, deliveryPort, deliveryOperationRepository,
+                policyResolver, java.time.Clock.systemUTC());
     }
 
     @Test
@@ -84,6 +89,42 @@ class ReleaseAssignedOrderUseCaseTest {
         verify(deliveryOperationRepository).save(opCaptor.capture());
         assertThat(opCaptor.getValue().state()).isEqualTo(DeliveryOperationState.SUCCEEDED);
         assertThat(opCaptor.getValue().resultingStatus()).isEqualTo(OrderStatus.LISTO_PARA_RETIRO);
+    }
+
+    private void releaseOk(Order order) {
+        when(deliveryPort.findDeliveryIdByUserId(USER_ID)).thenReturn(Optional.of(DELIVERY_ID));
+        when(orderRepository.findByIdForUpdate(ORDER_ID)).thenReturn(Optional.of(order));
+        DeliveryOperation pendingOp = DeliveryOperation.pending(
+                ORDER_ID, DeliveryOperationType.RELEASE, USER_ID, Role.REPARTIDOR,
+                "Pinchadura de neumatico", null, DELIVERY_ID, OrderStatus.LISTO_PARA_RETIRO, "corr-1", NOW)
+                .withId(101L);
+        when(deliveryOperationRepository.create(any(DeliveryOperation.class))).thenReturn(pendingOp);
+        when(deliveryOperationRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(pendingOp));
+
+        useCase.execute(ORDER_ID, USER_ID, "Pinchadura de neumatico", "corr-1");
+    }
+
+    /** Al liberarse, el pedido vuelve a la bolsa y se espera un repartidor otra vez desde ahora. */
+    @Test
+    void alLiberarseUnPedidoConPlazoDeEsperaSeReiniciaLaEspera() {
+        Order order = buildOrder(OrderStatus.LISTO_PARA_RETIRO, DELIVERY_ID);
+        order.setCourierDueAt(NOW.minusMinutes(5));
+
+        releaseOk(order);
+
+        ArgumentCaptor<OffsetDateTime> due = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(orderRepository).resetCourierDeadline(eq(ORDER_ID), due.capture());
+        assertThat(due.getValue()).isAfter(OffsetDateTime.now().plusMinutes(19));
+    }
+
+    /** Los pedidos anteriores a F7 no tienen plazo: liberarlos no les da uno (no se cancelan solos). */
+    @Test
+    void alLiberarseUnPedidoAntiguoSinPlazoNoSeLeCreaUno() {
+        Order order = buildOrder(OrderStatus.LISTO_PARA_RETIRO, DELIVERY_ID);
+
+        releaseOk(order);
+
+        verify(orderRepository, never()).resetCourierDeadline(any(), any());
     }
 
     @Test

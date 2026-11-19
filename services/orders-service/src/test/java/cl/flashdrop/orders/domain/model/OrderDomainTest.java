@@ -99,6 +99,9 @@ class OrderDomainTest {
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.RECHAZADO),
                 List.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO),
                 List.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+                // La tienda toma todo pedido pagado (Preparando); si no puede prepararlo, lo rechaza desde ahi.
+                List.of(OrderStatus.PREPARANDO, OrderStatus.RECHAZADO),
+                List.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
                 List.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO),
                 List.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
                 // Legacy (deprecated): EN_CAMINO ya no se asigna en el claim.

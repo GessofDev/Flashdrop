@@ -42,11 +42,38 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id")
     Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
+    /**
+     * Acepta el pedido: cambia de estado y registra la aceptacion y el plazo de espera de repartidor (F7). Lo usa
+     * la confirmacion del pago (la tienda toma todo pedido pagado) y la aceptacion manual de pedidos antiguos.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE OrderEntity o SET o.status = :status, o.storeResponseDueAt = :due "
+    @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = :acceptedAt, o.courierDueAt = :courierDueAt "
             + "WHERE o.id = :id AND o.status = :expected")
-    int confirmPayment(@Param("id") Long id, @Param("expected") String expected,
-                       @Param("status") String status, @Param("due") OffsetDateTime due);
+    int acceptByStore(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
+                      @Param("acceptedAt") OffsetDateTime acceptedAt, @Param("courierDueAt") OffsetDateTime courierDueAt);
+
+    /** Listo para retiro: queda fija la espera de repartidor; la hora de toma de la tienda se conserva (F7). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = COALESCE(o.acceptedAt, :now), "
+            + "o.courierDueAt = :courierDueAt WHERE o.id = :id AND o.status = :expected")
+    int markReadyForPickup(@Param("id") Long id, @Param("expected") String expected, @Param("status") String status,
+                           @Param("now") OffsetDateTime now, @Param("courierDueAt") OffsetDateTime courierDueAt);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.status IN :statuses AND o.deliveryId IS NULL "
+            + "AND o.courierDueAt IS NOT NULL AND o.courierDueAt <= :now ORDER BY o.courierDueAt")
+    List<OrderEntity> findCourierWaitOverdue(@Param("statuses") Collection<String> statuses,
+                                            @Param("now") OffsetDateTime now, Pageable pageable);
+
+    /** Cancela solo si sigue en el estado esperado y sin repartidor (F7). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.status = :cancelled, o.cancelReason = :reason, o.cancelledAt = :now "
+            + "WHERE o.id = :id AND o.status = :expected AND o.deliveryId IS NULL")
+    int cancelUnattended(@Param("id") Long id, @Param("expected") String expected, @Param("cancelled") String cancelled,
+                         @Param("reason") String reason, @Param("now") OffsetDateTime now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OrderEntity o SET o.courierDueAt = :due WHERE o.id = :id")
+    int resetCourierDeadline(@Param("id") Long id, @Param("due") OffsetDateTime due);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OrderEntity o SET o.status = :status WHERE o.id = :id AND o.status = :expected")

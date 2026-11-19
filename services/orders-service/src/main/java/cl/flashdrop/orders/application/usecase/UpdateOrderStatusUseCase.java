@@ -1,8 +1,10 @@
 package cl.flashdrop.orders.application.usecase;
 
+import cl.flashdrop.orders.application.service.OrderPolicyResolver;
 import cl.flashdrop.orders.domain.exception.OrderDomainException;
 import cl.flashdrop.orders.domain.exception.StatusTransitionForbiddenException;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.OrderPolicy;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.model.RoleTransitionPolicy;
@@ -18,6 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.Set;
 import java.util.UUID;
 
@@ -57,6 +61,8 @@ public class UpdateOrderStatusUseCase {
     private final EventPublisherPort eventPublisher;
     private final CatalogPort catalogPort;
     private final ClientPort clientPort;
+    private final OrderPolicyResolver policyResolver;
+    private final Clock clock;
 
     @Value("${orders.rabbitmq.routing-key.order-status-updated:order.status.updated}")
     private String statusUpdatedRoutingKey;
@@ -102,18 +108,23 @@ public class UpdateOrderStatusUseCase {
         // Validar transición de estado según reglas de dominio
         order.validateStatusTransition(newStatus);
 
-        if ((newStatus == OrderStatus.CANCELADO || newStatus == OrderStatus.RECHAZADO)
-                && order.getDeliveryId() != null) {
+        // El cliente no puede cancelar un pedido que ya tiene repartidor (eso lo gestiona soporte). El restaurante si
+        // puede rechazarlo aunque tenga repartidor: es su decision, y mas abajo se cierra la ruta del repartidor.
+        if (newStatus == OrderStatus.CANCELADO && order.getDeliveryId() != null) {
             throw new OrderDomainException("Transicion de estado no permitida: pedido asignado a un repartidor; contacta a soporte");
         }
 
         // Persistir el nuevo estado
-        if (!orderRepository.updateStatusIfCurrent(orderId, order.getStatus(), newStatus)) {
+        if (!persistStatus(order, newStatus)) {
             throw new OrderDomainException("Transicion de estado no permitida: el pedido cambio de estado. Actualiza e intenta nuevamente");
         }
 
-        // Sincronizar la ruta de entrega con el mismo estado
-        if (newStatus != OrderStatus.CANCELADO && newStatus != OrderStatus.RECHAZADO) {
+        if (newStatus == OrderStatus.RECHAZADO) {
+            // Se cancela la ruta (y con ella la del repartidor, si ya la habia tomado). Si Delivery falla la excepcion
+            // sube y se deshace el rechazo, para no dejar un pedido rechazado con su ruta abierta.
+            deliveryPort.closeRoute(orderId, OrderStatus.RECHAZADO.getValue());
+        } else if (newStatus != OrderStatus.CANCELADO) {
+            // Sincronizar la ruta de entrega con el mismo estado
             deliveryPort.updateRouteStatusByOrder(orderId, newStatus.getValue());
         }
 
@@ -126,6 +137,27 @@ public class UpdateOrderStatusUseCase {
 
         log.info("Estado del pedido {} actualizado: {} -> {}", orderId,
                 order.getStatus().getValue(), newStatus.getValue());
+    }
+
+    /**
+     * Persiste el cambio de estado. Dos casos llevan datos de F7 en la misma sentencia:
+     * <ul>
+     *   <li>Dejar el pedido listo para retiro fija hasta cuando se espera un repartidor (la espera cuenta desde
+     *       que el repartidor puede tomarlo, no desde la cocina).</li>
+     *   <li>Aceptar a mano un pedido antiguo en "Nuevo pedido" (ya no se crean asi) registra la hora de toma.</li>
+     * </ul>
+     */
+    private boolean persistStatus(Order order, OrderStatus newStatus) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        if (newStatus == OrderStatus.LISTO_PARA_RETIRO) {
+            OrderPolicy.Effective policy = policyResolver.effectiveFor(order.getRestaurantId());
+            return orderRepository.markReadyForPickup(order.getId(), order.getStatus(), now,
+                    now.plusMinutes(policy.courierWaitMinutes()));
+        }
+        if (order.getStatus() == OrderStatus.NUEVO_PEDIDO && newStatus == OrderStatus.PREPARANDO) {
+            return orderRepository.acceptByStore(order.getId(), order.getStatus(), newStatus, now, null);
+        }
+        return orderRepository.updateStatusIfCurrent(order.getId(), order.getStatus(), newStatus);
     }
 
     private void validateRestaurantOwnership(Order order, UUID currentUserId) {

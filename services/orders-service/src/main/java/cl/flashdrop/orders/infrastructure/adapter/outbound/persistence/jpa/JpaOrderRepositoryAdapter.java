@@ -1,5 +1,6 @@
 package cl.flashdrop.orders.infrastructure.adapter.outbound.persistence.jpa;
 
+import cl.flashdrop.orders.domain.model.CancellationReason;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.OrderItem;
 import cl.flashdrop.orders.domain.model.OrderStatus;
@@ -62,6 +63,10 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .idempotencyKey(order.getIdempotencyKey())
                 .paymentExpiresAt(order.getPaymentExpiresAt())
                 .storeResponseDueAt(order.getStoreResponseDueAt())
+                .acceptedAt(order.getAcceptedAt())
+                .courierDueAt(order.getCourierDueAt())
+                .cancelReason(order.getCancelReason())
+                .cancelledAt(order.getCancelledAt())
                 .build();
 
         OrderEntity savedOrder = orderRepository.save(orderEntity);
@@ -194,9 +199,45 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
-    public boolean confirmPayment(UUID orderId, OffsetDateTime storeResponseDueAt) {
-        return orderRepository.confirmPayment(IdConverter.toLong(orderId),
-                OrderStatus.PENDIENTE_PAGO.getValue(), OrderStatus.NUEVO_PEDIDO.getValue(), storeResponseDueAt) == 1;
+    public boolean acceptByStore(UUID orderId, OrderStatus expected, OrderStatus status,
+                                 OffsetDateTime acceptedAt, OffsetDateTime courierDueAt) {
+        return orderRepository.acceptByStore(IdConverter.toLong(orderId), expected.getValue(), status.getValue(),
+                acceptedAt, courierDueAt) == 1;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findCourierWaitOverdue(OffsetDateTime now, int limit) {
+        return mapWithItems(orderRepository.findCourierWaitOverdue(
+                List.of(OrderStatus.LISTO_PARA_RETIRO.getValue()),
+                now, PageRequest.of(0, limit)));
+    }
+
+    @Override
+    @Transactional
+    public boolean cancelUnattended(UUID orderId, OrderStatus expected, CancellationReason reason, OffsetDateTime now) {
+        return orderRepository.cancelUnattended(IdConverter.toLong(orderId), expected.getValue(),
+                OrderStatus.CANCELADO.getValue(), reason.name(), now) == 1;
+    }
+
+    @Override
+    @Transactional
+    public void resetCourierDeadline(UUID orderId, OffsetDateTime courierDueAt) {
+        orderRepository.resetCourierDeadline(IdConverter.toLong(orderId), courierDueAt);
+    }
+
+    @Override
+    @Transactional
+    public boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt) {
+        return orderRepository.acceptByStore(IdConverter.toLong(orderId), OrderStatus.PENDIENTE_PAGO.getValue(),
+                OrderStatus.PREPARANDO.getValue(), acceptedAt, null) == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean markReadyForPickup(UUID orderId, OrderStatus expected, OffsetDateTime now, OffsetDateTime courierDueAt) {
+        return orderRepository.markReadyForPickup(IdConverter.toLong(orderId), expected.getValue(),
+                OrderStatus.LISTO_PARA_RETIRO.getValue(), now, courierDueAt) == 1;
     }
 
     @Override
@@ -345,6 +386,10 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
                 .idempotencyKey(entity.getIdempotencyKey())
                 .paymentExpiresAt(entity.getPaymentExpiresAt())
                 .storeResponseDueAt(entity.getStoreResponseDueAt())
+                .acceptedAt(entity.getAcceptedAt())
+                .courierDueAt(entity.getCourierDueAt())
+                .cancelReason(entity.getCancelReason())
+                .cancelledAt(entity.getCancelledAt())
                 .items(items)
                 .build();
     }

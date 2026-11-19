@@ -91,6 +91,9 @@ class RoleTransitionPolicyTest {
                 // El cliente puede abandonar un pedido que aun no pago.
                 List.of(Role.CLIENTE, OrderStatus.PENDIENTE_PAGO, OrderStatus.CANCELADO),
                 List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
+                // La tienda toma todo pedido pagado (Preparando); si no puede prepararlo, lo rechaza desde ahi.
+                List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.RECHAZADO),
+                List.of(Role.RESTAURANTE, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO)
         );
 

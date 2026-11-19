@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -66,6 +67,7 @@ class OrderControllerStatusAuthzIT {
     @Mock private EventPublisherPort eventPublisher;
     @Mock private CatalogPort catalogPort;
     @Mock private cl.flashdrop.orders.domain.port.ClientPort clientPort;
+    @Mock private cl.flashdrop.orders.application.service.OrderPolicyResolver policyResolver;
 
     private MockMvc mockMvc;
 
@@ -77,8 +79,13 @@ class OrderControllerStatusAuthzIT {
     @BeforeEach
     void setUp() {
         UpdateOrderStatusUseCase updateOrderStatusUseCase =
-                new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort);
+                new UpdateOrderStatusUseCase(orderRepository, deliveryPort, eventPublisher, catalogPort, clientPort,
+                        policyResolver, java.time.Clock.systemUTC());
         org.mockito.Mockito.lenient().when(orderRepository.updateStatusIfCurrent(any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(orderRepository.acceptByStore(any(), any(), any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(orderRepository.markReadyForPickup(any(), any(), any(), any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(policyResolver.effectiveFor(any()))
+                .thenReturn(new cl.flashdrop.orders.domain.model.OrderPolicy.Effective(15, 10, 5, 20));
         ReflectionTestUtils.setField(updateOrderStatusUseCase, "statusUpdatedRoutingKey", "order.status.updated");
 
         OrderController controller = new OrderController(createOrderUseCase, getOrderDetailUseCase,
@@ -176,7 +183,7 @@ class OrderControllerStatusAuthzIT {
 
         cambiarEstadoA("Preparando").andExpect(status().isOk());
 
-        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.NUEVO_PEDIDO, OrderStatus.PREPARANDO);
+        verify(orderRepository).acceptByStore(eq(ORDER_ID), eq(OrderStatus.NUEVO_PEDIDO), eq(OrderStatus.PREPARANDO), any(), any());
     }
 
     // --------------------------- 403 rol ---------------------------
