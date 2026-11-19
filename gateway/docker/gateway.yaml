@@ -108,3 +108,7 @@ overrides:
     rateLimit:
       maxRequests: 10
       windowSeconds: 60
+  - path: /api/delivery/location
+    rateLimit:
+      maxRequests: 30
+      windowSeconds: 60

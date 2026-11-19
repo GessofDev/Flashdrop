@@ -25,7 +25,7 @@ T1 | S1-S5 | inline | `docs(delivery): document courier live location design` (`
 T2 | S5 | inline | `feat(catalog): add manual store coordinates` (PR 1 · WU-1)
 T3 | S1,S5 | inline | `feat(delivery): store pickup coordinates and client user id on routes` (PR 2 · WU-2)
 T4 | S4,S5 | inline | `feat(orders): propagate pickup coordinates for claimable orders` (PR 2 · WU-3)
-T5 | S2 | pending | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
+T5 | S2 | inline | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
 T6 | S2 | pending | `feat(delivery): add redis courier location store and erasure hook` (PR 3 · WU-5)
 T7 | S1,S3 | pending | `feat(delivery): add courier location report and customer polling endpoints` (PR 3 · WU-6)
 

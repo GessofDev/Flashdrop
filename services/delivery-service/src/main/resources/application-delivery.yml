@@ -16,6 +16,9 @@ spring:
     enabled: true
     schemas: internal
     locations: classpath:db/migration
+  data:
+    redis:
+      url: ${DELIVERY_REDIS_URL:redis://localhost:6379}
 
 # JWT auth (RS256) — verified locally against auth-service's JWKS endpoint.
 # Path is non-standard (/auth/.well-known/jwks.json), verified at
@@ -38,6 +41,10 @@ delivery:
   claim:
     delegate-to-orders:
       enabled: ${DELIVERY_CLAIM_DELEGATE_TO_ORDERS:true}
+  location:
+    ttl-seconds: ${DELIVERY_LOCATION_TTL_SECONDS:30}
+    redis:
+      enabled: ${DELIVERY_LOCATION_REDIS_ENABLED:true}
   # Pull de promedios de calificacion (T15).
   #
   # reviews-service es el dueno del dato; delivery lo pide por lotes al
