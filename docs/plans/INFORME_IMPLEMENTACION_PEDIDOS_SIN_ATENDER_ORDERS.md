@@ -13,7 +13,7 @@ Cuando el pago se aprueba, el pedido pasa **directo de "Pendiente de pago" a "Pr
 **Verificar si hay repartidores disponibles es decisión del restaurante.** Desde ese momento puede:
 
 - **Continuar** con el pedido, o
-- **Rechazarlo** (`Preparando → Rechazado`) si decide que no puede atenderlo. Solo es posible mientras no hay repartidor asignado (con repartidor sigue valiendo "contacta a soporte").
+- **Rechazarlo** (`Preparando → Rechazado` o `Listo para retiro → Rechazado`) si decide que no puede atenderlo, **también cuando ya hay un repartidor asignado**. Al rechazarlo se **cancela la ruta** en Delivery (y con ella la del repartidor). Si Delivery falla, el rechazo se deshace para no dejar un pedido rechazado con la ruta abierta. Una vez retirado por el repartidor ya no puede rechazarlo (eso va por la anulación después del retiro).
 
 El sistema no decide por él ni asigna repartidor a la fuerza.
 
@@ -64,14 +64,14 @@ Los plazos (minutos) están en la base y los edita el administrador. Valores ini
 
 ## Pruebas
 
-- **Unitarias:** pago aprobado → Preparando (sin fijar la espera de repartidor); dejar el pedido listo fija la espera; tarea y cancelador (un fallo no frena a los demás; se deshace si Delivery falla); rechazo del restaurante desde Preparando (y bloqueado con repartidor asignado); liberación; controlador del administrador y la regla "plazos solo globales".
+- **Unitarias:** pago aprobado → Preparando (sin fijar la espera de repartidor); dejar el pedido listo fija la espera; tarea y cancelador (un fallo no frena a los demás; se deshace si Delivery falla); rechazo del restaurante desde Preparando o Listo para retiro, con y sin repartidor asignado, que cierra la ruta (y se deshace si Delivery falla), y el cliente que sigue sin poder cancelar un pedido con repartidor; liberación; controlador del administrador y la regla "plazos solo globales".
 - **Contra PostgreSQL real:** el pago confirma una sola vez y deja `accepted_at` sin `courier_due_at`; dejar listo fija el plazo y conserva la hora de toma; la tarea solo ve pedidos "Listo para retiro" sin repartidor (uno en "Preparando" nunca vence); la cancelación no pisa a un repartidor que toma el pedido; reinicio del plazo al liberar.
-- Totales: 544 unitarias y 19 de integración en verde.
+- Totales: 548 unitarias y 19 de integración en verde.
 
 ## Pendientes para otros equipos (fuera de este alcance)
 
 ### App (Javier) y panel del restaurante
-1. El pedido pagado llega al restaurante ya en **"Preparando"**: desaparece la pantalla de "aceptar / rechazar". El restaurante debe poder **rechazar** un pedido en Preparando (`PUT /api/orders/{id}/status` con `Rechazado`) si decide que no puede atenderlo, y marcarlo "Listo para retiro" cuando esté.
+1. El pedido pagado llega al restaurante ya en **"Preparando"**: desaparece la pantalla de "aceptar / rechazar". El restaurante debe poder **rechazar** un pedido en Preparando o Listo para retiro (`PUT /api/orders/{id}/status` con `Rechazado`) si decide que no puede atenderlo, incluso con repartidor asignado, y marcarlo "Listo para retiro" cuando esté. La app del repartidor debe tolerar que su ruta pase a "Rechazado" (el pedido deja de estar activo para él).
 2. Panel del restaurante: orientarlo a **revisar si hay repartidores disponibles** al recibir el pedido (hoy el backend no expone un conteo de repartidores disponibles; si se quiere mostrar, hay que agregarlo en Delivery).
 3. Cliente: mostrar "Cancelado" con `cancelReasonMessage` ("No se encontro un repartidor a tiempo"). No prometer tiempos de espera.
 4. Tras pagar, el estado que se espera es "Preparando" (no "Nuevo pedido").

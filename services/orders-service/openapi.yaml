@@ -423,7 +423,7 @@ paths:
           repartidor solo puede tomarlo entonces). Si pasa el plazo sin que nadie lo tome, el pedido se cancela solo (`NO_COURIER`).
           **Es el mismo para todos los locales**: una tienda no lo elige.
         La tienda ya no acepta los pedidos a mano ni tiene un plazo de respuesta: todo pedido pagado queda en
-        `Preparando` y, si no puede prepararlo, lo rechaza (`Preparando → Rechazado`).
+        `Preparando` y, si no puede prepararlo, lo rechaza (`Preparando → Rechazado`, o `Listo para retiro → Rechazado` si ya había repartidor; en ese caso se cancela también la ruta del repartidor).
         Las tareas revisan cada minuto. Al cancelar se cierra la ruta en Delivery y se publica el cambio de estado.
         El cliente solo se entera cuando el pedido pasa a "Cancelado" (con su motivo); las devoluciones están fuera
         de alcance.
@@ -534,7 +534,7 @@ paths:
 
         | Rol | Transiciones permitidas |
         |---|---|
-        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` (decisión del restaurante, p. ej. si no hay repartidores; solo sin repartidor asignado) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
+        | `Restaurante` | `Preparando → Listo para retiro`, `Preparando → Rechazado` y `Listo para retiro → Rechazado` (decisión del restaurante, p. ej. si no hay repartidores; también con repartidor asignado: se cierra su ruta) y, para pedidos antiguos en `Nuevo pedido`, `Nuevo pedido → Preparando`, `Nuevo pedido → Listo para retiro`, `Nuevo pedido → Rechazado` |
         | `Repartidor` | `Listo para retiro → Retirado` (y, para pedidos legacy, `En camino → Retirado`) |
         | `Cliente` | ninguna |
 

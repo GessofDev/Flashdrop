@@ -162,7 +162,8 @@ public class Order {
                     OrderStatus.CANCELADO, OrderStatus.RECHAZADO),
             // Si la tienda no puede preparar un pedido que ya tomo, lo rechaza (cancela) desde Preparando.
             OrderStatus.PREPARANDO, EnumSet.of(OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
-            OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO),
+            // Tambien puede rechazarlo si ya esta listo (con o sin repartidor asignado); retirado ya no.
+            OrderStatus.LISTO_PARA_RETIRO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.EN_CAMINO, OrderStatus.RECHAZADO),
             OrderStatus.RETIRADO, EnumSet.of(OrderStatus.ENTREGADO, OrderStatus.EN_CAMINO),
             OrderStatus.EN_CAMINO, EnumSet.of(OrderStatus.RETIRADO, OrderStatus.ENTREGADO),
             OrderStatus.ENTREGADO, EnumSet.noneOf(OrderStatus.class)

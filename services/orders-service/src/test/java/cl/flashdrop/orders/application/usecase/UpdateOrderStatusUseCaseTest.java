@@ -153,12 +153,65 @@ class UpdateOrderStatusUseCaseTest {
         verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.PREPARANDO, OrderStatus.RECHAZADO);
     }
 
+    /** Rechazar es decision del restaurante aunque ya haya repartidor: el pedido queda rechazado y se cierra su ruta. */
     @Test
-    void restaurante_noPuedeRechazarUnPedidoYaTomadoPorUnRepartidor() {
+    void restaurante_puedeRechazarUnPedidoYaTomadoPorUnRepartidor_yLaRutaSeCancela() {
+        givenOrder(OrderStatus.LISTO_PARA_RETIRO, DELIVERY_ID);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+
+        useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID);
+
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO);
+        verify(deliveryPort).closeRoute(ORDER_ID, "Rechazado");
+        verify(deliveryPort, never()).updateRouteStatusByOrder(any(), anyString());
+        verify(eventPublisher).publish(eq("order.status.updated"), any());
+    }
+
+    @Test
+    void restaurante_puedeRechazarEnPreparandoConRepartidorYSeCierraLaRuta() {
         givenOrder(OrderStatus.PREPARANDO, DELIVERY_ID);
         givenUserOwnsRestaurant(RESTAURANT_ID);
-        assertThrows(OrderDomainException.class,
+
+        useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID);
+
+        verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.PREPARANDO, OrderStatus.RECHAZADO);
+        verify(deliveryPort).closeRoute(ORDER_ID, "Rechazado");
+    }
+
+    @Test
+    void rechazarSinRepartidorTambienCierraLaRuta() {
+        givenOrder(OrderStatus.PREPARANDO, null);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+
+        useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID);
+
+        verify(deliveryPort).closeRoute(ORDER_ID, "Rechazado");
+    }
+
+    /** Si Delivery falla, la excepcion sube (la transaccion deshace el rechazo) y no se publica nada. */
+    @Test
+    void siDeliveryFallaAlCerrarLaRuta_noSePublicaElRechazo() {
+        givenOrder(OrderStatus.LISTO_PARA_RETIRO, DELIVERY_ID);
+        givenUserOwnsRestaurant(RESTAURANT_ID);
+        org.mockito.Mockito.doThrow(new IllegalStateException("delivery caido"))
+                .when(deliveryPort).closeRoute(any(), any());
+
+        assertThrows(IllegalStateException.class,
                 () -> useCase.execute(ORDER_ID, "Rechazado", RESTAURANTE, USER_ID));
+
+        verify(eventPublisher, never()).publish(any(), any());
+    }
+
+    /** El cliente en cambio no puede cancelar un pedido que ya tiene repartidor: lo gestiona soporte. */
+    @Test
+    void cliente_noPuedeCancelarUnPedidoQueYaTieneRepartidor() {
+        givenOrder(OrderStatus.NUEVO_PEDIDO, DELIVERY_ID);
+        when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
+
+        OrderDomainException ex = assertThrows(OrderDomainException.class,
+                () -> useCase.execute(ORDER_ID, "Cancelado", Set.of(Role.CLIENTE), USER_ID));
+
+        assertTrue(ex.getMessage().contains("contacta a soporte"));
         assertNothingPersisted();
     }
 

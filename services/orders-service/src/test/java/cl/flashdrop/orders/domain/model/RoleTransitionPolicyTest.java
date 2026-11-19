@@ -93,6 +93,7 @@ class RoleTransitionPolicyTest {
                 List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO),
                 // La tienda toma todo pedido pagado (Preparando); si no puede prepararlo, lo rechaza desde ahi.
                 List.of(Role.RESTAURANTE, OrderStatus.PREPARANDO, OrderStatus.RECHAZADO),
+                List.of(Role.RESTAURANTE, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RECHAZADO),
                 List.of(Role.RESTAURANTE, OrderStatus.NUEVO_PEDIDO, OrderStatus.LISTO_PARA_RETIRO)
         );
 

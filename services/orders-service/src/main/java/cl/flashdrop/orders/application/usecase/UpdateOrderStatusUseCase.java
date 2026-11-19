@@ -108,8 +108,9 @@ public class UpdateOrderStatusUseCase {
         // Validar transición de estado según reglas de dominio
         order.validateStatusTransition(newStatus);
 
-        if ((newStatus == OrderStatus.CANCELADO || newStatus == OrderStatus.RECHAZADO)
-                && order.getDeliveryId() != null) {
+        // El cliente no puede cancelar un pedido que ya tiene repartidor (eso lo gestiona soporte). El restaurante si
+        // puede rechazarlo aunque tenga repartidor: es su decision, y mas abajo se cierra la ruta del repartidor.
+        if (newStatus == OrderStatus.CANCELADO && order.getDeliveryId() != null) {
             throw new OrderDomainException("Transicion de estado no permitida: pedido asignado a un repartidor; contacta a soporte");
         }
 
@@ -118,8 +119,12 @@ public class UpdateOrderStatusUseCase {
             throw new OrderDomainException("Transicion de estado no permitida: el pedido cambio de estado. Actualiza e intenta nuevamente");
         }
 
-        // Sincronizar la ruta de entrega con el mismo estado
-        if (newStatus != OrderStatus.CANCELADO && newStatus != OrderStatus.RECHAZADO) {
+        if (newStatus == OrderStatus.RECHAZADO) {
+            // Se cancela la ruta (y con ella la del repartidor, si ya la habia tomado). Si Delivery falla la excepcion
+            // sube y se deshace el rechazo, para no dejar un pedido rechazado con su ruta abierta.
+            deliveryPort.closeRoute(orderId, OrderStatus.RECHAZADO.getValue());
+        } else if (newStatus != OrderStatus.CANCELADO) {
+            // Sincronizar la ruta de entrega con el mismo estado
             deliveryPort.updateRouteStatusByOrder(orderId, newStatus.getValue());
         }
 
