@@ -21,7 +21,13 @@ S5 — Coordenadas de la tienda
 
 ## Tasks
 
-T1 | S1-S5 | inline | `docs(delivery): document courier live location design`
+T1 | S1-S5 | inline | `docs(delivery): document courier live location design` (`7eca519`)
+T2 | S5 | pending | `feat(catalog): add manual store coordinates` (PR 1 · WU-1)
+T3 | S1,S5 | pending | `feat(delivery): store pickup coordinates and client user id on routes` (PR 2 · WU-2)
+T4 | S4,S5 | pending | `feat(orders): propagate pickup coordinates for claimable orders` (PR 2 · WU-3)
+T5 | S2 | pending | `chore(infra): add dedicated redis-delivery container and gateway rate limits` (PR 3 · WU-4)
+T6 | S2 | pending | `feat(delivery): add redis courier location store and erasure hook` (PR 3 · WU-5)
+T7 | S1,S3 | pending | `feat(delivery): add courier location report and customer polling endpoints` (PR 3 · WU-6)
 
 ## Log
 
@@ -48,3 +54,5 @@ L9 — 2026-11-19 — Store coordinates decision: "1" (manual pin). Coordinates 
 L10 — 2026-11-19 — The claimable order list is served by `orders-service` (`AvailableDeliveryOrderResponse`). Sorting is done client-side by the courier app to avoid an orders → delivery call per listing.
 
 L11 — 2026-11-19 — Design approved: "si". Design document: `docs/plans/2026-11-19-courier-live-location-design.md`.
+
+L12 — 2026-11-19 — Implementation plan written in `docs/plans/2026-11-19-courier-live-location-implementation.md` (3 chained PRs, WU-1 through WU-6). Key codebase findings incorporated: (a) `orders-service` has no `delivery_routes` table so no Orders migration is needed; (b) `internal.delivery_routes` lacks `client_user_id`, so WU-2 adds `client_user_id varchar(64)` to authorize 5–10s customer polling locally in `delivery-service` without a per-poll internal HTTP call to `orders-service`.
