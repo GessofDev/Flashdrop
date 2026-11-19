@@ -125,6 +125,36 @@ class InternalRoutesControllerTest {
         }
 
         @Test
+        @DisplayName("commune is stored on the route and returned in RouteResponse")
+        void createRoute_withCommune_exposesCommune() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> {
+                DeliveryRoute r = inv.getArgument(0);
+                r.setId(3L);
+                return r;
+            });
+
+            String body = """
+                {
+                  "orderId": 1003,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Primo de Rivera 1815",
+                  "commune": "Maipu",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente"
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.deliveryAddress").value("Primo de Rivera 1815"))
+                    .andExpect(jsonPath("$.data.commune").value("Maipu"));
+        }
+
+        @Test
         @DisplayName("without receptionMode the route is NORMAL and does not require the PIN")
         void createRoute_withoutReceptionMode_defaultsToNormal() throws Exception {
             when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> inv.getArgument(0));

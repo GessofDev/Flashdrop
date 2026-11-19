@@ -96,9 +96,10 @@ db_credentials() {
       DB_PASS="$(printf '%s\n' "$env_dump" | sed -n "s/^${DB_PASS_ENV}=//p" | head -n 1)"
       ;;
     parts)
-      host="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_HOST=//p' | head -n 1)"
-      port="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_PORT=//p' | head -n 1)"
-      name="$(printf '%s\n' "$env_dump" | sed -n 's/^DELIVERY_DB_NAME=//p' | head -n 1)"
+      local prefix="${DB_USER_ENV%_USER}"
+      host="$(printf '%s\n' "$env_dump" | sed -n "s/^${prefix}_HOST=//p" | head -n 1)"
+      port="$(printf '%s\n' "$env_dump" | sed -n "s/^${prefix}_PORT=//p" | head -n 1)"
+      name="$(printf '%s\n' "$env_dump" | sed -n "s/^${prefix}_NAME=//p" | head -n 1)"
       DB_URL="jdbc:postgresql://${host}:${port}/${name}"
       DB_USER="$(printf '%s\n' "$env_dump" | sed -n "s/^${DB_USER_ENV}=//p" | head -n 1)"
       DB_PASS="$(printf '%s\n' "$env_dump" | sed -n "s/^${DB_PASS_ENV}=//p" | head -n 1)"

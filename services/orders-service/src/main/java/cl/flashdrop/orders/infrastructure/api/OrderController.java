@@ -173,6 +173,7 @@ public class OrderController {
                 .userId(authenticatedUserId)
                 .clientProfileAllowed(currentUserResolver.hasRole(Role.CLIENTE))
                 .address(request.getAddress())
+                .commune(request.getCommune())
                 .paymentMethod(request.getPaymentMethod())
                 .receptionMode(ReceptionMode.fromRequest(request.getReceptionMode()))
                 .distanceKm(request.getDistanceKm())
@@ -273,6 +274,7 @@ public class OrderController {
                 .code(order.code())
                 .status(order.getStatus().getValue())
                 .address(order.getAddress())
+                .commune(order.getCommune())
                 .subtotal(order.getSubtotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())
@@ -307,6 +309,7 @@ public class OrderController {
                 restaurantName,
                 pickupAddress,
                 order.getAddress(),
+                order.getCommune(),
                 clientName,
                 order.getTotal(),
                 order.getRoute() != null && order.getRoute().getDistanceKm() != null
@@ -373,6 +376,7 @@ public class OrderController {
                 .code(order.code())
                 .status(order.getStatus().getValue())
                 .address(order.getAddress())
+                .commune(order.getCommune())
                 .subtotal(order.getSubtotal())
                 .deliveryFee(order.getDeliveryFee())
                 .total(order.getTotal())

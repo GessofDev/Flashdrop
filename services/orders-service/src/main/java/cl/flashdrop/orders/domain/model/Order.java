@@ -31,6 +31,7 @@ public class Order {
 
     private OrderStatus status;
     private final String address;
+    private final String commune;
     private final BigDecimal subtotal;
     private final BigDecimal deliveryFee;
     private final BigDecimal total;

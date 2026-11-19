@@ -67,6 +67,7 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
                 code,
                 route.getReceptionMode(),
                 route.isDeliveryPinRequired(),
+                route.getCommune(),
                 route.getPickupLatitude(),
                 route.getPickupLongitude()
         );

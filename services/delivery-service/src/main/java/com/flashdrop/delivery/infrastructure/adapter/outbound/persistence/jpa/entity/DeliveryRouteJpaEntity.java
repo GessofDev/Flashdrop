@@ -25,6 +25,9 @@ public class DeliveryRouteJpaEntity {
     @Column(name = "delivery_address")
     private String deliveryAddress;
 
+    @Column(name = "commune", length = 120)
+    private String commune;
+
     @Column(name = "distance_km")
     private BigDecimal distanceKm;
 
@@ -152,6 +155,14 @@ public class DeliveryRouteJpaEntity {
 
     public void setReceptionMode(String receptionMode) {
         this.receptionMode = receptionMode;
+    }
+
+    public String getCommune() {
+        return commune;
+    }
+
+    public void setCommune(String commune) {
+        this.commune = commune;
     }
 
     public Instant getCreatedAt() {
