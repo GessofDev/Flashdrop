@@ -31,10 +31,14 @@ export interface CourierRouteCardProps {
   articleLabel: string;
   /** Label of the action allowed by the current status, when there is one. */
   actionLabel: string | null;
+  /** Optional secondary action label (release before pickup or cancel after pickup). */
+  secondaryActionLabel?: string | null;
   /** Whether the action is in flight. */
   pending: boolean;
   /** Run the action of the route. */
   onAdvance: (route: DeliveryRoute, actionLabel: string) => void;
+  /** Run the secondary action of the route. */
+  onSecondaryAction?: (route: DeliveryRoute) => void;
 }
 
 /** One route of the courier, active or completed. */
@@ -42,8 +46,10 @@ export function CourierRouteCard({
   route,
   articleLabel,
   actionLabel,
+  secondaryActionLabel = null,
   pending,
   onAdvance,
+  onSecondaryAction,
 }: CourierRouteCardProps) {
   const identifier = route.code ?? String(route.orderId);
 
@@ -83,18 +89,33 @@ export function CourierRouteCard({
           <span className="nums-tabular">{formatMinutes(route.estimatedMinutes)}</span>
         </div>
 
-        {actionLabel !== null ? (
-          <button
-            type="button"
-            disabled={pending}
-            className="inline-flex h-10 items-center justify-center rounded-control bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => {
-              onAdvance(route, actionLabel);
-            }}
-          >
-            {actionLabel}
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {secondaryActionLabel !== null && onSecondaryAction !== undefined ? (
+            <button
+              type="button"
+              disabled={pending}
+              className="inline-flex h-10 items-center justify-center rounded-control border border-border bg-surface-hover px-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-border/40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => {
+                onSecondaryAction(route);
+              }}
+            >
+              {secondaryActionLabel}
+            </button>
+          ) : null}
+
+          {actionLabel !== null ? (
+            <button
+              type="button"
+              disabled={pending}
+              className="inline-flex h-10 items-center justify-center rounded-control bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => {
+                onAdvance(route, actionLabel);
+              }}
+            >
+              {actionLabel}
+            </button>
+          ) : null}
+        </div>
       </div>
     </article>
   );

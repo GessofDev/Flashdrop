@@ -160,6 +160,35 @@ export const ordersApi = {
   },
 
   /**
+   * `POST /api/orders/{id}/release` — releases an assigned order before pickup.
+   */
+  releaseOrder(orderId: string, reason: string): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/release`,
+      method: 'POST',
+      body: { reason },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
+   * `POST /api/orders/{id}/cancel-after-pickup` — cancels or rejects an order
+   * after pickup (`Cancelado` or `Rechazado`).
+   */
+  cancelAfterPickup(
+    orderId: string,
+    status: 'Cancelado' | 'Rechazado',
+    reason: string,
+  ): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/cancel-after-pickup`,
+      method: 'POST',
+      body: { status, reason },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
    * `GET /api/orders/{id}/payments` — how the payment of the order goes.
    *
    * The answer carries the status of the order and the state of its last

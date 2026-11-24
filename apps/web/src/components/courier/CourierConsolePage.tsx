@@ -11,6 +11,8 @@ import { useSession } from '@/session';
 
 import { CourierRouteCard } from './CourierRouteCard';
 import { DeliveryCodeForm } from './DeliveryCodeForm';
+import { RouteIncidentForm } from './RouteIncidentForm';
+import type { RouteIncidentMode } from './RouteIncidentForm';
 import { useCourierRoutes } from './useCourierRoutes';
 
 function actionLabelFor(transition: 'Retirado' | 'Entregado'): string {
@@ -43,6 +45,10 @@ export function CourierConsolePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const [codeRoute, setCodeRoute] = useState<DeliveryRoute | null>(null);
+  const [incidentTarget, setIncidentTarget] = useState<{
+    route: DeliveryRoute;
+    mode: RouteIncidentMode;
+  } | null>(null);
   const [sharingLocation, setSharingLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -204,6 +210,37 @@ export function CourierConsolePage() {
     await startDelivery(route);
   };
 
+  const submitIncident = async (payload: {
+    mode: RouteIncidentMode;
+    status: 'Cancelado' | 'Rechazado';
+    reason: string;
+  }): Promise<void> => {
+    if (incidentTarget === null) {
+      return;
+    }
+
+    const target = incidentTarget.route;
+    setPendingOrderId(target.orderId);
+    setActionError(null);
+    setNotice(null);
+
+    try {
+      if (payload.mode === 'release') {
+        await ordersApi.releaseOrder(String(target.orderId), payload.reason);
+        setNotice(`Pedido ${target.code ?? target.orderId} liberado`);
+      } else {
+        await ordersApi.cancelAfterPickup(String(target.orderId), payload.status, payload.reason);
+        setNotice(`Pedido ${target.code ?? target.orderId} anulado`);
+      }
+      setIncidentTarget(null);
+      reload();
+    } catch (cause: unknown) {
+      setActionError(asApiError(cause));
+    } finally {
+      setPendingOrderId(null);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-app px-4 py-6 md:px-8">
       <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -283,6 +320,12 @@ export function CourierConsolePage() {
               activeRoutes.map((route) => {
                 const transition = nextCourierTransition(route.status, activeRole ?? 'CLIENTE');
                 const actionLabel = transition === null ? null : actionLabelFor(transition);
+                const secondaryLabel =
+                  transition === 'Retirado'
+                    ? 'Liberar pedido'
+                    : transition === 'Entregado'
+                      ? 'Anular tras retiro'
+                      : null;
 
                 return (
                   <CourierRouteCard
@@ -290,14 +333,36 @@ export function CourierConsolePage() {
                     route={route}
                     articleLabel="Ruta"
                     actionLabel={canAct ? actionLabel : null}
+                    secondaryActionLabel={canAct ? secondaryLabel : null}
                     pending={pendingOrderId === route.orderId}
                     onAdvance={(targetRoute, targetAction) => {
                       void advance(targetRoute, targetAction);
+                    }}
+                    onSecondaryAction={(targetRoute) => {
+                      setActionError(null);
+                      setNotice(null);
+                      setIncidentTarget({
+                        route: targetRoute,
+                        mode: transition === 'Retirado' ? 'release' : 'cancel-after-pickup',
+                      });
                     }}
                   />
                 );
               })
             )}
+
+            {incidentTarget !== null ? (
+              <RouteIncidentForm
+                route={incidentTarget.route}
+                mode={incidentTarget.mode}
+                pending={pendingOrderId === incidentTarget.route.orderId}
+                onSubmit={submitIncident}
+                onCancel={() => {
+                  setActionError(null);
+                  setIncidentTarget(null);
+                }}
+              />
+            ) : null}
 
             {codeRoute !== null ? (
               <DeliveryCodeForm
