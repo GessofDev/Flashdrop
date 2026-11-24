@@ -75,8 +75,23 @@ routes:
     stripPrefix: false
     backendName: catalog-service
 
-  # === ORDERS (2 prefijos distintos, mismo target) ===
+  # === ORDERS (3 prefijos distintos, mismo target) ===
   - prefix: /api/orders
+    target: http://orders-service:8083
+    stripPrefix: false
+    backendName: orders-service
+
+  # === PAGOS (pasarela simulada F8) ===
+  # Prefijo acotado: solo la pantalla de pago simulada
+  # (POST /api/payments/fake/{providerTxId}/resolve).
+  # /api/payments/webhook no pasa por el gateway: lo consume la pasarela
+  # directo contra orders-service y se autentica con la firma del aviso,
+  # sin JWT.
+  # El prefijo NO se quita (stripPrefix: false) porque orders-service
+  # mapea /api/payments/fake/**. La autenticacion la exige orders-service
+  # (/api/payments/** -> authenticated) y el control de ownership del
+  # controller.
+  - prefix: /api/payments/fake
     target: http://orders-service:8083
     stripPrefix: false
     backendName: orders-service
