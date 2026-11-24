@@ -560,6 +560,7 @@ Cuando todo esté verde end-to-end:
 | `http://localhost:3000/catalog/restaurants` | GET restaurantes (no auth) |
 | `http://localhost:3000/api/orders` | GET/POST orders (Bearer) |
 | `http://localhost:3000/api/orders/{uuid}` | GET/PUT orders/{uuid} (Bearer) |
+| `http://localhost:3000/api/payments/fake/{providerTxId}/resolve` | POST resolver pago simulado (Bearer) |
 | `http://localhost:3000/api/delivery/routes` | GET delivery routes (Bearer) |
 | `http://localhost:3000/api/delivery/claim` | POST claim delivery (Bearer) |
 | `http://localhost:3000/delivery/routes` | GET delivery routes del servicio delivery (no auth) |
