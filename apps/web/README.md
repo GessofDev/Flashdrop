@@ -262,6 +262,36 @@ mensaje literal del backend.
 
 El usuario siempre sale del token: ninguna de las tres llamadas manda un id.
 
+## Baja de la cuenta (T10, S9)
+
+El backend ya expone `DELETE /auth/account`: la cuenta queda **deshabilitada al
+instante** y el borrado de los datos en los demas servicios sigue en segundo
+plano. La pantalla `/perfil` lo usa a traves del bloque `DeleteAccountDialog`.
+
+- El cuerpo es JSON y lleva **solo la contraseña** (`{"password": "..."}`): el
+  usuario siempre sale del token, la llamada nunca manda un id.
+- La respuesta es un 202 **sin cuerpo**, así que la llamada declara la forma
+  "bare": la forma de sobre leería el cuerpo vacío como una respuesta rota.
+- La baja **no es de un clic**: la confirmacion pide la contraseña de la
+  cuenta —el backend la pide— y el botón de confirmar sigue deshabilitado
+  mientras no se escriba, para que nadie borre una cuenta por accidente.
+- Cuando el backend acepta la baja, la app **olvida la sesión** y manda al
+  cliente a la ruta de login.
+- Cuando el backend falla, se muestra su **mensaje literal** y la cuenta
+  sigue en pie.
+
+La llamada escribe la cabecera `Authorization` a mano y declara la sesión
+"pública", porque un 401 aqui significa dos cosas distintas: la contraseña
+está mal (la cuenta sigue) o el token de acceso caducó (la sesión se fue). El
+cliente trata todo 401 de una llamada autenticada como una sesión caducada,
+así que olvidaria la sesión y mandaria al cliente al login tras una contraseña
+incorrecta. Con esta llamada la respuesta del backend se muestra tal cual y
+la sesión solo se olvida cuando la baja se acepta.
+
+El backend rechaza la baja con 409 mientras el usuario tenga pedidos en curso
+("No puedes eliminar tu cuenta mientras tengas pedidos en curso..."): ese
+mensaje tambien se muestra literal.
+
 ## Ubicación y radio de despacho (T6, S10)
 
 El backend rechaza todos los pedidos de un local sin coordenadas o sin radio

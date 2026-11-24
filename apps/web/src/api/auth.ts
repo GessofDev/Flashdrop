@@ -1,3 +1,5 @@
+import { sessionStore } from '@/session/tokenStore';
+
 import { request } from './client';
 import type {
   AuthResult,
@@ -10,6 +12,16 @@ import type {
   UpdateProfileRequest,
   UserProfile,
 } from './types';
+
+/**
+ * Body of `DELETE /auth/account`.
+ *
+ * It carries the password of the account and nothing else: the user always
+ * comes from the token.
+ */
+export interface DeleteAccountRequest {
+  password: string;
+}
 
 /**
  * Calls of `auth-service`.
@@ -107,6 +119,39 @@ export const authApi = {
       method: 'PUT',
       body: profile,
       responseShape: 'bare',
+    });
+  },
+
+  /**
+   * `DELETE /auth/account` — deletes the account of the signed in user.
+   *
+   * The account is disabled at once and the data of the other services is
+   * erased in the background, so the answer is a 202 with an empty body: the
+   * call declares the bare shape, because the envelope shape would read the
+   * empty body as a broken answer.
+   *
+   * The body carries only the password: the user always comes from the token,
+   * so the call never sends an id.
+   *
+   * The `Authorization` header is written by hand and the call is declared
+   * public, because a 401 here means two different things: the password is
+   * wrong (the account stays) or the access token expired (the session is
+   * gone). The client treats every 401 of an authenticated call as an expired
+   * session, so it would forget the session and send the customer to the
+   * login route after a wrong password. Here the answer of the backend is
+   * shown as it comes and the session is only forgotten when the deletion
+   * succeeds.
+   */
+  async deleteAccount(password: string): Promise<void> {
+    const tokens = sessionStore.getTokens();
+
+    await request<null>({
+      path: '/auth/account',
+      method: 'DELETE',
+      body: { password } satisfies DeleteAccountRequest,
+      responseShape: 'bare',
+      session: 'public',
+      headers: tokens === null ? {} : { Authorization: `Bearer ${tokens.accessToken}` },
     });
   },
 };

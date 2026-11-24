@@ -10,6 +10,7 @@ import { routePaths } from '@/app/routePaths';
 import { useSession } from '@/session';
 import type { Role } from '@/session';
 
+import { DeleteAccountDialog } from './DeleteAccountDialog';
 import { ProfilePhoto } from './ProfilePhoto';
 
 export function ProfilePage() {
@@ -413,6 +414,9 @@ export function ProfilePage() {
               </div>
             </div>
           </section>
+
+          {/* 6. Baja de la cuenta */}
+          <DeleteAccountDialog />
         </div>
       ) : null}
     </div>
