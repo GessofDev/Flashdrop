@@ -184,7 +184,8 @@ class PaidOrderLifecycleFullContextTest {
         assertEquals(OrderStatus.NUEVO_PEDIDO, paid.getStatus());
         assertNull(paid.getAcceptedAt());
         assertNull(paid.getCourierDueAt());
-        assertFalse(paid.isClaimable());
+        assertFalse(orders.findAvailableForDelivery(paid.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
 
         assertThrows(Exception.class, () -> updateStatus.execute(created.id(), "Preparando", Set.of(Role.CLIENTE), clientUser));
         assertEquals(OrderStatus.NUEVO_PEDIDO, reload(created.id()).getStatus());
@@ -194,11 +195,13 @@ class PaidOrderLifecycleFullContextTest {
         assertEquals(OrderStatus.PREPARANDO, preparing.getStatus());
         assertNotNull(preparing.getAcceptedAt());
         assertNull(preparing.getCourierDueAt());
-        assertFalse(preparing.isClaimable());
+        assertFalse(orders.findAvailableForDelivery(preparing.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
 
         updateStatus.execute(created.id(), "Listo para retiro", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
         Order ready = reload(created.id());
-        assertTrue(ready.isClaimable());
+        assertTrue(orders.findAvailableForDelivery(ready.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
         assertNotNull(ready.getCourierDueAt());
         assertEquals(preparing.getAcceptedAt(), ready.getAcceptedAt());
     }
