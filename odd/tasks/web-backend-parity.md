@@ -96,12 +96,12 @@ T3 | S6 | inline | `feat(web): show the payment of an order and retry a rejected
 T4 | S8 | inline | `feat(web): show the reception mode and the cancellation of an order` (`d652797`)
 T5 | S9 | inline | `feat(web): upload, show and delete the profile photo` (`99f175b`)
 T6 | S10 | inline | `feat(web): configure the store location and the delivery radius` (`6dc2a8d`)
-T7 | S10 | inline | `feat(web): filter the restaurants by delivery coverage`
-T8 | S7 | inline | `feat(web): follow the courier live location`
-T9 | S4 | inline | `feat(web): release an order and cancel it after the pickup`
+T7 | S10 | inline | `feat(web): filter the restaurants by delivery coverage` (`0d3df07`)
+T8 | S7 | inline | `feat(web): follow the courier live location` (`8415363`, `de5a759`)
+T9 | S4 | inline | `feat(web): release an order and cancel it after the pickup` (`4011769`)
 T10 | S9 | inline | `feat(web): delete the account` (`e4f0a07`)
-T11 | S12 | inline | `feat(web): list the reviews I wrote`
-T12 | S11 | inline | `feat(web): add the administration section`
+T11 | S12 | inline | `feat(web): list the reviews I wrote` (`12369b6`)
+T12 | S11 | inline | `feat(web): add the administration section` (`b644819`)
 
 Merge commits (PR base realignment, not spec work):
 
@@ -222,3 +222,41 @@ L19 — 2026-11-24 — Decisiones del usuario para T7 y T8:
   y uso moderada del servidor de teselas).
 - T7 (cobertura del marketplace): las coordenadas se mandan **siempre** que el cliente las tenga,
   con una salida explicada ("no hay locales con cobertura en tu zona") y la opción de ver todos.
+
+L20 — 2026-11-24 — T7 cerrada (`0d3df07`): el marketplace incorpora la barra de cobertura
+(`CoverageLocationBar`) para obtener coordenadas del navegador o geocodificar una dirección y
+enviar `latitude`/`longitude` a `GET /catalog/restaurants`. Si ningún local cubre la zona,
+muestra `"No hay locales con cobertura en tu zona"` con el botón `"Ver todos los locales"` y
+permite alternar de vuelta a `"Filtrar por mi zona"` o quitar la ubicación. Verificación: 334 tests
+verdes (34 archivos), `tsc --noEmit` limpio, `eslint` limpio.
+
+L21 — 2026-11-24 — T8 cerrada (`8415363` backend, `de5a759` web):
+- Backend: `delivery-service` agrega `GET /api/internal/routes/order/{orderId}` (`InternalRoutesController`)
+  y `orders-service` (`DeliveryHttpClientAdapter` + `OrderEnricher` + `OrderDetailResponse.RouteDto`)
+  expone `route.id` (`routeId`) en `GET /api/orders/{id}` con degradación graciosa si Delivery no
+  responde o aún no hay ruta. Verificación en Docker JDK 21: `InternalRoutesControllerGetByOrderTest`
+  verde y 28/28 tests unitarios de `orders-service` verdes.
+- Web: `CourierConsolePage` permite compartir/detener la ubicación en vivo cada 10s vía
+  `POST /api/delivery/location`; `OrderTrackingPage` renderiza `LiveRouteMap` (Leaflet + teselas de
+  OpenStreetMap con atribución visible) haciendo polling cada 8s a `GET /api/delivery/routes/{routeId}/location`
+  mientras el pedido está activo y `route.id` existe, cayendo a `StaticRouteMap` cuando no hay `route.id`
+  o el pedido ya terminó. Verificación: 35 archivos / 338 tests verdes, `tsc --noEmit` + `vite build`
+  limpios, `eslint .` limpio.
+
+L22 — 2026-11-24 — T9 cerrada (`4011769`): la consola del repartidor agrega `"Liberar pedido"`
+antes del retiro (`POST /api/orders/{id}/release` con motivo) y `"Anular tras retiro"` después
+del retiro (`POST /api/orders/{id}/cancel-after-pickup` con estado final `Cancelado`/`Rechazado` y
+motivo) vía `RouteIncidentForm`. Verificación: 36 archivos / 341 tests verdes, `tsc --noEmit` limpio,
+`eslint .` limpio.
+
+L23 — 2026-11-24 — T11 cerrada (`12369b6`): el perfil (`/perfil`) incorpora `MyReviewsSection`
+consumiendo `GET /api/users/me/reviews`, con estado vacío (`"Todavía no escribiste reseñas."`) y
+manejo de errores sin romper los guards de `profile.test.tsx`. Verificación: 37 archivos / 344
+tests verdes, `tsc --noEmit` limpio, `eslint .` limpio.
+
+L24 — 2026-11-24 — T12 cerrada (`b644819`): se agrega la sección `/admin` (fuera de las
+pantallas de rol, accesible solo a cuentas con `CLIENTE`, `RESTAURANTE` y `REPARTIDOR`), con
+enlace en `TopBar` y 5 paneles (`AdminUsersPanel`, `AdminRestaurantsPanel`, `AdminCouriersPanel`,
+`AdminTariffPanel`, `AdminPolicyPanel`) cubriendo los 7 endpoints administrativos de S11.
+Verificación: 38 archivos / 346 tests verdes, `tsc --noEmit` + `vite build` limpios, `eslint .`
+limpio. Feature `web-backend-parity` (T1-T12) completa.
