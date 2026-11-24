@@ -6,6 +6,12 @@ export type { OrderListCardProps } from './OrderListCard';
 export { OrderListPage } from './OrderListPage';
 export { OrderPaymentPanel } from './OrderPaymentPanel';
 export type { OrderPaymentPanelProps } from './OrderPaymentPanel';
+export { OrderReceptionPanel, orderReception } from './OrderReceptionPanel';
+export type {
+  OrderReception,
+  OrderReceptionFields,
+  OrderReceptionPanelProps,
+} from './OrderReceptionPanel';
 export { MAX_REVIEW_COMMENT_LENGTH, OrderRatingSection } from './OrderRatingSection';
 export type { OrderRatingSectionProps } from './OrderRatingSection';
 export { OrderStatusBadge } from './OrderStatusBadge';

@@ -12,6 +12,7 @@ import { CourierCard } from './CourierCard';
 import { GuaranteeCard } from './GuaranteeCard';
 import { OrderPaymentPanel } from './OrderPaymentPanel';
 import { OrderRatingSection } from './OrderRatingSection';
+import { OrderReceptionPanel } from './OrderReceptionPanel';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderStepper } from './OrderStepper';
 import { OrderSummary } from './OrderSummary';
@@ -146,6 +147,7 @@ export function OrderTrackingPage() {
             </div>
 
             <div className="flex flex-col gap-6 lg:col-span-5">
+              <OrderReceptionPanel order={order} />
               <OrderPaymentPanel orderId={order.id} />
               <OrderSummary order={order} />
               <GuaranteeCard />

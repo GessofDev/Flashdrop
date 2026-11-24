@@ -293,6 +293,18 @@ export interface OrderListItem {
   deliveryId: string | null;
   /** Instant the order was created, as an ISO-8601 offset date time. */
   createdAt: string;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * The backend fixes it when the order is created and never changes it.
+   */
+  receptionMode: string | null;
+  /** Reason code of an automatic cancellation. */
+  cancelReason?: string | null;
+  /** Text of the cancellation, ready to show. */
+  cancelReasonMessage?: string | null;
+  /** Instant of the cancellation, as an ISO-8601 offset date time. */
+  cancelledAt?: string | null;
 }
 
 /**

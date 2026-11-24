@@ -212,6 +212,31 @@ of the payment window and the attempt the backend reports.
 - `paymentUrl` is a fake scheme (`fake://flashdrop-pay/...`) and there is no
   payment gateway behind it, so the panel never renders it as a link.
 
+## Reception and cancellation of an order (T4, S8)
+
+The backend already sends the reception data of an order in both answers of
+the customer: the detail (`GET /api/orders/{id}`) and the listing
+(`GET /api/orders`).
+
+- `receptionMode` is the **name** of the `ReceptionMode` of the backend
+  (`NORMAL`, `SEGURO`), and the app owns the Spanish label of each name
+  (`Entrega normal`, `Entrega segura`). An unknown name is shown as it
+  comes: the app never invents a mode.
+- `deliveryCode` is the verification code the customer dictates to the
+  courier. The backend sends it only to the owner of the order, in the
+  secure mode and while the order is not delivered, so the tracking shows
+  it only when the answer carries one — the app never writes a code of its
+  own, and a normal or delivered order shows none.
+- `cancelReason`, `cancelReasonMessage` and `cancelledAt` describe an
+  automatic cancellation. The tracking shows the text of the cancellation
+  with its date, and the card of the listing shows the reason, so the
+  customer reads why an order was cancelled without opening it.
+
+`OrderReceptionPanel` is the block of the tracking that shows all of it,
+and `orderReception()` reads the answer: a field the backend does not send
+stays empty and nothing is drawn for it. `OrderListItem` declares the same
+four fields, so the listing of "Mis pedidos" can show them too.
+
 ## Ubicación y radio de despacho (T6, S10)
 
 El backend rechaza todos los pedidos de un local sin coordenadas o sin radio
