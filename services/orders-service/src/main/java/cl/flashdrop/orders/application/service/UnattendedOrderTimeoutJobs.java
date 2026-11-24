@@ -15,9 +15,8 @@ import java.util.List;
 /**
  * Tarea programada de F7: ningun pedido queda tomado para siempre sin repartidor.
  *
- * <p>La tienda toma todo pedido pagado (pasa directo a Preparando), asi que ya no hay espera de aceptacion. Un
- * pedido tomado por la tienda que sigue sin repartidor pasada la espera global (contada desde que el pedido
- * entro, es decir, desde el pago) se cancela.</p>
+ * <p>Solo un pedido listo para retiro, sin repartidor y con la espera global vencida se cancela.
+ * Ni el pago ni la aceptacion de la tienda inician esa espera.</p>
  *
  * <p>Solo se avisa al cliente cuando se cancela (el pedido pasa a "Cancelado" con su motivo). Las devoluciones
  * estan fuera de este alcance. Los pedidos anteriores a esta funcion no tienen plazo y nunca se cancelan solos.</p>

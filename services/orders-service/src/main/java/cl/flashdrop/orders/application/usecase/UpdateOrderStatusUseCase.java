@@ -144,7 +144,7 @@ public class UpdateOrderStatusUseCase {
      * <ul>
      *   <li>Dejar el pedido listo para retiro fija hasta cuando se espera un repartidor (la espera cuenta desde
      *       que el repartidor puede tomarlo, no desde la cocina).</li>
-     *   <li>Aceptar a mano un pedido antiguo en "Nuevo pedido" (ya no se crean asi) registra la hora de toma.</li>
+     *   <li>Aceptar un pedido pagado en "Nuevo pedido" registra la hora de toma por el comercio.</li>
      * </ul>
      */
     private boolean persistStatus(Order order, OrderStatus newStatus) {

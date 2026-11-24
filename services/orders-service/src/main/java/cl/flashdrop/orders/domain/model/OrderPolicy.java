@@ -13,7 +13,7 @@ import java.util.UUID;
  * <p>La fila global ({@code restaurantId == null}) trae los plazos. La de una tienda puede ajustar el plazo
  * para pagar y la ventana de cancelacion del cliente; la espera de repartidor es <b>solo global</b> (F7):
  * una tienda no la elige y si su fila trae un valor se ignora ({@link #resolve}). El plazo de respuesta de la
- * tienda ya no se usa: la tienda toma todo pedido pagado sin aceptarlo a mano.</p>
+ * tienda no se aplica automaticamente; la aceptacion es manual.</p>
  */
 @Getter
 @Builder
@@ -28,7 +28,7 @@ public class OrderPolicy {
     private final UUID restaurantId;
     /** Plazo para pagar un pedido. */
     private final Integer paymentExpirationMinutes;
-    /** Ya no se usa: la tienda toma todo pedido pagado sin aceptarlo a mano. La columna sigue en la base. */
+    /** Reservado: no hay vencimiento automatico de la aceptacion manual. La columna sigue en la base. */
     private final Integer storeResponseMinutes;
     /** Minutos desde la compra en que el cliente puede cancelar. 0 = no puede cancelar. */
     private final Integer customerCancelWindowMinutes;

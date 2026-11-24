@@ -171,10 +171,40 @@ class PaidOrderLifecycleFullContextTest {
     }
 
     private void makeReady(UUID orderId) {
+        updateStatus.execute(orderId, "Preparando", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
         updateStatus.execute(orderId, "Listo para retiro", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
     }
 
     // ------------------------------------------------------------------ pago y envio
+
+    @Test
+    void pagoAprobado_comercioAceptaDespues_iniciaPreparacionYFinalmenteRetiro() {
+        CreatedOrderResult created = createAndPay();
+        Order paid = reload(created.id());
+        assertEquals(OrderStatus.NUEVO_PEDIDO, paid.getStatus());
+        assertNull(paid.getAcceptedAt());
+        assertNull(paid.getCourierDueAt());
+        assertFalse(orders.findAvailableForDelivery(paid.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
+
+        assertThrows(Exception.class, () -> updateStatus.execute(created.id(), "Preparando", Set.of(Role.CLIENTE), clientUser));
+        assertEquals(OrderStatus.NUEVO_PEDIDO, reload(created.id()).getStatus());
+
+        updateStatus.execute(created.id(), "Preparando", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
+        Order preparing = reload(created.id());
+        assertEquals(OrderStatus.PREPARANDO, preparing.getStatus());
+        assertNotNull(preparing.getAcceptedAt());
+        assertNull(preparing.getCourierDueAt());
+        assertFalse(orders.findAvailableForDelivery(preparing.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
+
+        updateStatus.execute(created.id(), "Listo para retiro", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
+        Order ready = reload(created.id());
+        assertTrue(orders.findAvailableForDelivery(ready.getRestaurantId(), 50).stream()
+                .anyMatch(order -> order.getId().equals(created.id())));
+        assertNotNull(ready.getCourierDueAt());
+        assertEquals(preparing.getAcceptedAt(), ready.getAcceptedAt());
+    }
 
     @Test
     void cotizacionYCreacionCobranElMismoEnvioParametrico() {
@@ -196,7 +226,7 @@ class PaidOrderLifecycleFullContextTest {
     }
 
     @Test
-    void pagoRechazadoSeReintentaYAlAprobarseLaTiendaTomaElPedido() {
+    void pagoRechazado_seReintentaYAlAprobarse_esperaAceptacionDeLaTienda() {
         CreatedOrderResult created = createOrder.execute(command(null).build());
         String firstTx = payments.findByOrderId(created.id()).get(0).getProviderTxId();
 
@@ -216,8 +246,8 @@ class PaidOrderLifecycleFullContextTest {
                 confirmPayment.execute("FAKE", all.get(0).getProviderTxId(), true, "APPROVED"));
 
         Order paid = reload(created.id());
-        assertEquals(OrderStatus.PREPARANDO, paid.getStatus());
-        assertNotNull(paid.getAcceptedAt());
+        assertEquals(OrderStatus.NUEVO_PEDIDO, paid.getStatus());
+        assertNull(paid.getAcceptedAt());
         assertNull(paid.getCourierDueAt(), "la espera de repartidor no corre mientras se cocina");
         ArgumentCaptor<DeliveryRoute> route = ArgumentCaptor.forClass(DeliveryRoute.class);
         verify(deliveryPort).saveRoute(route.capture());
@@ -276,6 +306,7 @@ class PaidOrderLifecycleFullContextTest {
     @Test
     void unPedidoEnPreparandoNuncaSeCancelaPorFaltaDeRepartidor() {
         CreatedOrderResult created = createAndPay();
+        updateStatus.execute(created.id(), "Preparando", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
         orders.resetCourierDeadline(created.id(), OffsetDateTime.now().minusHours(5));
 
         timeoutJobs.cancelCourierWaitTimeouts();
@@ -338,6 +369,7 @@ class PaidOrderLifecycleFullContextTest {
     @Test
     void elRestaurantePuedeRechazarEnPreparandoYSeCierraLaRuta() {
         CreatedOrderResult created = createAndPay();
+        updateStatus.execute(created.id(), "Preparando", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
 
         updateStatus.execute(created.id(), "Rechazado", Set.of(Role.RESTAURANTE), RESTAURANT_OWNER);
 
