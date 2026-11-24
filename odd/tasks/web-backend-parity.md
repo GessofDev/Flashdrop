@@ -95,7 +95,7 @@ T2 | S5 | inline | `feat(web): quote the delivery fee and send the destination c
 T3 | S6 | inline | `feat(web): show the payment state and retry a rejected payment`
 T4 | S8 | inline | `feat(web): show the reception mode and the cancellation reason of an order`
 T5 | S9 | inline | `feat(web): manage the profile photo`
-T6 | S10 | inline | `feat(web): edit the store location and the delivery radius`
+T6 | S10 | inline | `feat(web): configure the store location and the delivery radius` (`6dc2a8d`)
 T7 | S10 | inline | `feat(web): filter the restaurants by delivery coverage`
 T8 | S7 | inline | `feat(web): follow the courier live location`
 T9 | S4 | inline | `feat(web): release an order and cancel it after the pickup`
@@ -156,3 +156,18 @@ L8 — 2026-11-24 — Decisión de la revisión de T2: las coordenadas no se inv
 edita la dirección, pero la app lo dice ("Cambiaste la dirección después de confirmar la
 ubicación: puede que no coincidan") en vez de fingir que ambas cosas van juntas. La lógica de
 ubicación quedó en el hook `useDeliveryLocation` para que el formulario no crezca.
+
+L9 — 2026-11-24 — T6 cerrada (`6dc2a8d`): la pantalla "Ubicación & Despacho" (`/tienda/ubicacion`)
+del rol tienda muestra las coordenadas y el radio que guarda el backend y deja guardarlos por
+separado (`PUT /api/catalog/my/restaurant/location` y `PUT /api/catalog/my/restaurant/delivery-radius`).
+Verificación: 300 tests verdes (29 archivos), `tsc --noEmit` limpio, `eslint` limpio.
+
+L10 — 2026-11-24 — Regla del backend que condiciona T6: `catalog-service` rechaza el radio si el
+local todavía no tiene ubicación ("Configura primero la ubicacion del local"), así que el dueño
+tiene que guardar primero las coordenadas. Los dos formularios siguen siendo independientes y
+muestran el mensaje literal del backend.
+
+L11 — 2026-11-24 — T3 en curso: `GET /api/orders/{id}/payments` (estado del pago, `paymentStatus`
+es el NOMBRE del enum, `paymentUrl` es un esquema falso `fake://flashdrop-pay/...` que la web no
+puede enlazar) y `POST /api/orders/{id}/payments` (nuevo intento, 201). El reintento solo tiene
+sentido con el pedido en "Pendiente de pago" y sin un pago abierto.
