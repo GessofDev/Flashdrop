@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { asApiError, ordersApi } from '@/api';
+import { asApiError, courierApi, ordersApi } from '@/api';
 import type { ApiError, DeliveryRoute } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { Badge, Skeleton } from '@/components/ui';
 import { isCompletedCourierRoute, nextCourierTransition } from '@/lib/courierStatus';
 import { formatOrderDate } from '@/lib/format';
+import { LocationError, requestBrowserLocation } from '@/lib/geolocation';
 import { useSession } from '@/session';
 
 import { CourierRouteCard } from './CourierRouteCard';
@@ -24,13 +25,16 @@ function actionLabelFor(transition: 'Retirado' | 'Entregado'): string {
  */
 const NORMAL_DELIVERY_CODE = '000000';
 
+/** Interval for reporting courier live location while sharing is active. */
+const LOCATION_REPORT_INTERVAL_MS = 10_000;
+
 /**
  * Courier console (spec S6, S7 and S13).
  *
  * The screen is built from the mockup
  * `consola_del_repartidor_flashdrop_courier`, reduced to the live facts of the
  * backend: the active routes of the courier and the latest completed
- * deliveries. It never paints a map, a position or a delivery secret.
+ * deliveries. It never paints a map or a delivery secret.
  */
 export function CourierConsolePage() {
   const { activeRole, session } = useSession();
@@ -39,6 +43,9 @@ export function CourierConsolePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const [codeRoute, setCodeRoute] = useState<DeliveryRoute | null>(null);
+  const [sharingLocation, setSharingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const canAct =
     activeRole === 'REPARTIDOR' && (session?.roles.includes('REPARTIDOR') ?? false);
@@ -52,6 +59,40 @@ export function CourierConsolePage() {
     () => routes.filter((route) => isCompletedCourierRoute(route.status)),
     [routes],
   );
+
+  const reportCurrentLocation = useCallback(async (): Promise<void> => {
+    try {
+      const coords = await requestBrowserLocation();
+      await courierApi.reportLocation({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        recordedAt: new Date().toISOString(),
+      });
+      setLocationError(null);
+      setLocationStatus(`Ubicación enviada (${formatOrderDate(new Date().toISOString())})`);
+    } catch (cause: unknown) {
+      const message =
+        cause instanceof LocationError
+          ? cause.message
+          : asApiError(cause).message;
+      setLocationError(message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!sharingLocation || !canAct || activeRoutes.length === 0) {
+      return;
+    }
+
+    void reportCurrentLocation();
+    const timer = window.setInterval(() => {
+      void reportCurrentLocation();
+    }, LOCATION_REPORT_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [sharingLocation, canAct, activeRoutes.length, reportCurrentLocation]);
 
   /**
    * Move the order to `Retirado`.
@@ -180,6 +221,39 @@ export function CourierConsolePage() {
         <div className="mb-6">
           <ApiErrorNotice error={actionError} />
         </div>
+      ) : null}
+
+      {canAct && activeRoutes.length > 0 ? (
+        <section
+          aria-label="Ubicación en vivo"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-container border border-border bg-surface p-4 shadow-card"
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold text-foreground">Ubicación en vivo</span>
+            <span className="text-xs text-foreground-secondary">
+              {locationError !== null
+                ? locationError
+                : sharingLocation
+                  ? (locationStatus ?? 'Enviando tu posición al cliente...')
+                  : 'Comparte tu posición mientras entregas tus rutas activas.'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setLocationError(null);
+              if (sharingLocation) {
+                setSharingLocation(false);
+                setLocationStatus(null);
+              } else {
+                setSharingLocation(true);
+              }
+            }}
+            className="inline-flex items-center justify-center rounded-control border border-border bg-surface-hover px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-border/40 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          >
+            {sharingLocation ? 'Detener ubicación en vivo' : 'Compartir ubicación en vivo'}
+          </button>
+        </section>
       ) : null}
 
       {notice !== null ? (

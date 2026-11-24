@@ -392,12 +392,21 @@ export interface OrderDelivery {
  * courier, so the map of the app can only be a schematic one.
  */
 export interface OrderRoute {
+  id?: number | null;
   pickupAddress: string;
   deliveryAddress: string;
   distanceKm: number | null;
   estimatedMinutes: number | null;
   /** Status of the route, as the `RouteStatus` of `delivery-service`. */
   status: string;
+}
+
+/** `delivery-service` — `RouteLocationResponse`, the answer of `GET /api/delivery/routes/{routeId}/location`. */
+export interface RouteLocationResponse {
+  routeId: number;
+  latitude: number;
+  longitude: number;
+  recordedAt: string;
 }
 
 /** `orders-service` — `OrderDetailResponse.ItemDto`. */

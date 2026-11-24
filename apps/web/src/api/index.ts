@@ -19,6 +19,7 @@ export type {
   CourierVehicle,
   DeliveryPerson,
   DeliveryRoute,
+  ReportCourierLocationRequest,
 } from './delivery';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
@@ -68,6 +69,7 @@ export type {
   RegisterUserResult,
   OpeningHours,
   RestaurantResponse,
+  RouteLocationResponse,
   SalesRange,
   SalesSummaryResponse,
   TokenClaims,

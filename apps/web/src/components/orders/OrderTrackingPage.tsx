@@ -10,6 +10,7 @@ import { isDeliveredStatus } from '@/lib/orderStatus';
 
 import { CourierCard } from './CourierCard';
 import { GuaranteeCard } from './GuaranteeCard';
+import { LiveRouteMap } from './LiveRouteMap';
 import { OrderPaymentPanel } from './OrderPaymentPanel';
 import { OrderRatingSection } from './OrderRatingSection';
 import { OrderReceptionPanel } from './OrderReceptionPanel';
@@ -124,11 +125,23 @@ export function OrderTrackingPage() {
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
             <div className="flex flex-col gap-6 lg:col-span-7">
               {order.route !== null ? (
-                <StaticRouteMap
-                  pickupAddress={order.route.pickupAddress}
-                  deliveryAddress={order.route.deliveryAddress}
-                  status={order.route.status}
-                />
+                order.route.id !== null &&
+                order.route.id !== undefined &&
+                !isDeliveredStatus(order.status) &&
+                (order.cancelledAt === null || order.cancelledAt === undefined) ? (
+                  <LiveRouteMap
+                    routeId={order.route.id}
+                    pickupAddress={order.route.pickupAddress}
+                    deliveryAddress={order.route.deliveryAddress}
+                    status={order.route.status}
+                  />
+                ) : (
+                  <StaticRouteMap
+                    pickupAddress={order.route.pickupAddress}
+                    deliveryAddress={order.route.deliveryAddress}
+                    status={order.route.status}
+                  />
+                )
               ) : null}
 
               {order.delivery !== null ? (
