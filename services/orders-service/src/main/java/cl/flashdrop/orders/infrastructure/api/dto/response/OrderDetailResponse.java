@@ -74,6 +74,7 @@ public class OrderDetailResponse {
     @Getter
     @Builder
     public static class RouteDto {
+        private final Long id;
         private final String pickupAddress;
         private final String deliveryAddress;
         private final BigDecimal distanceKm;

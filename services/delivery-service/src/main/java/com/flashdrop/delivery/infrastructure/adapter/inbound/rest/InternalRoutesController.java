@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,6 +64,16 @@ public class InternalRoutesController {
         return new ResponseEntity<>(
                 ApiResponse.success(toResponse(saved)),
                 HttpStatus.CREATED);
+    }
+
+    @GetMapping("/order/{orderId}")
+    public ResponseEntity<ApiResponse<RouteResponse>> getByOrderId(@PathVariable Long orderId) {
+        log.info("GET /api/internal/routes/order/{}", orderId);
+
+        return routeRepository.findByOrderId(orderId)
+                .map(this::toResponse)
+                .map(response -> ResponseEntity.ok(ApiResponse.success(response)))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/{routeId}/status")

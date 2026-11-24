@@ -365,6 +365,7 @@ public class OrderController {
         OrderDetailResponse.RouteDto route = null;
         if (order.getRoute() != null) {
             route = OrderDetailResponse.RouteDto.builder()
+                    .id(order.getRoute().getRouteId())
                     .pickupAddress(order.getRoute().getPickupAddress())
                     .deliveryAddress(order.getRoute().getDeliveryAddress())
                     .distanceKm(order.getRoute().getDistanceKm())
