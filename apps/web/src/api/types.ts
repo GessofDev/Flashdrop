@@ -401,6 +401,47 @@ export interface OrderItem {
   total: number;
 }
 
+/**
+ * `orders-service` — `PaymentView`, the answer of `GET /api/orders/{id}/payments`.
+ *
+ * It is the state of the order and of its last attempt of payment. The
+ * `paymentStatus` is the **name** of the `PaymentStatus` of the backend
+ * (`PENDIENTE`, `APROBADO`, `RECHAZADO`, `EXPIRADO`), not a label: it is
+ * empty while the order has no payment yet.
+ */
+export interface OrderPayment {
+  /** Status of the order, as the label of the `OrderStatus` of the backend. */
+  orderStatus: string;
+  /** Name of the `PaymentStatus` of the backend, or `null` without a payment. */
+  paymentStatus: string | null;
+  /** Id of the last attempt of payment. */
+  paymentId: number | null;
+  /**
+   * Url of the payment session.
+   *
+   * The backend answers with a fake scheme (`fake://flashdrop-pay/...`):
+   * the app never opens it, because there is no payment gateway behind it.
+   */
+  paymentUrl: string | null;
+  /** Deadline of the payment window, as an ISO-8601 offset date time. */
+  paymentExpiresAt: string | null;
+}
+
+/**
+ * `orders-service` — `OpenPayment`, the answer of `POST /api/orders/{id}/payments`.
+ *
+ * It is the attempt that is open after the retry: the backend opens a new one
+ * or returns the one that was still open.
+ */
+export interface OpenOrderPayment {
+  /** Id of the open attempt of payment. */
+  paymentId: number;
+  /** Url of the payment session; the app never opens it. */
+  paymentUrl: string;
+  /** Deadline of the payment window, as an ISO-8601 offset date time. */
+  paymentExpiresAt: string | null;
+}
+
 /** Range accepted by `GET /api/orders/restaurants/{id}/sales-summary`. */
 export const SALES_RANGES = ['day', 'week', 'month'] as const;
 export type SalesRange = (typeof SALES_RANGES)[number];

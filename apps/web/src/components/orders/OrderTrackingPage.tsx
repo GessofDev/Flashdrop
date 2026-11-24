@@ -10,6 +10,7 @@ import { isDeliveredStatus } from '@/lib/orderStatus';
 
 import { CourierCard } from './CourierCard';
 import { GuaranteeCard } from './GuaranteeCard';
+import { OrderPaymentPanel } from './OrderPaymentPanel';
 import { OrderRatingSection } from './OrderRatingSection';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderStepper } from './OrderStepper';
@@ -145,6 +146,7 @@ export function OrderTrackingPage() {
             </div>
 
             <div className="flex flex-col gap-6 lg:col-span-5">
+              <OrderPaymentPanel orderId={order.id} />
               <OrderSummary order={order} />
               <GuaranteeCard />
             </div>

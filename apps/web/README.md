@@ -185,6 +185,33 @@ computed, and a failed quote shows the literal message of the backend
 (`El local no tiene ubicacion configurada...`, `El local no tiene radio de
 despacho configurado`, `El local no realiza entregas en esta direccion...`).
 
+## Payment of an order (T3, S6)
+
+The backend owns the payment of an order, and it already answers both ends
+of it:
+
+- `GET /api/orders/{id}/payments` — the state of the order and of its last
+  attempt of payment.
+- `POST /api/orders/{id}/payments` — a new attempt of payment (or the one
+  that is still open).
+
+The tracking of an order shows them in `OrderPaymentPanel`, which loads the
+state when the screen opens and shows the state of the payment, the deadline
+of the payment window and the attempt the backend reports.
+
+- `paymentStatus` is the **name** of the `PaymentStatus` of the backend
+  (`PENDIENTE`, `APROBADO`, `RECHAZADO`, `EXPIRADO`), not a label: the
+  panel owns the Spanish label of each name and shows an unknown name as it
+  comes, never a state of its own.
+- The retry is offered only when it makes sense — the order is
+  `Pendiente de pago` and there is no payment still open — because the
+  backend owns the rules. A rejected retry shows its literal message
+  (`El pedido no esta pendiente de pago`, `El plazo para pagar este pedido
+  ya vencio`).
+- The customer always comes from the token: neither call sends a user id.
+- `paymentUrl` is a fake scheme (`fake://flashdrop-pay/...`) and there is no
+  payment gateway behind it, so the panel never renders it as a link.
+
 ## Ubicación y radio de despacho (T6, S10)
 
 El backend rechaza todos los pedidos de un local sin coordenadas o sin radio

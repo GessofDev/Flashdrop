@@ -5,8 +5,10 @@ import type {
   CreatedOrderResult,
   DeliveryQuote,
   DeliveryQuoteRequest,
+  OpenOrderPayment,
   OrderDetail,
   OrderListItem,
+  OrderPayment,
   SalesRange,
   SalesSummaryResponse,
 } from './types';
@@ -155,6 +157,44 @@ export const ordersApi = {
       body: { code },
       responseShape: 'envelope',
     }).then(() => undefined);
+  },
+
+  /**
+   * `GET /api/orders/{id}/payments` — how the payment of the order goes.
+   *
+   * The answer carries the status of the order and the state of its last
+   * attempt of payment: `paymentStatus` is the **name** of the
+   * `PaymentStatus` of the backend, not its label.
+   *
+   * The customer always comes from the token, so the call never sends a user
+   * id: the backend answers with a 403 when the caller does not own the
+   * order.
+   */
+  getOrderPayment(orderId: string): Promise<OrderPayment> {
+    return request<OrderPayment>({
+      path: `/api/orders/${orderId}/payments`,
+      method: 'GET',
+      responseShape: 'envelope',
+    });
+  },
+
+  /**
+   * `POST /api/orders/{id}/payments` — opens a new attempt of payment.
+   *
+   * The backend opens an attempt for the same order or answers with the one
+   * that is still open, and it owns the rules: an order that is not waiting
+   * for its payment answers with a 400 (`El pedido no esta pendiente de
+   * pago`) and an expired payment window answers with a 400 (`El plazo para
+   * pagar este pedido ya vencio`).
+   *
+   * The body carries nothing: the customer is always resolved from the token.
+   */
+  openOrderPayment(orderId: string): Promise<OpenOrderPayment> {
+    return request<OpenOrderPayment>({
+      path: `/api/orders/${orderId}/payments`,
+      method: 'POST',
+      responseShape: 'envelope',
+    });
   },
 
   /**
