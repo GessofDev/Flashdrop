@@ -9,11 +9,20 @@ import { formatOrderDate } from '@/lib/format';
 import { useSession } from '@/session';
 
 import { CourierRouteCard } from './CourierRouteCard';
+import { DeliveryCodeForm } from './DeliveryCodeForm';
 import { useCourierRoutes } from './useCourierRoutes';
 
 function actionLabelFor(transition: 'Retirado' | 'Entregado'): string {
   return transition === 'Retirado' ? 'Confirmar retiro' : 'Confirmar entrega';
 }
+
+/**
+ * Public code of the normal reception mode.
+ *
+ * `orders-service` only protects the secure mode, so a normal order is
+ * confirmed with this code and the courier does not type anything.
+ */
+const NORMAL_DELIVERY_CODE = '000000';
 
 /**
  * Courier console (spec S6, S7 and S13).
@@ -29,6 +38,7 @@ export function CourierConsolePage() {
   const [actionError, setActionError] = useState<ApiError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
+  const [codeRoute, setCodeRoute] = useState<DeliveryRoute | null>(null);
 
   const canAct =
     activeRole === 'REPARTIDOR' && (session?.roles.includes('REPARTIDOR') ?? false);
@@ -43,16 +53,21 @@ export function CourierConsolePage() {
     [routes],
   );
 
-  const advance = async (route: DeliveryRoute, actionLabel: string): Promise<void> => {
-    const target = actionLabel === 'Confirmar retiro' ? 'Retirado' : 'Entregado';
-
+  /**
+   * Move the order to `Retirado`.
+   *
+   * The backend owns the transition rules: it rejects the change when the
+   * order is not assigned to this courier or when the status does not allow
+   * it, and the message of the backend is shown as it is.
+   */
+  const moveToPickup = async (route: DeliveryRoute): Promise<void> => {
     setPendingOrderId(route.orderId);
     setActionError(null);
     setNotice(null);
 
     try {
-      await ordersApi.updateOrderStatus(String(route.orderId), target);
-      setNotice(`Pedido ${route.code ?? route.orderId} actualizado a ${target}`);
+      await ordersApi.updateOrderStatus(String(route.orderId), 'Retirado');
+      setNotice(`Pedido ${route.code ?? route.orderId} actualizado a Retirado`);
       reload();
     } catch (cause: unknown) {
       setActionError(asApiError(cause));
@@ -60,6 +75,92 @@ export function CourierConsolePage() {
     } finally {
       setPendingOrderId(null);
     }
+  };
+
+  /**
+   * Reception mode of the order.
+   *
+   * The route declares it; when an old route does not, the detail of the
+   * order answers it, so a secure order is never confirmed with the public
+   * code.
+   */
+  const receptionModeOf = async (route: DeliveryRoute): Promise<'NORMAL' | 'SEGURO'> => {
+    const declared = route.receptionMode?.trim().toUpperCase();
+
+    if (declared === 'SEGURO' || declared === 'NORMAL') {
+      return declared;
+    }
+
+    const detail = await ordersApi.getOrder(String(route.orderId));
+
+    return detail.receptionMode?.trim().toUpperCase() === 'SEGURO' ? 'SEGURO' : 'NORMAL';
+  };
+
+  /**
+   * Confirm the delivery with the code.
+   *
+   * `POST /api/orders/{id}/deliver` is the only way to reach the delivered
+   * status: the backend rejects `PUT /status` with `Entregado` in the secure
+   * mode.
+   */
+  const confirmDelivery = async (route: DeliveryRoute, deliveryCode: string): Promise<void> => {
+    setPendingOrderId(route.orderId);
+    setActionError(null);
+
+    try {
+      await ordersApi.deliverOrder(String(route.orderId), deliveryCode);
+      setNotice(`Pedido ${route.code ?? route.orderId} entregado`);
+      setCodeRoute(null);
+      reload();
+    } catch (cause: unknown) {
+      setActionError(asApiError(cause));
+    } finally {
+      setPendingOrderId(null);
+    }
+  };
+
+  /**
+   * Start the confirmation of the delivery.
+   *
+   * The secure mode asks the customer for the code, so the courier types it;
+   * the normal mode is confirmed with the public code.
+   */
+  const startDelivery = async (route: DeliveryRoute): Promise<void> => {
+    setActionError(null);
+    setNotice(null);
+
+    try {
+      const mode = await receptionModeOf(route);
+
+      if (mode === 'SEGURO') {
+        setCodeRoute(route);
+
+        return;
+      }
+
+      await confirmDelivery(route, NORMAL_DELIVERY_CODE);
+    } catch (cause: unknown) {
+      setActionError(asApiError(cause));
+    }
+  };
+
+  /** Send the code the customer dictated. */
+  const submitCode = async (deliveryCode: string): Promise<void> => {
+    if (codeRoute === null) {
+      return;
+    }
+
+    await confirmDelivery(codeRoute, deliveryCode);
+  };
+
+  const advance = async (route: DeliveryRoute, actionLabel: string): Promise<void> => {
+    if (actionLabel === 'Confirmar retiro') {
+      await moveToPickup(route);
+
+      return;
+    }
+
+    await startDelivery(route);
   };
 
   return (
@@ -123,6 +224,19 @@ export function CourierConsolePage() {
                 );
               })
             )}
+
+            {codeRoute !== null ? (
+              <DeliveryCodeForm
+                route={codeRoute}
+                pending={pendingOrderId === codeRoute.orderId}
+                onSubmit={(deliveryCode) => {
+                  void submitCode(deliveryCode);
+                }}
+                onCancel={() => {
+                  setCodeRoute(null);
+                }}
+              />
+            ) : null}
           </section>
 
           <section

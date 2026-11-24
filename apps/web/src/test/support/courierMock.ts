@@ -80,6 +80,7 @@ export const COURIER_ROUTES = [
     status: 'ASSIGNED',
     createdAt: '2026-10-28T22:15:00Z',
     code: 'FD-50',
+    receptionMode: 'NORMAL',
   },
   {
     id: 899,
@@ -91,6 +92,7 @@ export const COURIER_ROUTES = [
     status: 'ENTREGADO',
     createdAt: '2026-10-28T20:30:00Z',
     code: 'FD-48',
+    receptionMode: 'NORMAL',
   },
 ];
 
@@ -109,6 +111,8 @@ export interface CourierMockState {
   routesResponse?: () => Response;
   /** Optional replacement for the profile creation answer. */
   profileResponse?: () => Response;
+  /** Optional replacement for the delivery confirmation answer. */
+  deliverResponse?: () => Response;
 }
 
 /** Mutable state for the courier endpoints. */
@@ -194,6 +198,22 @@ export function courierResponse(call: RecordedCall, state: CourierMockState): Re
       message: 'Routes retrieved successfully',
       data: state.routes,
     });
+  }
+
+  if (pathname.startsWith('/api/orders/') && pathname.endsWith('/deliver')) {
+    if (state.deliverResponse !== undefined) {
+      return state.deliverResponse();
+    }
+
+    const orderId = Number(pathname.replace('/api/orders/', '').replace('/deliver', ''));
+
+    state.routes = state.routes.map((route) =>
+      (route as { orderId: number }).orderId === orderId
+        ? { ...(route as object), status: 'ENTREGADO' }
+        : route,
+    );
+
+    return jsonResponse({ success: true, message: 'Pedido entregado' });
   }
 
   if (pathname.startsWith('/api/orders/') && pathname.endsWith('/status')) {

@@ -58,6 +58,14 @@ export interface DeliveryRoute {
   createdAt: string;
   /** Human code of the order, when the backend could resolve it. */
   code: string | null;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * It decides how the delivery is confirmed: in the secure mode the
+   * customer dictates a six digit code and the backend only accepts the
+   * delivery through that code.
+   */
+  receptionMode: string | null;
 }
 
 /** `delivery-service` — `DeliveryPersonResponse`. */

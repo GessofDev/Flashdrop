@@ -115,6 +115,26 @@ export const ordersApi = {
   },
 
   /**
+   * `POST /api/orders/{id}/deliver` — confirms the delivery of the order.
+   *
+   * It is the only way to reach the delivered status: `PUT /status` rejects
+   * it in the secure mode. The body carries the six digit code the customer
+   * dictates; in the normal mode the code is the public `000000`.
+   *
+   * A wrong code answers with a 422 and the message of the backend, and an
+   * exhausted attempt answers with a 423, so the caller shows the message
+   * of the backend as it is.
+   */
+  deliverOrder(orderId: string, code: string): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/deliver`,
+      method: 'POST',
+      body: { code },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
    * `GET /api/orders/restaurants/{id}/sales-summary?range=day|week|month`
    *
    * Sales summary of the store (spec S14). The backend restricts this to the

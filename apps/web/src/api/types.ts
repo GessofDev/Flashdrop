@@ -266,6 +266,25 @@ export interface OrderDetail {
   paymentMethod: string;
   /** Instant the order was created, as an ISO-8601 offset date time. */
   createdAt: string;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * The backend fixes it when the order is created and never changes it.
+   */
+  receptionMode: string | null;
+  /**
+   * Verification code of a secure order.
+   *
+   * The backend only fills it for the customer who owns the order, in the
+   * secure mode and while the order is not delivered.
+   */
+  deliveryCode?: string | null;
+  /** Reason code of an automatic cancellation. */
+  cancelReason?: string | null;
+  /** Text of the cancellation, ready to show. */
+  cancelReasonMessage?: string | null;
+  /** Instant of the cancellation. */
+  cancelledAt?: string | null;
   /** Customer of the order. */
   client: OrderClient | null;
   /** Restaurant the order belongs to. */
