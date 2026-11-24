@@ -5,7 +5,8 @@ import cl.flashdrop.orders.domain.model.OrderItem;
 import cl.flashdrop.orders.domain.model.ProductInfo;
 import cl.flashdrop.orders.domain.port.CatalogPort;
 import cl.flashdrop.orders.domain.port.ClientPort;
-import lombok.RequiredArgsConstructor;
+import cl.flashdrop.orders.domain.port.DeliveryPort;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,11 +33,22 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @Component
-@RequiredArgsConstructor
 public class OrderEnricher {
 
     private final CatalogPort catalogPort;
     private final ClientPort clientPort;
+    private final DeliveryPort deliveryPort;
+
+    @Autowired
+    public OrderEnricher(CatalogPort catalogPort, ClientPort clientPort, DeliveryPort deliveryPort) {
+        this.catalogPort = catalogPort;
+        this.clientPort = clientPort;
+        this.deliveryPort = deliveryPort;
+    }
+
+    public OrderEnricher(CatalogPort catalogPort, ClientPort clientPort) {
+        this(catalogPort, clientPort, null);
+    }
 
     public void enrich(Order order) {
         if (order == null) {
@@ -48,9 +60,11 @@ public class OrderEnricher {
                 clientPort.findClientById(order.getClientId()).orElse(null));
         enrichMissingProductSnapshots(order);
 
-        // Sin contrato C-5 (delivery por deliveryId) ni endpoint de lectura de rutas (C-7 solo escribe).
+        // Sin contrato C-5 (delivery por deliveryId): se mantiene null hasta que exista el endpoint.
         order.setDeliveryInfo(null);
-        order.setRoute(null);
+        order.setRoute(deliveryPort != null
+                ? deliveryPort.findRouteByOrderId(order.getId()).orElse(null)
+                : null);
     }
 
     private void enrichMissingProductSnapshots(Order order) {

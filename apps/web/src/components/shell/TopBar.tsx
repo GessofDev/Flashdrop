@@ -103,6 +103,16 @@ export function TopBar({ role }: TopBarProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {roles.includes('CLIENTE') &&
+            roles.includes('RESTAURANTE') &&
+            roles.includes('REPARTIDOR') ? (
+              <Link
+                to={routePaths.admin}
+                className="rounded-control border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              >
+                Administración
+              </Link>
+            ) : null}
             <Link
               to={routePaths.profile}
               aria-label={`Ver perfil de ${session?.name ?? 'usuario'}`}

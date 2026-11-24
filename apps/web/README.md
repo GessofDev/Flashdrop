@@ -129,6 +129,7 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | `/tienda/catalogo` | Mi Tienda | Catálogo y menú | `gesti_n_de_cat_logo_y_men_mi_tienda` |
 | `/tienda/despachos` | Mi Tienda | Historial de despachos | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
 | `/tienda/analiticas` | Mi Tienda | Analíticas de ventas | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
+| `/tienda/ubicacion` | Mi Tienda | Ubicación y despacho | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
 | `/repartidor` | Repartidor | Ruta activa | `consola_del_repartidor_flashdrop_courier` |
 | `/repartidor/pedidos` | Repartidor | Pedidos disponibles (FIFO) | `consola_del_repartidor_flashdrop_courier` |
 | `/repartidor/historial` | Repartidor | Historial de entregas | `consola_del_repartidor_flashdrop_courier` |
@@ -156,6 +157,166 @@ The marketplace also includes a search bar (`MarketplaceSearch`) that lets
 customers search by restaurant name or by the name of any dish for sale
 (e.g., "pizza"). The search filters the restaurant grid dynamically, keeping
 the popular dishes section focused on category browsing.
+
+## Checkout with the destination coordinates (T2, S5)
+
+The backend calculates the price of the dispatch and validates the coverage
+of the local with the coordinates of the destination, so the checkout
+resolves them before the order is created:
+
+- `Usar mi ubicación` asks the browser (`navigator.geolocation`). A denied
+  permission, a browser without the API and a timeout never break the
+  checkout.
+- `Buscar dirección` geocodes the address the customer typed with
+  **Nominatim** (OpenStreetMap): no API key and no new dependency. The
+  provider lives alone in `src/lib/geocode.ts`, so it can be swapped later.
+  Its usage policy asks for a scarce use (roughly one request per second)
+  and for an application that identifies itself, and a browser cannot set
+  the `User-Agent` of a fetch: the app therefore asks once per click.
+
+With the location confirmed, the distance input stays visible but disabled —
+the backend calculates the distance — and the order travels with
+`latitude` and `longitude` (the backend rejects one without the other).
+
+The panel owns the items, so it is the one that asks for the quote
+(`POST /api/orders/delivery-quote`) once the coordinates are there. The
+breakdown the customer sees (subtotal, envío, total) is the one the backend
+computed, and a failed quote shows the literal message of the backend
+(`El local no tiene ubicacion configurada...`, `El local no tiene radio de
+despacho configurado`, `El local no realiza entregas en esta direccion...`).
+
+## Payment of an order (T3, S6)
+
+The backend owns the payment of an order, and it already answers both ends
+of it:
+
+- `GET /api/orders/{id}/payments` — the state of the order and of its last
+  attempt of payment.
+- `POST /api/orders/{id}/payments` — a new attempt of payment (or the one
+  that is still open).
+
+The tracking of an order shows them in `OrderPaymentPanel`, which loads the
+state when the screen opens and shows the state of the payment, the deadline
+of the payment window and the attempt the backend reports.
+
+- `paymentStatus` is the **name** of the `PaymentStatus` of the backend
+  (`PENDIENTE`, `APROBADO`, `RECHAZADO`, `EXPIRADO`), not a label: the
+  panel owns the Spanish label of each name and shows an unknown name as it
+  comes, never a state of its own.
+- The retry is offered only when it makes sense — the order is
+  `Pendiente de pago` and there is no payment still open — because the
+  backend owns the rules. A rejected retry shows its literal message
+  (`El pedido no esta pendiente de pago`, `El plazo para pagar este pedido
+  ya vencio`).
+- The customer always comes from the token: neither call sends a user id.
+- `paymentUrl` is a fake scheme (`fake://flashdrop-pay/...`) and there is no
+  payment gateway behind it, so the panel never renders it as a link.
+
+## Reception and cancellation of an order (T4, S8)
+
+The backend already sends the reception data of an order in both answers of
+the customer: the detail (`GET /api/orders/{id}`) and the listing
+(`GET /api/orders`).
+
+- `receptionMode` is the **name** of the `ReceptionMode` of the backend
+  (`NORMAL`, `SEGURO`), and the app owns the Spanish label of each name
+  (`Entrega normal`, `Entrega segura`). An unknown name is shown as it
+  comes: the app never invents a mode.
+- `deliveryCode` is the verification code the customer dictates to the
+  courier. The backend sends it only to the owner of the order, in the
+  secure mode and while the order is not delivered, so the tracking shows
+  it only when the answer carries one — the app never writes a code of its
+  own, and a normal or delivered order shows none.
+- `cancelReason`, `cancelReasonMessage` and `cancelledAt` describe an
+  automatic cancellation. The tracking shows the text of the cancellation
+  with its date, and the card of the listing shows the reason, so the
+  customer reads why an order was cancelled without opening it.
+
+`OrderReceptionPanel` is the block of the tracking that shows all of it,
+and `orderReception()` reads the answer: a field the backend does not send
+stays empty and nothing is drawn for it. `OrderListItem` declares the same
+four fields, so the listing of "Mis pedidos" can show them too.
+
+## Foto de perfil (T5, S9)
+
+El backend ya expone los tres extremos de la foto del perfil
+(`POST|GET|DELETE /auth/profile/photo`) y ya manda el campo `photo` en el
+perfil, así que la pantalla `/perfil` los usa.
+
+- `GET /auth/profile/photo` — los bytes de la foto. El endpoint exige la
+  cabecera `Authorization`, así que un `<img src>` no puede cargarlo: la app
+  pide los bytes con la sesión y los muestra con una URL de objeto, que
+  libera cuando la reemplaza y cuando el bloque desaparece, para que el
+  navegador no guarde los bytes de una foto que nadie muestra.
+- `POST /auth/profile/photo` — la subida. El cuerpo es multipart con la
+  parte `file`; el cliente no escribe la cabecera `Content-Type`, porque el
+  navegador agrega el límite. La respuesta es el perfil del dueño, con la
+  foto nueva.
+- `DELETE /auth/profile/photo` — la baja. Responde 204 sin cuerpo, así que
+  la llamada declara la forma "bare": la forma de sobre leería el cuerpo
+  vacío como una respuesta rota.
+
+Un usuario sin foto no es un error: el backend responde 404 y el bloque no
+muestra ni foto ni aviso. Una subida o una baja que fallan muestran el
+mensaje literal del backend.
+
+El usuario siempre sale del token: ninguna de las tres llamadas manda un id.
+
+## Baja de la cuenta (T10, S9)
+
+El backend ya expone `DELETE /auth/account`: la cuenta queda **deshabilitada al
+instante** y el borrado de los datos en los demas servicios sigue en segundo
+plano. La pantalla `/perfil` lo usa a traves del bloque `DeleteAccountDialog`.
+
+- El cuerpo es JSON y lleva **solo la contraseña** (`{"password": "..."}`): el
+  usuario siempre sale del token, la llamada nunca manda un id.
+- La respuesta es un 202 **sin cuerpo**, así que la llamada declara la forma
+  "bare": la forma de sobre leería el cuerpo vacío como una respuesta rota.
+- La baja **no es de un clic**: la confirmacion pide la contraseña de la
+  cuenta —el backend la pide— y el botón de confirmar sigue deshabilitado
+  mientras no se escriba, para que nadie borre una cuenta por accidente.
+- Cuando el backend acepta la baja, la app **olvida la sesión** y manda al
+  cliente a la ruta de login.
+- Cuando el backend falla, se muestra su **mensaje literal** y la cuenta
+  sigue en pie.
+
+La llamada escribe la cabecera `Authorization` a mano y declara la sesión
+"pública", porque un 401 aqui significa dos cosas distintas: la contraseña
+está mal (la cuenta sigue) o el token de acceso caducó (la sesión se fue). El
+cliente trata todo 401 de una llamada autenticada como una sesión caducada,
+así que olvidaria la sesión y mandaria al cliente al login tras una contraseña
+incorrecta. Con esta llamada la respuesta del backend se muestra tal cual y
+la sesión solo se olvida cuando la baja se acepta.
+
+El backend rechaza la baja con 409 mientras el usuario tenga pedidos en curso
+("No puedes eliminar tu cuenta mientras tengas pedidos en curso..."): ese
+mensaje tambien se muestra literal.
+
+## Ubicación y radio de despacho (T6, S10)
+
+El backend rechaza todos los pedidos de un local sin coordenadas o sin radio
+de despacho (`El local no tiene ubicacion configurada`, `El local no tiene
+radio de despacho configurado`), así que la pantalla
+`/tienda/ubicacion` deja que el dueño configure ambos valores.
+
+Son dos endpoints y, por lo tanto, dos formularios que se guardan por
+separado:
+
+- `PUT /api/catalog/my/restaurant/location` — la latitud y la longitud del
+  local. El cuerpo lleva solo el par de coordenadas: el dueño siempre sale
+  del token.
+- `PUT /api/catalog/my/restaurant/delivery-radius` — el radio de despacho,
+  en kilómetros, entre 1 y 50 con hasta dos decimales.
+
+Las coordenadas se pueden escribir a mano, tomar del navegador (`Usar mi
+ubicación`) o resolver con la dirección del local (`Buscar dirección`), que
+reutiliza los mismos módulos del checkout del cliente: `src/lib/geolocation.ts`
+y `src/lib/geocode.ts`.
+
+Cada formulario muestra el mensaje literal del backend cuando su guardado
+falla (por ejemplo, `El radio debe estar entre 1 y 50 km, con hasta dos
+decimales`), y la pantalla muestra la cobertura que el backend tiene
+guardada.
 
 ## Ratings (T16)
 
@@ -231,7 +392,7 @@ The navigation of each role is declared once, in `src/app/roleRoutes.ts`:
 | Role | Entries |
 |---|---|
 | Cliente | Marketplace & Consumo, Mis Pedidos |
-| Mi Tienda | KDS Pantalla Cocina, Catálogo & Menú, Historial Despachos, Analíticas & Ventas |
+| Mi Tienda | KDS Pantalla Cocina, Catálogo & Menú, Horario & Apertura, Ubicación & Despacho, Historial Despachos, Analíticas & Ventas |
 | Repartidor | Ruta Activa & GPS, Pedidos Disponibles (FIFO), Historial de Entregas |
 
 ## Unified login (T4)

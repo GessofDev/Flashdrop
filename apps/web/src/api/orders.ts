@@ -3,8 +3,12 @@ import { request } from './client';
 import type {
   CreateOrderRequest,
   CreatedOrderResult,
+  DeliveryQuote,
+  DeliveryQuoteRequest,
+  OpenOrderPayment,
   OrderDetail,
   OrderListItem,
+  OrderPayment,
   SalesRange,
   SalesSummaryResponse,
 } from './types';
@@ -65,12 +69,33 @@ export const ordersApi = {
    *
    * The order carries the address, the declared payment method and the items
    * of the cart; the backend answers with the id and the total it computed.
+   *
+   * The coordinates of the destination travel only when the customer resolved
+   * them: with them the backend calculates the distance itself, and without
+   * them it rejects the order asking for an address with location.
    */
   createOrder(order: CreateOrderRequest): Promise<CreatedOrderResult> {
     return request<CreatedOrderResult>({
       path: '/api/orders',
       method: 'POST',
       body: order,
+      responseShape: 'envelope',
+    });
+  },
+
+  /**
+   * `POST /api/orders/delivery-quote` — quotes the dispatch of the order.
+   *
+   * The quote needs the coordinates of the destination: without them the
+   * backend cannot validate the coverage of the local and answers with a
+   * 400. The answer carries the amounts the backend computed, so the client
+   * never calculates a price of its own.
+   */
+  quoteDelivery(quote: DeliveryQuoteRequest): Promise<DeliveryQuote | null> {
+    return request<DeliveryQuote | null>({
+      path: '/api/orders/delivery-quote',
+      method: 'POST',
+      body: quote,
       responseShape: 'envelope',
     });
   },
@@ -112,6 +137,93 @@ export const ordersApi = {
       body: { status },
       responseShape: 'envelope',
     }).then(() => undefined);
+  },
+
+  /**
+   * `POST /api/orders/{id}/deliver` — confirms the delivery of the order.
+   *
+   * It is the only way to reach the delivered status: `PUT /status` rejects
+   * it in the secure mode. The body carries the six digit code the customer
+   * dictates; in the normal mode the code is the public `000000`.
+   *
+   * A wrong code answers with a 422 and the message of the backend, and an
+   * exhausted attempt answers with a 423, so the caller shows the message
+   * of the backend as it is.
+   */
+  deliverOrder(orderId: string, code: string): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/deliver`,
+      method: 'POST',
+      body: { code },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
+   * `POST /api/orders/{id}/release` — releases an assigned order before pickup.
+   */
+  releaseOrder(orderId: string, reason: string): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/release`,
+      method: 'POST',
+      body: { reason },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
+   * `POST /api/orders/{id}/cancel-after-pickup` — cancels or rejects an order
+   * after pickup (`Cancelado` or `Rechazado`).
+   */
+  cancelAfterPickup(
+    orderId: string,
+    status: 'Cancelado' | 'Rechazado',
+    reason: string,
+  ): Promise<void> {
+    return request<null>({
+      path: `/api/orders/${orderId}/cancel-after-pickup`,
+      method: 'POST',
+      body: { status, reason },
+      responseShape: 'envelope',
+    }).then(() => undefined);
+  },
+
+  /**
+   * `GET /api/orders/{id}/payments` — how the payment of the order goes.
+   *
+   * The answer carries the status of the order and the state of its last
+   * attempt of payment: `paymentStatus` is the **name** of the
+   * `PaymentStatus` of the backend, not its label.
+   *
+   * The customer always comes from the token, so the call never sends a user
+   * id: the backend answers with a 403 when the caller does not own the
+   * order.
+   */
+  getOrderPayment(orderId: string): Promise<OrderPayment> {
+    return request<OrderPayment>({
+      path: `/api/orders/${orderId}/payments`,
+      method: 'GET',
+      responseShape: 'envelope',
+    });
+  },
+
+  /**
+   * `POST /api/orders/{id}/payments` — opens a new attempt of payment.
+   *
+   * The backend opens an attempt for the same order or answers with the one
+   * that is still open, and it owns the rules: an order that is not waiting
+   * for its payment answers with a 400 (`El pedido no esta pendiente de
+   * pago`) and an expired payment window answers with a 400 (`El plazo para
+   * pagar este pedido ya vencio`).
+   *
+   * The body carries nothing: the customer is always resolved from the token.
+   */
+  openOrderPayment(orderId: string): Promise<OpenOrderPayment> {
+    return request<OpenOrderPayment>({
+      path: `/api/orders/${orderId}/payments`,
+      method: 'POST',
+      responseShape: 'envelope',
+    });
   },
 
   /**

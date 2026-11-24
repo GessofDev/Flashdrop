@@ -20,6 +20,9 @@ public class DeliveryRoute {
 
     private final UUID id;
 
+    /** ID numérico de la ruta en delivery-service (para polling de ubicación en vivo). */
+    private final Long routeId;
+
     /** ID del pedido al que pertenece esta ruta */
     private final UUID orderId;
 

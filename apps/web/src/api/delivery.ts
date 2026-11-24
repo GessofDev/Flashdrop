@@ -1,5 +1,13 @@
 import { asList } from './asList';
 import { request } from './client';
+import type { RouteLocationResponse } from './types';
+
+/** Payload of `POST /api/delivery/location`. */
+export interface ReportCourierLocationRequest {
+  latitude: number;
+  longitude: number;
+  recordedAt: string;
+}
 
 /** Maximum number of orders accepted by the atomic claim endpoint. */
 export const MAX_CLAIM_ORDERS = 3;
@@ -58,6 +66,14 @@ export interface DeliveryRoute {
   createdAt: string;
   /** Human code of the order, when the backend could resolve it. */
   code: string | null;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * It decides how the delivery is confirmed: in the secure mode the
+   * customer dictates a six digit code and the backend only accepts the
+   * delivery through that code.
+   */
+  receptionMode: string | null;
 }
 
 /** `delivery-service` — `DeliveryPersonResponse`. */
@@ -142,6 +158,25 @@ export const courierApi = {
       method: 'POST',
       responseShape: 'envelope',
       body: { vehicle },
+    });
+  },
+
+  /** `POST /api/delivery/location` — reports the courier's current position. */
+  reportLocation(payload: ReportCourierLocationRequest): Promise<void> {
+    return request<void>({
+      path: '/api/delivery/location',
+      method: 'POST',
+      responseShape: 'bare',
+      body: payload,
+    });
+  },
+
+  /** `GET /api/delivery/routes/{routeId}/location` — polls the courier's live position. */
+  getRouteLocation(routeId: number): Promise<RouteLocationResponse> {
+    return request<RouteLocationResponse>({
+      path: `/api/delivery/routes/${routeId}/location`,
+      method: 'GET',
+      responseShape: 'envelope',
     });
   },
 };

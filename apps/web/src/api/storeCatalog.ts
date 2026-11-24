@@ -31,6 +31,22 @@ export interface OwnerProductPayload {
 }
 
 /**
+ * `catalog-service` — the local of the owner, with its coverage.
+ *
+ * The endpoints of the owner publish the coordinates of the local and the
+ * radius of its dispatch, so the screen can show what the backend holds and
+ * the owner knows whether the orders of the local will be accepted.
+ */
+export interface OwnerRestaurantResponse extends RestaurantResponse {
+  /** Latitude of the local, in degrees; absent when it is not configured. */
+  latitude?: number | null;
+  /** Longitude of the local, in degrees; absent when it is not configured. */
+  longitude?: number | null;
+  /** Radius of dispatch of the local, in kilometres; absent when it is not configured. */
+  deliveryRadiusKm?: number | null;
+}
+
+/**
  * Calls of the catalog of the owner (`catalog-service`).
  *
  * The service answers with the bare DTO — no `{ success, message, data }`
@@ -39,8 +55,8 @@ export interface OwnerProductPayload {
  */
 export const storeCatalogApi = {
   /** `GET /api/catalog/my/restaurant` — the local of the token, with its opening. */
-  getMyRestaurant(): Promise<RestaurantResponse> {
-    return request<RestaurantResponse>({
+  getMyRestaurant(): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
       path: '/api/catalog/my/restaurant',
       method: 'GET',
       responseShape: 'bare',
@@ -48,8 +64,8 @@ export const storeCatalogApi = {
   },
 
   /** `PUT /api/catalog/my/restaurant/open-status` — the manual switch of the local. */
-  setOpenStatus(acceptingOrders: boolean): Promise<RestaurantResponse> {
-    return request<RestaurantResponse>({
+  setOpenStatus(acceptingOrders: boolean): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
       path: '/api/catalog/my/restaurant/open-status',
       method: 'PUT',
       body: { acceptingOrders },
@@ -58,11 +74,43 @@ export const storeCatalogApi = {
   },
 
   /** `PUT /api/catalog/my/restaurant/hours` — replaces the whole week of the local. */
-  setHours(hours: OpeningHours[]): Promise<RestaurantResponse> {
-    return request<RestaurantResponse>({
+  setHours(hours: OpeningHours[]): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
       path: '/api/catalog/my/restaurant/hours',
       method: 'PUT',
       body: { hours },
+      responseShape: 'bare',
+    });
+  },
+
+  /**
+   * `PUT /api/catalog/my/restaurant/location` — the coordinates of the local.
+   *
+   * The owner comes from the token, so the body carries only the pair of
+   * coordinates: the backend validates the latitude between -90 and 90 and
+   * the longitude between -180 and 180.
+   */
+  setLocation(latitude: number, longitude: number): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
+      path: '/api/catalog/my/restaurant/location',
+      method: 'PUT',
+      body: { latitude, longitude },
+      responseShape: 'bare',
+    });
+  },
+
+  /**
+   * `PUT /api/catalog/my/restaurant/delivery-radius` — the radius of dispatch
+   * of the local.
+   *
+   * The body carries only the radius: the backend validates it between 1 and
+   * 50 kilometres, with up to two decimals.
+   */
+  setDeliveryRadius(deliveryRadiusKm: number): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
+      path: '/api/catalog/my/restaurant/delivery-radius',
+      method: 'PUT',
+      body: { deliveryRadiusKm },
       responseShape: 'bare',
     });
   },

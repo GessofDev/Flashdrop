@@ -14,6 +14,17 @@ export interface ProductQuery {
 }
 
 /**
+ * Destination coordinates for filtering restaurants by delivery coverage.
+ *
+ * Both values travel together: `catalog-service` rejects one without the
+ * other.
+ */
+export interface RestaurantCoverageQuery {
+  latitude: number;
+  longitude: number;
+}
+
+/**
  * Calls of `catalog-service`.
  *
  * The service answers with the bare DTO — no `{ success, message, data }`
@@ -23,11 +34,15 @@ export interface ProductQuery {
  */
 export const catalogApi = {
   /** `GET /catalog/restaurants` — the restaurants of the catalog. */
-  listRestaurants(): Promise<RestaurantResponse[]> {
+  listRestaurants(coverage?: RestaurantCoverageQuery): Promise<RestaurantResponse[]> {
     return request<unknown>({
       path: '/catalog/restaurants',
       responseShape: 'bare',
       session: 'public',
+      query:
+        coverage === undefined
+          ? undefined
+          : { latitude: coverage.latitude, longitude: coverage.longitude },
     }).then((answer) => asList<RestaurantResponse>(answer));
   },
 

@@ -188,13 +188,21 @@ describe('courier console', () => {
     );
 
     await waitFor(() => {
-      const updates = fetchMock.calls.filter(
-        (call) => call.method === 'PUT' && call.url === '/api/orders/501/status',
+      const deliveries = fetchMock.calls.filter(
+        (call) => call.method === 'POST' && call.url === '/api/orders/501/deliver',
       );
 
-      expect(updates).toHaveLength(2);
-      expect(updates[1]?.body).toEqual({ status: 'Entregado' });
+      expect(deliveries).toHaveLength(1);
+      expect(deliveries[0]?.body).toEqual({ code: '000000' });
     });
+
+    // `PUT /status` only moves the order to `Retirado`: the backend rejects
+    // `Entregado` in the secure mode, so the delivery has its own endpoint.
+    expect(
+      fetchMock.calls.filter(
+        (call) => call.method === 'PUT' && call.url === '/api/orders/501/status',
+      ),
+    ).toHaveLength(1);
   });
 
   it('shows no delivery action to a session without the courier permission', async () => {

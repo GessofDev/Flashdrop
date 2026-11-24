@@ -187,6 +187,43 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
     }
 
     @Override
+    public Optional<DeliveryRoute> findRouteByOrderId(UUID orderId) {
+        if (orderId == null) {
+            return Optional.empty();
+        }
+        long rawOrderId = IdConverter.toLong(orderId);
+        log.debug("Consultando ruta interna por orderId={}", rawOrderId);
+        try {
+            RouteEnvelope envelope = deliveryInternalRestClient.get()
+                    .uri("/api/internal/routes/order/{orderId}", rawOrderId)
+                    .retrieve()
+                    .body(RouteEnvelope.class);
+            if (envelope == null || envelope.data() == null) {
+                return Optional.empty();
+            }
+            RouteData data = envelope.data();
+            return Optional.of(DeliveryRoute.builder()
+                    .routeId(data.id())
+                    .orderId(orderId)
+                    .pickupAddress(data.pickupAddress())
+                    .deliveryAddress(data.deliveryAddress())
+                    .distanceKm(data.distanceKm() != null ? java.math.BigDecimal.valueOf(data.distanceKm()) : null)
+                    .estimatedMinutes(data.estimatedMinutes() != null ? data.estimatedMinutes() : 0)
+                    .status(data.status())
+                    .build());
+        } catch (HttpStatusCodeException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return Optional.empty();
+            }
+            log.warn("No se pudo consultar la ruta en Delivery para orderId={}: {}", rawOrderId, e.getMessage());
+            return Optional.empty();
+        } catch (RestClientException e) {
+            log.warn("No se pudo consultar la ruta en Delivery para orderId={}: {}", rawOrderId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public int anonymizeClientRoutes(List<UUID> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return 0;
@@ -234,5 +271,19 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
     }
 
     private record DeliveryPersonData(Long id, String userId, String vehicle) {
+    }
+
+    private record RouteEnvelope(boolean success, String message, RouteData data) {
+    }
+
+    private record RouteData(
+            Long id,
+            Long orderId,
+            String pickupAddress,
+            String deliveryAddress,
+            Double distanceKm,
+            Integer estimatedMinutes,
+            String status
+    ) {
     }
 }

@@ -180,11 +180,66 @@ export interface CreateOrderRequest {
   address: string;
   /** Payment method declared by the customer: `Efectivo`, `Tarjeta` or `Transferencia`. */
   payment_method: string;
+  /**
+   * Latitude of the destination.
+   *
+   * It travels with the longitude, and the backend rejects one without the
+   * other. With the coordinates the backend calculates the distance itself
+   * and ignores the declared `distance_km`.
+   */
+  latitude?: number;
+  /** Longitude of the destination; it always travels with the latitude. */
+  longitude?: number;
   /** Estimated distance in kilometres; the backend applies its own default. */
   distance_km?: number;
   /** Estimated minutes of the dispatch; the backend applies its own default. */
   estimated_minutes?: number;
   items: OrderItemRequest[];
+}
+
+/**
+ * `orders-service` — `QuoteOrderRequest`, the body of
+ * `POST /api/orders/delivery-quote`.
+ *
+ * The quote needs the coordinates of the destination: without them the
+ * backend cannot validate the coverage of the local.
+ */
+export interface DeliveryQuoteRequest {
+  /** Dishes of the cart the quote is calculated for. */
+  items: OrderItemRequest[];
+  /** Latitude of the destination; it travels with the longitude. */
+  latitude?: number;
+  /** Longitude of the destination; it travels with the latitude. */
+  longitude?: number;
+}
+
+/**
+ * `orders-service` — `QuoteResponse`, the answer of
+ * `POST /api/orders/delivery-quote`.
+ *
+ * The amounts are in CLP. `defaultFee` means the local has no tariff loaded
+ * and the fallback fee was charged, so the breakdown does not apply and the
+ * vehicle and the costs travel empty.
+ */
+export interface DeliveryQuote {
+  /** Sum of the dishes, in CLP. */
+  subtotal: number;
+  /** Price of the dispatch, in CLP. */
+  deliveryFee: number;
+  /** Total of the order, in CLP. */
+  total: number;
+  /** Whether the price of the dispatch is the fallback one. */
+  defaultFee: boolean;
+  /** Vehicle the dispatch needs, when the tariff declares one. */
+  vehicle: string | null;
+  /** Dimension of the order, the sum of the dimensions of its dishes. */
+  dimension: number | null;
+  /** Distance between the local and the destination, in kilometres. */
+  distanceKm: number | null;
+  /** Part of the price of the dispatch that comes from the dimension. */
+  dimensionCost: number | null;
+  /** Part of the price of the dispatch that comes from the distance. */
+  distanceCost: number | null;
 }
 
 /** `orders-service` — `CreateOrderRequest.ItemRequest`. */
@@ -238,6 +293,18 @@ export interface OrderListItem {
   deliveryId: string | null;
   /** Instant the order was created, as an ISO-8601 offset date time. */
   createdAt: string;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * The backend fixes it when the order is created and never changes it.
+   */
+  receptionMode: string | null;
+  /** Reason code of an automatic cancellation. */
+  cancelReason?: string | null;
+  /** Text of the cancellation, ready to show. */
+  cancelReasonMessage?: string | null;
+  /** Instant of the cancellation, as an ISO-8601 offset date time. */
+  cancelledAt?: string | null;
 }
 
 /**
@@ -266,6 +333,25 @@ export interface OrderDetail {
   paymentMethod: string;
   /** Instant the order was created, as an ISO-8601 offset date time. */
   createdAt: string;
+  /**
+   * Reception mode of the order: `NORMAL` or `SEGURO`.
+   *
+   * The backend fixes it when the order is created and never changes it.
+   */
+  receptionMode: string | null;
+  /**
+   * Verification code of a secure order.
+   *
+   * The backend only fills it for the customer who owns the order, in the
+   * secure mode and while the order is not delivered.
+   */
+  deliveryCode?: string | null;
+  /** Reason code of an automatic cancellation. */
+  cancelReason?: string | null;
+  /** Text of the cancellation, ready to show. */
+  cancelReasonMessage?: string | null;
+  /** Instant of the cancellation. */
+  cancelledAt?: string | null;
   /** Customer of the order. */
   client: OrderClient | null;
   /** Restaurant the order belongs to. */
@@ -306,12 +392,21 @@ export interface OrderDelivery {
  * courier, so the map of the app can only be a schematic one.
  */
 export interface OrderRoute {
+  id?: number | null;
   pickupAddress: string;
   deliveryAddress: string;
   distanceKm: number | null;
   estimatedMinutes: number | null;
   /** Status of the route, as the `RouteStatus` of `delivery-service`. */
   status: string;
+}
+
+/** `delivery-service` — `RouteLocationResponse`, the answer of `GET /api/delivery/routes/{routeId}/location`. */
+export interface RouteLocationResponse {
+  routeId: number;
+  latitude: number;
+  longitude: number;
+  recordedAt: string;
 }
 
 /** `orders-service` — `OrderDetailResponse.ItemDto`. */
@@ -325,6 +420,47 @@ export interface OrderItem {
   unitPrice: number;
   /** Price of the line, in CLP. */
   total: number;
+}
+
+/**
+ * `orders-service` — `PaymentView`, the answer of `GET /api/orders/{id}/payments`.
+ *
+ * It is the state of the order and of its last attempt of payment. The
+ * `paymentStatus` is the **name** of the `PaymentStatus` of the backend
+ * (`PENDIENTE`, `APROBADO`, `RECHAZADO`, `EXPIRADO`), not a label: it is
+ * empty while the order has no payment yet.
+ */
+export interface OrderPayment {
+  /** Status of the order, as the label of the `OrderStatus` of the backend. */
+  orderStatus: string;
+  /** Name of the `PaymentStatus` of the backend, or `null` without a payment. */
+  paymentStatus: string | null;
+  /** Id of the last attempt of payment. */
+  paymentId: number | null;
+  /**
+   * Url of the payment session.
+   *
+   * The backend answers with a fake scheme (`fake://flashdrop-pay/...`):
+   * the app never opens it, because there is no payment gateway behind it.
+   */
+  paymentUrl: string | null;
+  /** Deadline of the payment window, as an ISO-8601 offset date time. */
+  paymentExpiresAt: string | null;
+}
+
+/**
+ * `orders-service` — `OpenPayment`, the answer of `POST /api/orders/{id}/payments`.
+ *
+ * It is the attempt that is open after the retry: the backend opens a new one
+ * or returns the one that was still open.
+ */
+export interface OpenOrderPayment {
+  /** Id of the open attempt of payment. */
+  paymentId: number;
+  /** Url of the payment session; the app never opens it. */
+  paymentUrl: string;
+  /** Deadline of the payment window, as an ISO-8601 offset date time. */
+  paymentExpiresAt: string | null;
 }
 
 /** Range accepted by `GET /api/orders/restaurants/{id}/sales-summary`. */

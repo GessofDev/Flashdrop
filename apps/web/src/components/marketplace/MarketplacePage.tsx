@@ -5,8 +5,10 @@ import type { ProductResponse } from '@/api';
 import { useCart } from '@/cart';
 import { CartPanel } from '@/components/cart';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
+import type { Coordinates } from '@/lib/geolocation';
 
 import { CategoryChips } from './CategoryChips';
+import { CoverageLocationBar } from './CoverageLocationBar';
 import { MarketplaceHero } from './MarketplaceHero';
 import { MarketplaceSearch } from './MarketplaceSearch';
 import { PopularProducts } from './PopularProducts';
@@ -24,12 +26,22 @@ import { useCatalogResource } from './useCatalogResource';
 export function MarketplacePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [coverageCoordinates, setCoverageCoordinates] = useState<Coordinates | null>(null);
+  const [showingAllRestaurants, setShowingAllRestaurants] = useState(false);
   const [cachedAllProducts, setCachedAllProducts] = useState<ProductResponse[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
   const { addItem } = useCart();
 
-  const loadRestaurants = useCallback(() => catalogApi.listRestaurants(), []);
+  const isFilteringByCoverage = coverageCoordinates !== null && !showingAllRestaurants;
+
+  const loadRestaurants = useCallback(
+    () =>
+      catalogApi.listRestaurants(
+        isFilteringByCoverage ? coverageCoordinates : undefined,
+      ),
+    [isFilteringByCoverage, coverageCoordinates],
+  );
   const loadCategories = useCallback(() => catalogApi.listCategories(), []);
   const loadProducts = useCallback(
     () =>
@@ -117,6 +129,16 @@ export function MarketplacePage() {
             categoryCount={categories.data?.length ?? 0}
           />
 
+          <CoverageLocationBar
+            coordinates={coverageCoordinates}
+            showingAll={showingAllRestaurants}
+            onCoordinatesChange={(next) => {
+              setCoverageCoordinates(next);
+              setShowingAllRestaurants(false);
+            }}
+            onToggleShowAll={setShowingAllRestaurants}
+          />
+
           <MarketplaceSearch
             value={searchTerm}
             onChange={setSearchTerm}
@@ -138,7 +160,20 @@ export function MarketplacePage() {
             emptyMessage={
               searchTerm.trim() !== ''
                 ? 'No encontramos locales que coincidan con tu búsqueda'
-                : undefined
+                : isFilteringByCoverage
+                  ? 'No hay locales con cobertura en tu zona'
+                  : undefined
+            }
+            emptyAction={
+              searchTerm.trim() === '' && isFilteringByCoverage ? (
+                <button
+                  type="button"
+                  onClick={() => setShowingAllRestaurants(true)}
+                  className="inline-flex items-center justify-center rounded-control border border-border bg-surface-hover px-3.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-border/40 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                >
+                  Ver todos los locales
+                </button>
+              ) : undefined
             }
           />
 

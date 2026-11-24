@@ -10,6 +10,10 @@ import { routePaths } from '@/app/routePaths';
 import { useSession } from '@/session';
 import type { Role } from '@/session';
 
+import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { MyReviewsSection } from './MyReviewsSection';
+import { ProfilePhoto } from './ProfilePhoto';
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const { activeRole, setActiveRole, logout, tokens } = useSession();
@@ -154,7 +158,14 @@ export function ProfilePage() {
             </div>
           </section>
 
-          {/* Formulario de edición si isEditing está abierto */}
+          {/* 2. Foto de perfil */}
+          <ProfilePhoto
+            onPhotoChange={(photo) =>
+              setProfile((current) => (current === null ? current : { ...current, photo }))
+            }
+          />
+
+          {/* 3. Formulario de edición si isEditing está abierto */}
           {isEditing ? (
             <section
               aria-label="Edición de perfil"
@@ -224,7 +235,7 @@ export function ProfilePage() {
             </section>
           ) : null}
 
-          {/* 2. Selector y estado de Roles */}
+          {/* 4. Selector y estado de Roles */}
           <section aria-label="Mis roles en FlashDrop" className="flex flex-col gap-4">
             <div>
               <h2 className="font-display text-xl font-bold text-foreground">
@@ -371,7 +382,10 @@ export function ProfilePage() {
             </div>
           </section>
 
-          {/* 3. Dispositivos Conectados */}
+          {/* 5. Mis reseñas */}
+          <MyReviewsSection />
+
+          {/* 6. Dispositivos Conectados */}
           <section
             role="region"
             aria-label="Dispositivos conectados"
@@ -404,6 +418,9 @@ export function ProfilePage() {
               </div>
             </div>
           </section>
+
+          {/* 6. Baja de la cuenta */}
+          <DeleteAccountDialog />
         </div>
       ) : null}
     </div>

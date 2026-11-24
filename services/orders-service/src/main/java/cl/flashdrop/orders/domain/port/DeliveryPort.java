@@ -59,6 +59,14 @@ public interface DeliveryPort {
      */
     void closeRoute(UUID orderId, String targetStatus);
 
+    /**
+     * Consulta la ruta de entrega asociada a un pedido en Delivery Service.
+     * Contrato interno: GET /api/internal/routes/order/{orderId}.
+     */
+    default Optional<DeliveryRoute> findRouteByOrderId(UUID orderId) {
+        return Optional.empty();
+    }
+
     /** Eliminacion de cuenta de un cliente: Delivery borra la direccion de entrega de las rutas de esos pedidos. */
     int anonymizeClientRoutes(List<UUID> orderIds);
 }

@@ -1,3 +1,14 @@
+export { adminApi } from './admin';
+export type {
+  AdminRestaurantResponse,
+  AdminUserResponse,
+  AssignUserRolesResult,
+  CreateAdminRestaurantRequest,
+  DeliveryTariff,
+  OrderPolicy,
+  TariffDimensionRange,
+  TariffDistanceRange,
+} from './admin';
 export { ApiError, apiErrorKindForStatus } from './ApiError';
 export type { ApiErrorKind, ApiErrorOptions } from './ApiError';
 export { asApiError } from './asApiError';
@@ -19,9 +30,11 @@ export type {
   CourierVehicle,
   DeliveryPerson,
   DeliveryRoute,
+  ReportCourierLocationRequest,
 } from './delivery';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
+export { profilePhotoApi } from './profilePhoto';
 export {
   isRatingTargetType,
   RATING_TARGET_LABELS,
@@ -39,7 +52,7 @@ export type {
   TargetReviewsResponse,
 } from './reviews';
 export { storeCatalogApi } from './storeCatalog';
-export type { OwnerProductPayload } from './storeCatalog';
+export type { OwnerProductPayload, OwnerRestaurantResponse } from './storeCatalog';
 export { SALES_RANGES } from './types';
 export type {
   ApiEnvelope,
@@ -47,6 +60,8 @@ export type {
   CategoryResponse,
   CreateOrderRequest,
   CreatedOrderResult,
+  DeliveryQuote,
+  DeliveryQuoteRequest,
   LoginRequest,
   OrderClient,
   OrderDelivery,
@@ -65,6 +80,7 @@ export type {
   RegisterUserResult,
   OpeningHours,
   RestaurantResponse,
+  RouteLocationResponse,
   SalesRange,
   SalesSummaryResponse,
   TokenClaims,
