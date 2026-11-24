@@ -10,7 +10,12 @@ import { KitchenBoardPage } from '@/components/kitchen';
 import { MarketplacePage, RestaurantPage } from '@/components/marketplace';
 import { OrderListPage, OrderTrackingPage } from '@/components/orders';
 import { ProfilePage } from '@/components/profile';
-import { StoreAnalyticsPage, StoreCatalogPage, StoreHoursPage } from '@/components/store';
+import {
+  StoreAnalyticsPage,
+  StoreCatalogPage,
+  StoreHoursPage,
+  StoreLocationPage,
+} from '@/components/store';
 
 import { ProtectedLayout } from './ProtectedLayout';
 import { RoutePlaceholder } from './RoutePlaceholder';
@@ -52,6 +57,7 @@ export function AppRoutes() {
         <Route path={routePaths.storeKds} element={<KitchenBoardPage />} />
         <Route path={routePaths.storeAnalytics} element={<StoreAnalyticsPage />} />
         <Route path={routePaths.storeHours} element={<StoreHoursPage />} />
+        <Route path={routePaths.storeLocation} element={<StoreLocationPage />} />
         <Route path={routePaths.courier} element={<CourierConsolePage />} />
         <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
         <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />

@@ -19,6 +19,7 @@ export const routePaths = {
   storeDispatchHistory: '/tienda/despachos',
   storeAnalytics: '/tienda/analiticas',
   storeHours: '/tienda/horario',
+  storeLocation: '/tienda/ubicacion',
   courier: '/repartidor',
   courierAvailable: '/repartidor/pedidos',
   courierHistory: '/repartidor/historial',

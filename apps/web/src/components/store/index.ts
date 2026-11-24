@@ -7,3 +7,4 @@ export type { ProductFormDialogProps } from './ProductFormDialog';
 export { StoreAnalyticsPage } from './StoreAnalyticsPage';
 export { StoreCatalogPage } from './StoreCatalogPage';
 export { StoreHoursPage } from './StoreHoursPage';
+export { StoreLocationPage } from './StoreLocationPage';

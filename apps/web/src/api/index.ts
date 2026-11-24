@@ -39,7 +39,7 @@ export type {
   TargetReviewsResponse,
 } from './reviews';
 export { storeCatalogApi } from './storeCatalog';
-export type { OwnerProductPayload } from './storeCatalog';
+export type { OwnerProductPayload, OwnerRestaurantResponse } from './storeCatalog';
 export { SALES_RANGES } from './types';
 export type {
   ApiEnvelope,

@@ -129,6 +129,7 @@ Focus is always visible: `outline: 2px solid var(--color-primary)` with
 | `/tienda/catalogo` | Mi Tienda | Catálogo y menú | `gesti_n_de_cat_logo_y_men_mi_tienda` |
 | `/tienda/despachos` | Mi Tienda | Historial de despachos | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
 | `/tienda/analiticas` | Mi Tienda | Analíticas de ventas | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
+| `/tienda/ubicacion` | Mi Tienda | Ubicación y despacho | `anal_ticas_de_ventas_y_rendimiento_mi_tienda_v2.0` |
 | `/repartidor` | Repartidor | Ruta activa | `consola_del_repartidor_flashdrop_courier` |
 | `/repartidor/pedidos` | Repartidor | Pedidos disponibles (FIFO) | `consola_del_repartidor_flashdrop_courier` |
 | `/repartidor/historial` | Repartidor | Historial de entregas | `consola_del_repartidor_flashdrop_courier` |
@@ -183,6 +184,32 @@ breakdown the customer sees (subtotal, envío, total) is the one the backend
 computed, and a failed quote shows the literal message of the backend
 (`El local no tiene ubicacion configurada...`, `El local no tiene radio de
 despacho configurado`, `El local no realiza entregas en esta direccion...`).
+
+## Ubicación y radio de despacho (T6, S10)
+
+El backend rechaza todos los pedidos de un local sin coordenadas o sin radio
+de despacho (`El local no tiene ubicacion configurada`, `El local no tiene
+radio de despacho configurado`), así que la pantalla
+`/tienda/ubicacion` deja que el dueño configure ambos valores.
+
+Son dos endpoints y, por lo tanto, dos formularios que se guardan por
+separado:
+
+- `PUT /api/catalog/my/restaurant/location` — la latitud y la longitud del
+  local. El cuerpo lleva solo el par de coordenadas: el dueño siempre sale
+  del token.
+- `PUT /api/catalog/my/restaurant/delivery-radius` — el radio de despacho,
+  en kilómetros, entre 1 y 50 con hasta dos decimales.
+
+Las coordenadas se pueden escribir a mano, tomar del navegador (`Usar mi
+ubicación`) o resolver con la dirección del local (`Buscar dirección`), que
+reutiliza los mismos módulos del checkout del cliente: `src/lib/geolocation.ts`
+y `src/lib/geocode.ts`.
+
+Cada formulario muestra el mensaje literal del backend cuando su guardado
+falla (por ejemplo, `El radio debe estar entre 1 y 50 km, con hasta dos
+decimales`), y la pantalla muestra la cobertura que el backend tiene
+guardada.
 
 ## Ratings (T16)
 
@@ -258,7 +285,7 @@ The navigation of each role is declared once, in `src/app/roleRoutes.ts`:
 | Role | Entries |
 |---|---|
 | Cliente | Marketplace & Consumo, Mis Pedidos |
-| Mi Tienda | KDS Pantalla Cocina, Catálogo & Menú, Historial Despachos, Analíticas & Ventas |
+| Mi Tienda | KDS Pantalla Cocina, Catálogo & Menú, Horario & Apertura, Ubicación & Despacho, Historial Despachos, Analíticas & Ventas |
 | Repartidor | Ruta Activa & GPS, Pedidos Disponibles (FIFO), Historial de Entregas |
 
 ## Unified login (T4)
