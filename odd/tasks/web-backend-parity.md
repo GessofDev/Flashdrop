@@ -44,6 +44,11 @@ S5 — Cotización de envío
 `POST /api/orders/delivery-quote` antes de `POST /api/orders`. La tarifa la configura el admin en
 `PUT /api/admin/delivery-tariff`.
 
+La cotización **exige** las coordenadas del destino: sin ellas el backend responde 400 con
+`"Selecciona una direccion con ubicacion para validar la cobertura"`, y lo mismo ocurre al crear
+el pedido. La web las obtiene de la geolocalización del navegador y, como fallback, de la
+geocodificación de la dirección escrita (decisión del usuario, L6).
+
 S6 — Pagos
 > "Permite reintentar el pago de un pedido que fue rechazado"
 
@@ -85,8 +90,8 @@ No se consumen en la web: `POST /api/payments/webhook` (callback del proveedor d
 
 ## Tasks
 
-T1 | S2,S3,S4 | inline | `fix(web): confirm courier delivery through the verification code`
-T2 | S5 | inline | `feat(web): quote the delivery fee before the checkout`
+T1 | S2,S3,S4 | inline | `fix(web): confirm courier delivery through the verification code` (`0fa0254`)
+T2 | S5 | inline | `feat(web): quote the delivery fee and send the destination coordinates` (`a108758`)
 T3 | S6 | inline | `feat(web): show the payment state and retry a rejected payment`
 T4 | S8 | inline | `feat(web): show the reception mode and the cancellation reason of an order`
 T5 | S9 | inline | `feat(web): manage the profile photo`
@@ -97,6 +102,10 @@ T9 | S4 | inline | `feat(web): release an order and cancel it after the pickup`
 T10 | S9 | inline | `feat(web): delete the account`
 T11 | S12 | inline | `feat(web): list the reviews I wrote`
 T12 | S11 | inline | `feat(web): add the administration section`
+
+Merge commits (PR base realignment, not spec work):
+
+M1 | S1-S12 | inline | `Merge remote-tracking branch 'origin/main' into feat/web-courier-delivery-code` (`9818262`) — trae el PR #115 (`fix(orders): restore manual store acceptance after payment`), que es solo backend y no toca `apps/web`.
 
 ## Log
 
@@ -112,3 +121,38 @@ backend rechaza en modo SEGURO.
 L3 — 2026-11-24 — Decisión: T1 primero y sola en su work unit. Es el único hueco que rompe un
 camino de usuario existente; el resto agrega capacidades nuevas y conviene de a uno para no
 inflar la revisión.
+
+L4 — 2026-11-24 — T1 cerrada (`0fa0254`, rama `feat/web-courier-delivery-code`): la consola del
+repartidor confirma la entrega con `POST /api/orders/{id}/deliver` (modo SEGURO: pide el código
+de 6 dígitos; modo NORMAL: envía `000000`), y `PUT /api/orders/{id}/status` queda solo para el
+retiro. El modo de recepción sale de la ruta y, cuando una ruta vieja no lo declara, del detalle
+del pedido. Verificación: 287 tests verdes (27 archivos), `tsc --noEmit` limpio, `eslint` limpio.
+
+L5 — 2026-11-24 — Hallazgo que bloquea T2 y T3: `DeliveryFeeCalculator.calculate` exige lat/lng
+del destino — `"Selecciona una direccion con ubicacion para validar la cobertura"` — y lo exige
+tanto en `POST /api/orders/delivery-quote` como en `POST /api/orders`. El checkout de la web no
+manda coordenadas, así que la creación del pedido falla con 400 y la cotización no se puede
+pedir. Además exige que el local tenga coordenadas y radio de despacho
+(`"El local no tiene ubicacion configurada"`, `"El local no tiene radio de despacho configurado"`),
+y la web no tiene forma de configurarlos (T6).
+
+L6 — 2026-11-24 — Decisión del usuario sobre las coordenadas del destino: "geolocalizacion por
+navegador y geocodificacion como fallback". O sea: primero `navigator.geolocation`; si el cliente
+la rechaza o no está disponible, la dirección escrita se resuelve con un geocodificador. El
+proveedor elegido es Nominatim (OpenStreetMap), sin clave y sin dependencia nueva, aislado en un
+módulo propio para poder cambiarlo. Nota: `POST /api/orders` rechaza `NORMAL` y asume `SEGURO`
+cuando el campo no viene, así que la web no ofrece elegir el modo de recepción: todo pedido nuevo
+nace seguro y el repartidor siempre pide el código (T1).
+
+L7 — 2026-11-24 — T2 cerrada (`a108758`): el checkout resuelve la ubicación con el navegador
+primero y con la geocodificación de la dirección escrita como fallback (Nominatim, sin clave, en
+`apps/web/src/lib/geocode.ts`), manda `latitude`/`longitude` a `POST /api/orders`, deja de mandar
+`distance_km` cuando la ubicación está confirmada y muestra el desglose de
+`POST /api/orders/delivery-quote` con los montos del backend (o el mensaje literal cuando la
+cotización falla). Verificación: 293 tests verdes (28 archivos), `tsc --noEmit` limpio, `eslint`
+limpio.
+
+L8 — 2026-11-24 — Decisión de la revisión de T2: las coordenadas no se invalidan cuando el cliente
+edita la dirección, pero la app lo dice ("Cambiaste la dirección después de confirmar la
+ubicación: puede que no coincidan") en vez de fingir que ambas cosas van juntas. La lógica de
+ubicación quedó en el hook `useDeliveryLocation` para que el formulario no crezca.
