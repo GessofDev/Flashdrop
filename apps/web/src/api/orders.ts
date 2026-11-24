@@ -3,6 +3,8 @@ import { request } from './client';
 import type {
   CreateOrderRequest,
   CreatedOrderResult,
+  DeliveryQuote,
+  DeliveryQuoteRequest,
   OrderDetail,
   OrderListItem,
   SalesRange,
@@ -65,12 +67,33 @@ export const ordersApi = {
    *
    * The order carries the address, the declared payment method and the items
    * of the cart; the backend answers with the id and the total it computed.
+   *
+   * The coordinates of the destination travel only when the customer resolved
+   * them: with them the backend calculates the distance itself, and without
+   * them it rejects the order asking for an address with location.
    */
   createOrder(order: CreateOrderRequest): Promise<CreatedOrderResult> {
     return request<CreatedOrderResult>({
       path: '/api/orders',
       method: 'POST',
       body: order,
+      responseShape: 'envelope',
+    });
+  },
+
+  /**
+   * `POST /api/orders/delivery-quote` — quotes the dispatch of the order.
+   *
+   * The quote needs the coordinates of the destination: without them the
+   * backend cannot validate the coverage of the local and answers with a
+   * 400. The answer carries the amounts the backend computed, so the client
+   * never calculates a price of its own.
+   */
+  quoteDelivery(quote: DeliveryQuoteRequest): Promise<DeliveryQuote | null> {
+    return request<DeliveryQuote | null>({
+      path: '/api/orders/delivery-quote',
+      method: 'POST',
+      body: quote,
       responseShape: 'envelope',
     });
   },

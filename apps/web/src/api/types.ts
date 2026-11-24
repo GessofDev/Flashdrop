@@ -180,11 +180,66 @@ export interface CreateOrderRequest {
   address: string;
   /** Payment method declared by the customer: `Efectivo`, `Tarjeta` or `Transferencia`. */
   payment_method: string;
+  /**
+   * Latitude of the destination.
+   *
+   * It travels with the longitude, and the backend rejects one without the
+   * other. With the coordinates the backend calculates the distance itself
+   * and ignores the declared `distance_km`.
+   */
+  latitude?: number;
+  /** Longitude of the destination; it always travels with the latitude. */
+  longitude?: number;
   /** Estimated distance in kilometres; the backend applies its own default. */
   distance_km?: number;
   /** Estimated minutes of the dispatch; the backend applies its own default. */
   estimated_minutes?: number;
   items: OrderItemRequest[];
+}
+
+/**
+ * `orders-service` — `QuoteOrderRequest`, the body of
+ * `POST /api/orders/delivery-quote`.
+ *
+ * The quote needs the coordinates of the destination: without them the
+ * backend cannot validate the coverage of the local.
+ */
+export interface DeliveryQuoteRequest {
+  /** Dishes of the cart the quote is calculated for. */
+  items: OrderItemRequest[];
+  /** Latitude of the destination; it travels with the longitude. */
+  latitude?: number;
+  /** Longitude of the destination; it travels with the latitude. */
+  longitude?: number;
+}
+
+/**
+ * `orders-service` — `QuoteResponse`, the answer of
+ * `POST /api/orders/delivery-quote`.
+ *
+ * The amounts are in CLP. `defaultFee` means the local has no tariff loaded
+ * and the fallback fee was charged, so the breakdown does not apply and the
+ * vehicle and the costs travel empty.
+ */
+export interface DeliveryQuote {
+  /** Sum of the dishes, in CLP. */
+  subtotal: number;
+  /** Price of the dispatch, in CLP. */
+  deliveryFee: number;
+  /** Total of the order, in CLP. */
+  total: number;
+  /** Whether the price of the dispatch is the fallback one. */
+  defaultFee: boolean;
+  /** Vehicle the dispatch needs, when the tariff declares one. */
+  vehicle: string | null;
+  /** Dimension of the order, the sum of the dimensions of its dishes. */
+  dimension: number | null;
+  /** Distance between the local and the destination, in kilometres. */
+  distanceKm: number | null;
+  /** Part of the price of the dispatch that comes from the dimension. */
+  dimensionCost: number | null;
+  /** Part of the price of the dispatch that comes from the distance. */
+  distanceCost: number | null;
 }
 
 /** `orders-service` — `CreateOrderRequest.ItemRequest`. */

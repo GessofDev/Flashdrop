@@ -47,6 +47,8 @@ export type {
   CategoryResponse,
   CreateOrderRequest,
   CreatedOrderResult,
+  DeliveryQuote,
+  DeliveryQuoteRequest,
   LoginRequest,
   OrderClient,
   OrderDelivery,

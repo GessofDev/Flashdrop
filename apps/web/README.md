@@ -157,6 +157,33 @@ customers search by restaurant name or by the name of any dish for sale
 (e.g., "pizza"). The search filters the restaurant grid dynamically, keeping
 the popular dishes section focused on category browsing.
 
+## Checkout with the destination coordinates (T2, S5)
+
+The backend calculates the price of the dispatch and validates the coverage
+of the local with the coordinates of the destination, so the checkout
+resolves them before the order is created:
+
+- `Usar mi ubicación` asks the browser (`navigator.geolocation`). A denied
+  permission, a browser without the API and a timeout never break the
+  checkout.
+- `Buscar dirección` geocodes the address the customer typed with
+  **Nominatim** (OpenStreetMap): no API key and no new dependency. The
+  provider lives alone in `src/lib/geocode.ts`, so it can be swapped later.
+  Its usage policy asks for a scarce use (roughly one request per second)
+  and for an application that identifies itself, and a browser cannot set
+  the `User-Agent` of a fetch: the app therefore asks once per click.
+
+With the location confirmed, the distance input stays visible but disabled —
+the backend calculates the distance — and the order travels with
+`latitude` and `longitude` (the backend rejects one without the other).
+
+The panel owns the items, so it is the one that asks for the quote
+(`POST /api/orders/delivery-quote`) once the coordinates are there. The
+breakdown the customer sees (subtotal, envío, total) is the one the backend
+computed, and a failed quote shows the literal message of the backend
+(`El local no tiene ubicacion configurada...`, `El local no tiene radio de
+despacho configurado`, `El local no realiza entregas en esta direccion...`).
+
 ## Ratings (T16)
 
 The web app is the client of `reviews-service`, the service that owns the
