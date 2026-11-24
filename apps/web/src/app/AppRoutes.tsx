@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
+import { AdminPage } from '@/components/admin';
 import { LoginPage, PasswordRecoveryPage } from '@/components/auth';
 import {
   CourierAvailablePage,
@@ -62,6 +63,7 @@ export function AppRoutes() {
         <Route path={routePaths.courierAvailable} element={<CourierAvailablePage />} />
         <Route path={routePaths.courierHistory} element={<CourierHistoryPage />} />
         <Route path={routePaths.profile} element={<ProfilePage />} />
+        <Route path={routePaths.admin} element={<AdminPage />} />
         {ROUTE_PLACEHOLDERS.map((route) => (
           <Route
             key={route.path}

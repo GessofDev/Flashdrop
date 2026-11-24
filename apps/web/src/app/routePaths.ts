@@ -24,6 +24,7 @@ export const routePaths = {
   courierAvailable: '/repartidor/pedidos',
   courierHistory: '/repartidor/historial',
   profile: '/perfil',
+  admin: '/admin',
   login: '/login',
   passwordRecovery: '/recuperar-clave',
 } as const;

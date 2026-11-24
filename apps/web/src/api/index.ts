@@ -1,3 +1,14 @@
+export { adminApi } from './admin';
+export type {
+  AdminRestaurantResponse,
+  AdminUserResponse,
+  AssignUserRolesResult,
+  CreateAdminRestaurantRequest,
+  DeliveryTariff,
+  OrderPolicy,
+  TariffDimensionRange,
+  TariffDistanceRange,
+} from './admin';
 export { ApiError, apiErrorKindForStatus } from './ApiError';
 export type { ApiErrorKind, ApiErrorOptions } from './ApiError';
 export { asApiError } from './asApiError';
