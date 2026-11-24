@@ -121,6 +121,21 @@ export function orderDetailResponse(detail: unknown = ORDER_DETAIL): Response {
   return jsonResponse({ success: true, message: 'Pedido encontrado', data: detail });
 }
 
+/** Answer of `GET /api/orders/{id}/payments`: the state of the last attempt. */
+export function orderPaymentResponse(): Response {
+  return jsonResponse({
+    success: true,
+    message: 'Pago consultado',
+    data: {
+      orderStatus: 'Retirado',
+      paymentStatus: 'APROBADO',
+      paymentId: 9001,
+      paymentUrl: null,
+      paymentExpiresAt: null,
+    },
+  });
+}
+
 /**
  * Answer the two endpoints of the orders screens.
  *
@@ -132,6 +147,10 @@ export function ordersResponse(call: RecordedCall): Response {
 
   if (pathname === '/api/orders') {
     return orderListResponse();
+  }
+
+  if (pathname.endsWith('/payments')) {
+    return orderPaymentResponse();
   }
 
   if (pathname.startsWith('/api/orders/')) {
