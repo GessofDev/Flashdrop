@@ -29,9 +29,8 @@ import java.util.UUID;
  *
  * <ul>
  *   <li><b>Aprobado:</b> el pago queda aprobado y el pedido pasa de "Pendiente de pago" directo a
- *       "Preparando" (la tienda toma todo pedido pagado, sin aceptarlo a mano). La espera de repartidor no corre
- *       todavia: empieza cuando el pedido queda listo para retiro. Recién
- *       ahí se crea la ruta de entrega y se publica {@code order.created}.</li>
+ *       "Nuevo pedido", pendiente de que la tienda lo acepte. Se crea la ruta y se publica
+ *       {@code order.created}, pero la espera de repartidor empieza solo al quedar listo para retiro.</li>
  *   <li><b>Rechazado:</b> el pago queda rechazado y el pedido sigue pendiente; el cliente puede
  *       reintentar con el mismo pedido ({@link RetryPaymentUseCase}).</li>
  * </ul>
@@ -104,9 +103,8 @@ public class ConfirmPaymentUseCase {
             return Outcome.ORDER_NOT_PENDING;
         }
 
-        // La tienda toma todo pedido pagado: pasa directo a Preparando. La espera de repartidor no corre todavia:
-        // empieza cuando el pedido queda listo para retiro, que es cuando un repartidor puede tomarlo.
-        boolean activated = orderRepository.confirmPayment(order.getId(), now);
+        // Pagar y aceptar son operaciones distintas: solo el comercio inicia la preparacion.
+        boolean activated = orderRepository.confirmPayment(order.getId());
         if (!activated) {
             log.warn("El pedido {} dejo de estar pendiente mientras se confirmaba su pago", order.getId());
             return Outcome.ORDER_NOT_PENDING;
@@ -118,9 +116,9 @@ public class ConfirmPaymentUseCase {
                 .clientId(order.getClientId())
                 .restaurantId(order.getRestaurantId())
                 .total(order.getTotal())
-                .status(OrderStatus.PREPARANDO.getValue())
+                .status(OrderStatus.NUEVO_PEDIDO.getValue())
                 .build());
-        log.info("Pedido {} pagado: la tienda lo toma, pasa a Preparando", order.getId());
+        log.info("Pedido {} pagado: espera aceptacion de la tienda en Nuevo pedido", order.getId());
         return Outcome.ORDER_ACTIVATED;
     }
 

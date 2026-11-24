@@ -78,7 +78,7 @@ public class Order {
     private String idempotencyKey;
     /** Hasta cuando se puede pagar (solo en Pendiente de pago). */
     private OffsetDateTime paymentExpiresAt;
-    /** Hasta cuando la tienda debe aceptar el pedido ya pagado. Se fija al aprobarse el pago. */
+    /** Reservado para un futuro vencimiento de aceptacion; el flujo manual actual no fija este plazo. */
     private OffsetDateTime storeResponseDueAt;
 
     // -------------------------------------------------------
@@ -155,8 +155,7 @@ public class Order {
      * quedaron en ese estado deben poder terminar su ciclo.
      */
     private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = Map.of(
-            // Solo el sistema confirma el pago: el pedido pagado pasa directo a Preparando (la tienda lo toma sin
-            // aceptarlo a mano) mediante una sentencia propia, sin pasar por esta tabla; ningun rol puede hacerlo.
+            // Solo el sistema confirma el pago y activa el pedido en Nuevo pedido; ningun rol puede hacerlo.
             OrderStatus.PENDIENTE_PAGO, EnumSet.of(OrderStatus.NUEVO_PEDIDO, OrderStatus.CANCELADO),
             OrderStatus.NUEVO_PEDIDO, EnumSet.of(OrderStatus.PREPARANDO, OrderStatus.LISTO_PARA_RETIRO,
                     OrderStatus.CANCELADO, OrderStatus.RECHAZADO),

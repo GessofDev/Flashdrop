@@ -228,9 +228,9 @@ public class JpaOrderRepositoryAdapter implements OrderRepositoryPort {
 
     @Override
     @Transactional
-    public boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt) {
-        return orderRepository.acceptByStore(IdConverter.toLong(orderId), OrderStatus.PENDIENTE_PAGO.getValue(),
-                OrderStatus.PREPARANDO.getValue(), acceptedAt, null) == 1;
+    public boolean confirmPayment(UUID orderId) {
+        return orderRepository.updateStatusIfCurrent(IdConverter.toLong(orderId),
+                OrderStatus.PENDIENTE_PAGO.getValue(), OrderStatus.NUEVO_PEDIDO.getValue()) == 1;
     }
 
     @Override

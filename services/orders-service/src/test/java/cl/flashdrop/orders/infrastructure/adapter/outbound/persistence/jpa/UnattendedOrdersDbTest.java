@@ -56,7 +56,7 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
         return list.stream().map(Order::getId).toList();
     }
 
-    // ------------------------- aceptacion manual (pedidos antiguos en Nuevo pedido) -------------------------
+    // ------------------------- aceptacion manual -------------------------
 
     @Test
     void aceptarAMano_guardaLaHoraDeToma() {
@@ -75,9 +75,11 @@ class UnattendedOrdersDbTest extends PostgresIntegrationTestSupport {
 
     @Test
     void dejarElPedidoListoFijaLaEsperaDeRepartidorYConservaLaHoraDeToma() {
-        // El pedido se paga (la tienda lo toma) y mas tarde queda listo para retiro.
+        // El pedido se paga, la tienda lo acepta y mas tarde queda listo para retiro.
         Order pedido = order(OrderStatus.PENDIENTE_PAGO, null, null, null);
-        assertTrue(orders.confirmPayment(pedido.getId(), now.minusMinutes(30)));
+        assertTrue(orders.confirmPayment(pedido.getId()));
+        assertTrue(orders.acceptByStore(pedido.getId(), OrderStatus.NUEVO_PEDIDO,
+                OrderStatus.PREPARANDO, now.minusMinutes(30), null));
         assertNull(orders.findById(pedido.getId()).orElseThrow().getCourierDueAt());
 
         assertTrue(orders.markReadyForPickup(pedido.getId(), OrderStatus.PREPARANDO, now, now.plusMinutes(20)));
