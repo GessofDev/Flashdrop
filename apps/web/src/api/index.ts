@@ -22,6 +22,7 @@ export type {
 } from './delivery';
 export { ordersApi, EMPTY_ORDER_MESSAGE, PAYMENT_METHODS } from './orders';
 export type { OrderListView } from './orders';
+export { profilePhotoApi } from './profilePhoto';
 export {
   isRatingTargetType,
   RATING_TARGET_LABELS,

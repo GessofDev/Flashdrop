@@ -237,6 +237,31 @@ and `orderReception()` reads the answer: a field the backend does not send
 stays empty and nothing is drawn for it. `OrderListItem` declares the same
 four fields, so the listing of "Mis pedidos" can show them too.
 
+## Foto de perfil (T5, S9)
+
+El backend ya expone los tres extremos de la foto del perfil
+(`POST|GET|DELETE /auth/profile/photo`) y ya manda el campo `photo` en el
+perfil, así que la pantalla `/perfil` los usa.
+
+- `GET /auth/profile/photo` — los bytes de la foto. El endpoint exige la
+  cabecera `Authorization`, así que un `<img src>` no puede cargarlo: la app
+  pide los bytes con la sesión y los muestra con una URL de objeto, que
+  libera cuando la reemplaza y cuando el bloque desaparece, para que el
+  navegador no guarde los bytes de una foto que nadie muestra.
+- `POST /auth/profile/photo` — la subida. El cuerpo es multipart con la
+  parte `file`; el cliente no escribe la cabecera `Content-Type`, porque el
+  navegador agrega el límite. La respuesta es el perfil del dueño, con la
+  foto nueva.
+- `DELETE /auth/profile/photo` — la baja. Responde 204 sin cuerpo, así que
+  la llamada declara la forma "bare": la forma de sobre leería el cuerpo
+  vacío como una respuesta rota.
+
+Un usuario sin foto no es un error: el backend responde 404 y el bloque no
+muestra ni foto ni aviso. Una subida o una baja que fallan muestran el
+mensaje literal del backend.
+
+El usuario siempre sale del token: ninguna de las tres llamadas manda un id.
+
 ## Ubicación y radio de despacho (T6, S10)
 
 El backend rechaza todos los pedidos de un local sin coordenadas o sin radio
