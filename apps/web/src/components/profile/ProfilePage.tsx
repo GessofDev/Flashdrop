@@ -11,6 +11,7 @@ import { useSession } from '@/session';
 import type { Role } from '@/session';
 
 import { DeleteAccountDialog } from './DeleteAccountDialog';
+import { MyReviewsSection } from './MyReviewsSection';
 import { ProfilePhoto } from './ProfilePhoto';
 
 export function ProfilePage() {
@@ -381,7 +382,10 @@ export function ProfilePage() {
             </div>
           </section>
 
-          {/* 5. Dispositivos Conectados */}
+          {/* 5. Mis reseñas */}
+          <MyReviewsSection />
+
+          {/* 6. Dispositivos Conectados */}
           <section
             role="region"
             aria-label="Dispositivos conectados"
