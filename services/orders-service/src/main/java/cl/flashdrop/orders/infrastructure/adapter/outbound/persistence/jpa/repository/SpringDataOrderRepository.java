@@ -43,8 +43,8 @@ public interface SpringDataOrderRepository extends JpaRepository<OrderEntity, Lo
     Optional<OrderEntity> findByIdForUpdate(@Param("id") Long id);
 
     /**
-     * Acepta el pedido: cambia de estado y registra la aceptacion y el plazo de espera de repartidor (F7). Lo usa
-     * la confirmacion del pago (la tienda toma todo pedido pagado) y la aceptacion manual de pedidos antiguos.
+     * Acepta el pedido: cambia de estado y registra la aceptacion por el comercio (F7).
+     * La confirmacion del pago no utiliza esta operacion.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE OrderEntity o SET o.status = :status, o.acceptedAt = :acceptedAt, o.courierDueAt = :courierDueAt "

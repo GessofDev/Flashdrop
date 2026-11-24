@@ -75,13 +75,12 @@ public interface OrderRepositoryPort {
     boolean updateStatusIfCurrent(UUID orderId, OrderStatus expected, OrderStatus status);
 
     /**
-     * Confirma el pago de un pedido: pasa de Pendiente de pago directamente a Preparando (la tienda toma
-     * todo pedido pagado, sin aceptarlo a mano) y deja registrado cuando lo tomo, en una sola sentencia. La
-     * espera de repartidor NO corre aqui: empieza cuando el pedido queda listo para retiro
+     * Confirma el pago de un pedido: pasa de Pendiente de pago a Nuevo pedido, sin aceptar por la tienda.
+     * La espera de repartidor NO corre aqui: empieza cuando el pedido queda listo para retiro
      * ({@link #markReadyForPickup}). {@code false} si el pedido ya no estaba pendiente.
      */
-    default boolean confirmPayment(UUID orderId, OffsetDateTime acceptedAt) {
-        return updateStatusIfCurrent(orderId, OrderStatus.PENDIENTE_PAGO, OrderStatus.PREPARANDO);
+    default boolean confirmPayment(UUID orderId) {
+        return updateStatusIfCurrent(orderId, OrderStatus.PENDIENTE_PAGO, OrderStatus.NUEVO_PEDIDO);
     }
 
     /**

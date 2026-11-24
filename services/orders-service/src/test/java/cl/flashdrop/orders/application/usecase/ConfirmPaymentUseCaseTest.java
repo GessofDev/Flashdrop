@@ -80,10 +80,10 @@ class ConfirmPaymentUseCaseTest {
     }
 
     @Test
-    void pagoAprobadoHaceQueLaTiendaTomeElPedidoCreaLaRutaYPublicaElEvento() {
+    void pagoAprobado_dejaNuevoPedido_creaRutaYPublicaEventoSinAceptarPorLaTienda() {
         Payment payment = pendingPayment();
         stubFound(payment, order(OrderStatus.PENDIENTE_PAGO));
-        when(orderRepository.confirmPayment(orderId, NOW)).thenReturn(true);
+        when(orderRepository.confirmPayment(orderId)).thenReturn(true);
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(RestaurantInfo.builder()
                 .restaurantId(restaurantId).name("Burgers House").address("Los Leones 300")
                 .latitude(new BigDecimal("-33.4")).longitude(new BigDecimal("-70.6")).build()));
@@ -101,7 +101,11 @@ class ConfirmPaymentUseCaseTest {
         assertEquals(0, new BigDecimal("4.50").compareTo(route.getValue().getDistanceKm()));
         assertEquals(25, route.getValue().getEstimatedMinutes());
         assertEquals(clientUserId, route.getValue().getClientUserId());
-        verify(eventPublisher).publish(eq("order.created"), any());
+        ArgumentCaptor<cl.flashdrop.orders.infrastructure.messaging.event.OrderCreatedEvent> event =
+                ArgumentCaptor.forClass(cl.flashdrop.orders.infrastructure.messaging.event.OrderCreatedEvent.class);
+        verify(eventPublisher).publish(eq("order.created"), event.capture());
+        assertEquals("Nuevo pedido", event.getValue().getStatus());
+        verify(orderRepository, never()).acceptByStore(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -113,7 +117,7 @@ class ConfirmPaymentUseCaseTest {
 
         assertEquals(ConfirmPaymentUseCase.Outcome.PAYMENT_REJECTED, outcome);
         assertEquals(PaymentStatus.RECHAZADO, payment.getStatus());
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
@@ -126,7 +130,7 @@ class ConfirmPaymentUseCaseTest {
         ConfirmPaymentUseCase.Outcome outcome = useCase.execute("FAKE", "tx-1", true, "APPROVED");
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ALREADY_CONFIRMED, outcome);
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
@@ -137,14 +141,14 @@ class ConfirmPaymentUseCaseTest {
         ConfirmPaymentUseCase.Outcome outcome = useCase.execute("FAKE", "tx-1", true, "APPROVED");
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ORDER_NOT_PENDING, outcome);
-        verify(orderRepository, never()).confirmPayment(any(), any());
+        verify(orderRepository, never()).confirmPayment(any());
         verifyNoInteractions(deliveryPort, eventPublisher);
     }
 
     @Test
     void siElPedidoDejoDeEstarPendienteEnMedioDeLaConfirmacionNoSeCreaLaRuta() {
         stubFound(pendingPayment(), order(OrderStatus.PENDIENTE_PAGO));
-        when(orderRepository.confirmPayment(any(), any())).thenReturn(false);
+        when(orderRepository.confirmPayment(any())).thenReturn(false);
 
         assertEquals(ConfirmPaymentUseCase.Outcome.ORDER_NOT_PENDING, useCase.execute("FAKE", "tx-1", true, "APPROVED"));
         verifyNoInteractions(deliveryPort, eventPublisher);

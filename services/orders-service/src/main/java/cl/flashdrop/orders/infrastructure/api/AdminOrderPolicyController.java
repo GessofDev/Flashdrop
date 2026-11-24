@@ -21,13 +21,13 @@ import java.util.UUID;
  * Plazos globales de los pedidos (F7 y F8). Solo el administrador (ver {@code AdminAccess}).
  *
  * <ul>
- *   <li>{@code courierWaitMinutes}: cuanto se espera un repartidor desde que el pedido entra (se paga y la tienda
- *       lo toma). Pasado el plazo sin repartidor, el pedido se cancela. Es el mismo para todos los locales.</li>
+ *   <li>{@code courierWaitMinutes}: cuanto se espera un repartidor desde que el pedido queda listo para retiro.
+ *       Pasado el plazo sin repartidor, el pedido se cancela. Es el mismo para todos los locales.</li>
  *   <li>{@code paymentExpirationMinutes} y {@code customerCancelWindowMinutes}: los demas plazos globales.</li>
  * </ul>
  *
- * <p>La tienda toma todo pedido pagado sin aceptarlo a mano, asi que ya no hay un plazo de respuesta de la
- * tienda: la columna {@code store_response_minutes} sigue en la base pero no se usa ni se expone aqui.</p>
+ * <p>La aceptacion de la tienda es manual, sin vencimiento automatico: la columna
+ * {@code store_response_minutes} sigue en la base pero no se usa ni se expone aqui.</p>
  */
 @RestController
 @RequestMapping("/api/admin/order-policy")
