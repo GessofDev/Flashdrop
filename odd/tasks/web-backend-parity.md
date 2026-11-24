@@ -93,7 +93,7 @@ No se consumen en la web: `POST /api/payments/webhook` (callback del proveedor d
 T1 | S2,S3,S4 | inline | `fix(web): confirm courier delivery through the verification code` (`0fa0254`)
 T2 | S5 | inline | `feat(web): quote the delivery fee and send the destination coordinates` (`a108758`)
 T3 | S6 | inline | `feat(web): show the payment of an order and retry a rejected one` (`d8411cd`)
-T4 | S8 | inline | `feat(web): show the reception mode and the cancellation reason of an order`
+T4 | S8 | inline | `feat(web): show the reception mode and the cancellation of an order` (`d652797`)
 T5 | S9 | inline | `feat(web): manage the profile photo`
 T6 | S10 | inline | `feat(web): configure the store location and the delivery radius` (`6dc2a8d`)
 T7 | S10 | inline | `feat(web): filter the restaurants by delivery coverage`
@@ -186,3 +186,20 @@ subió `asyncUtilTimeout` a 5 segundos en `src/test/setup.ts` (`1d470b2`) y el m
 los pedidos pasó a responder el endpoint de pagos con una vista de pago y no con el detalle del
 pedido. Verificación posterior: dos corridas seguidas del suite completas en verde (30 archivos,
 311 tests), `tsc --noEmit` limpio, `eslint` limpio.
+
+L14 — 2026-11-24 — T4 cerrada (`d652797`): el seguimiento del pedido muestra el modo de recepción
+("Entrega normal" / "Entrega segura"), el código de verificación cuando el backend lo manda (solo
+para el cliente dueño de un pedido seguro que no está entregado) y el motivo de la cancelación; la
+lista muestra el motivo de los pedidos cancelados. Nada se inventa: cada campo se dibuja solo
+cuando la respuesta lo trae.
+
+L15 — 2026-11-24 — El suite siguió siendo frágil con la máquina saturada: Vitest mata un test a
+los 5 segundos por defecto y los tests de la app manejan las pantallas con los timers reales del
+navegador, así que un test correcto puede cruzar ese límite. Se subió `testTimeout` a 30 segundos
+en `apps/web/vitest.config.ts` (`7a44e50`), con el porqué en el comentario. Verificación: tres
+corridas seguidas del suite completas en verde (31 archivos, 320 tests).
+
+L16 — 2026-11-24 — Se probó volver fiel el mock compartido de los pedidos (el backend siempre manda
+`receptionMode`) y se revirtió: rompe el test defensivo "shows no reception block when the backend
+sends no reception data", que cubre una rama real (el backend puede omitir el bloque completo).
+Los cuatro campos se ejercitan con fixtures propios en `src/test/orderReception.test.tsx`.
