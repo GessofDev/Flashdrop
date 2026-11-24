@@ -94,12 +94,12 @@ T1 | S2,S3,S4 | inline | `fix(web): confirm courier delivery through the verific
 T2 | S5 | inline | `feat(web): quote the delivery fee and send the destination coordinates` (`a108758`)
 T3 | S6 | inline | `feat(web): show the payment of an order and retry a rejected one` (`d8411cd`)
 T4 | S8 | inline | `feat(web): show the reception mode and the cancellation of an order` (`d652797`)
-T5 | S9 | inline | `feat(web): manage the profile photo`
+T5 | S9 | inline | `feat(web): upload, show and delete the profile photo` (`99f175b`)
 T6 | S10 | inline | `feat(web): configure the store location and the delivery radius` (`6dc2a8d`)
 T7 | S10 | inline | `feat(web): filter the restaurants by delivery coverage`
 T8 | S7 | inline | `feat(web): follow the courier live location`
 T9 | S4 | inline | `feat(web): release an order and cancel it after the pickup`
-T10 | S9 | inline | `feat(web): delete the account`
+T10 | S9 | inline | `feat(web): delete the account` (`e4f0a07`)
 T11 | S12 | inline | `feat(web): list the reviews I wrote`
 T12 | S11 | inline | `feat(web): add the administration section`
 
@@ -203,3 +203,22 @@ L16 — 2026-11-24 — Se probó volver fiel el mock compartido de los pedidos (
 `receptionMode`) y se revirtió: rompe el test defensivo "shows no reception block when the backend
 sends no reception data", que cubre una rama real (el backend puede omitir el bloque completo).
 Los cuatro campos se ejercitan con fixtures propios en `src/test/orderReception.test.tsx`.
+
+L17 — 2026-11-24 — T5 cerrada (`99f175b`): `GET /auth/profile/photo` exige el header
+`Authorization`, así que un `<img src>` no puede cargar la foto: los bytes viajan con la sesión y
+se muestran con una object URL que se revoca al reemplazarla y al desmontar. Un perfil sin foto no
+es un error (el backend responde 404 y la app no muestra nada). El `DELETE` usa la forma "bare"
+porque responde 204 sin cuerpo.
+
+L18 — 2026-11-24 — T10 cerrada (`e4f0a07`): la baja de cuenta pide la contraseña antes de borrar
+(no es un clic) y, cuando el backend acepta, limpia la sesión y manda al login. La llamada va con
+sesión "pública" y el header `Authorization` a mano: un 401 ahí significa dos cosas (contraseña
+incorrecta o token vencido) y el cliente trata todo 401 de una llamada autenticada como sesión
+vencida, lo que borraría la sesión tras una contraseña incorrecta. Consecuencia: en ese endpoint el
+token no se renueva solo y el cliente ve el 401 literal del backend.
+
+L19 — 2026-11-24 — Decisiones del usuario para T7 y T8:
+- T8 (tracking en vivo): mapa real con **Leaflet + teselas de OpenStreetMap** (atribución visible
+  y uso moderada del servidor de teselas).
+- T7 (cobertura del marketplace): las coordenadas se mandan **siempre** que el cliente las tenga,
+  con una salida explicada ("no hay locales con cobertura en tu zona") y la opción de ver todos.
