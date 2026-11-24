@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { ApiError, RestaurantResponse } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 
@@ -13,6 +15,8 @@ export interface RestaurantGridProps {
   error: ApiError | null;
   /** Empty state message override. */
   emptyMessage?: string;
+  /** Optional action rendered inside the empty state. */
+  emptyAction?: ReactNode;
 }
 
 /**
@@ -27,6 +31,7 @@ export function RestaurantGrid({
   loading,
   error,
   emptyMessage,
+  emptyAction,
 }: RestaurantGridProps) {
   return (
     <section aria-labelledby="marketplace-restaurants-title" className="flex flex-col gap-4">
@@ -49,9 +54,10 @@ export function RestaurantGrid({
       ) : loading ? (
         <Skeleton label="Cargando restaurantes" blocks={2} height="h-56" />
       ) : restaurants.length === 0 ? (
-        <p className="rounded-container border border-dashed border-border bg-surface p-6 text-center text-sm text-foreground-secondary">
-          {emptyMessage ?? 'Todavía no hay locales disponibles'}
-        </p>
+        <div className="flex flex-col items-center gap-3 rounded-container border border-dashed border-border bg-surface p-6 text-center text-sm text-foreground-secondary">
+          <p>{emptyMessage ?? 'Todavía no hay locales disponibles'}</p>
+          {emptyAction ?? null}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {restaurants.map((restaurant) => (
