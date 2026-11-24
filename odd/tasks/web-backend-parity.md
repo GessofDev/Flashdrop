@@ -92,7 +92,7 @@ No se consumen en la web: `POST /api/payments/webhook` (callback del proveedor d
 
 T1 | S2,S3,S4 | inline | `fix(web): confirm courier delivery through the verification code` (`0fa0254`)
 T2 | S5 | inline | `feat(web): quote the delivery fee and send the destination coordinates` (`a108758`)
-T3 | S6 | inline | `feat(web): show the payment state and retry a rejected payment`
+T3 | S6 | inline | `feat(web): show the payment of an order and retry a rejected one` (`d8411cd`)
 T4 | S8 | inline | `feat(web): show the reception mode and the cancellation reason of an order`
 T5 | S9 | inline | `feat(web): manage the profile photo`
 T6 | S10 | inline | `feat(web): configure the store location and the delivery radius` (`6dc2a8d`)
@@ -171,3 +171,18 @@ L11 — 2026-11-24 — T3 en curso: `GET /api/orders/{id}/payments` (estado del 
 es el NOMBRE del enum, `paymentUrl` es un esquema falso `fake://flashdrop-pay/...` que la web no
 puede enlazar) y `POST /api/orders/{id}/payments` (nuevo intento, 201). El reintento solo tiene
 sentido con el pedido en "Pendiente de pago" y sin un pago abierto.
+
+L12 — 2026-11-24 — T3 cerrada (`d8411cd`): el seguimiento del pedido muestra el estado del último
+intento de pago (el NOMBRE del enum `PaymentStatus`: PENDIENTE, APROBADO, RECHAZADO, EXPIRADO),
+su id y el vencimiento de la ventana de pago, con el botón "Reintentar pago" solo cuando el
+pedido sigue en "Pendiente de pago" y no hay un intento abierto. La `paymentUrl` del backend es un
+esquema falso (`fake://flashdrop-pay/...`) y la web nunca la muestra como enlace.
+
+L13 — 2026-11-24 — La primera corrida del suite con T3 falló con 3 tests de otros archivos
+(`ratings.test.tsx` entre ellos): no era T3, era la espera default de Testing Library (1 segundo)
+en una máquina que corría el suite entero. El panel de pago suma una llamada asíncrona a la
+pantalla de seguimiento, y con la máquina saturada el primer render no llegaba a tiempo. Se
+subió `asyncUtilTimeout` a 5 segundos en `src/test/setup.ts` (`1d470b2`) y el mock compartido de
+los pedidos pasó a responder el endpoint de pagos con una vista de pago y no con el detalle del
+pedido. Verificación posterior: dos corridas seguidas del suite completas en verde (30 archivos,
+311 tests), `tsc --noEmit` limpio, `eslint` limpio.
