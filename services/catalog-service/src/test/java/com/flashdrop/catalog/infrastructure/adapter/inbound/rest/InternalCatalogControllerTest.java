@@ -17,6 +17,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.flashdrop.catalog.application.port.outbound.MerchantMemberRepositoryPort;
+import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.domain.model.MerchantRole;
+import com.flashdrop.catalog.domain.model.Restaurant;
+
 @SpringBootTest(properties = "INTERNAL_API_KEY=dev-key")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
@@ -27,6 +32,12 @@ class InternalCatalogControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private RestaurantRepositoryPort restaurantRepository;
+
+    @Autowired
+    private MerchantMemberRepositoryPort merchantMemberRepository;
 
     @Test
     void productsByIdsReturnsContractFields() throws Exception {
@@ -167,6 +178,7 @@ class InternalCatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.userId").value(1))
+                .andExpect(jsonPath("$.merchantId").value(1))
                 .andExpect(jsonPath("$.name").value("Flash Restaurant Demo"))
                 .andExpect(jsonPath("$.address").value("Av. Providencia 1200, Santiago"));
     }
@@ -179,7 +191,16 @@ class InternalCatalogControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(2))
                 .andExpect(jsonPath("$.userId").value(2))
+                .andExpect(jsonPath("$.merchantId").value(2))
                 .andExpect(jsonPath("$.name").value("Urban Burger Demo"));
+    }
+
+    @Test
+    void restaurantByUserIdReturnsNotFoundWhenUserHasNoStore() throws Exception {
+        mockMvc.perform(get("/api/internal/restaurants")
+                        .param("userId", "999")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -235,5 +256,77 @@ class InternalCatalogControllerTest {
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.error").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value("Invalid internal API key"));
+
+        mockMvc.perform(get("/api/internal/owner/restaurants").param("userId", "1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/internal/owner/restaurants/1/membership").param("userId", "1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+    }
+
+    @Test
+    void ownerRestaurantsReturnsAllOperableStoresWithMerchantId() throws Exception {
+        Restaurant branch = restaurantRepository.createInMerchant(
+                "Flash Sucursal Norte", "Av. Kennedy 300", null, 1L, true, null, null, null);
+
+        mockMvc.perform(get("/api/internal/owner/restaurants")
+                        .param("userId", "1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].merchantId").value(1))
+                .andExpect(jsonPath("$[1].id").value(branch.getId()))
+                .andExpect(jsonPath("$[1].merchantId").value(1))
+                .andExpect(jsonPath("$[1].name").value("Flash Sucursal Norte"));
+    }
+
+    @Test
+    void ownerRestaurantsReturnsEmptyListWhenUserHasNoOperableStores() throws Exception {
+        mockMvc.perform(get("/api/internal/owner/restaurants")
+                        .param("userId", "999")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void membershipReturnsNoContentForOperableStoreAndNotFoundOtherwise() throws Exception {
+        Restaurant branch = restaurantRepository.createInMerchant(
+                "Flash Sucursal Norte", "Av. Kennedy 300", null, 1L, true, null, null, null);
+        merchantMemberRepository.addMember(1L, 50L, MerchantRole.ENCARGADO);
+
+        // Owner operates both primary and branch store
+        mockMvc.perform(get("/api/internal/owner/restaurants/1/membership")
+                        .param("userId", "1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/internal/owner/restaurants/" + branch.getId() + "/membership")
+                        .param("userId", "1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNoContent());
+
+        // ENCARGADO operates merchant's stores
+        mockMvc.perform(get("/api/internal/owner/restaurants/" + branch.getId() + "/membership")
+                        .param("userId", "50")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNoContent());
+
+        // Foreign store -> 404
+        mockMvc.perform(get("/api/internal/owner/restaurants/2/membership")
+                        .param("userId", "1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNotFound());
+
+        // Missing store -> 404
+        mockMvc.perform(get("/api/internal/owner/restaurants/999/membership")
+                        .param("userId", "1")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNotFound());
     }
 }

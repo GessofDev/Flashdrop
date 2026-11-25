@@ -160,7 +160,7 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
   (`GetRestaurantByUserIdUseCase` conservado para compatibilidad interna de
   `InternalCatalogController`; 38 suites / 199 tests verdes). *Riesgo medio.*
 - **WU-4** — T4: `owner/restaurants` + `membership` + `merchantId` en
-  `InternalRestaurantResponse`. *Riesgo bajo.*
+  `InternalRestaurantResponse` (203/203 tests verdes). *Riesgo bajo.*
 - **WU-5** — T5: `orders-service` a pertenencia (IDOR, scopes, ventas, borrado de
   cuenta) + `merchantId` en el snapshot de pickup. *Riesgo **alto** — commit
   propio.*
@@ -246,4 +246,10 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   activo vía `StoreContextResolver` con `X-My-Store-Restaurant`, y
   `OwnerUpdateProductUseCase`/`OwnerDeleteProductUseCase` devuelven 403 si el
   producto pertenece a otro local. Verificado con `./gradlew.bat test --no-daemon`
-  (38 suites, 199 tests, 0 fallos, 0 skipped).
+  (38 suites, 199 tests, 0 fallos, 0 skipped). Commit `a560b46`.
+- **L16** (WU-4): agregado `merchantId` a `InternalRestaurantResponse` y nuevos
+  endpoints internos en `InternalCatalogController` (`GET /api/internal/owner/restaurants?userId=`
+  y `GET /api/internal/owner/restaurants/{restaurantId}/membership?userId=`),
+  manteniendo `GET /api/internal/restaurants?userId=`. Verificado con RED→GREEN
+  en `InternalCatalogControllerTest` y suite completa de `catalog-service`
+  (203 tests, 0 fallos, 0 ignorados).
