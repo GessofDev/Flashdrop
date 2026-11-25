@@ -6,32 +6,25 @@ import com.flashdrop.catalog.application.port.outbound.ProductRepositoryPort;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.model.Product;
-import com.flashdrop.catalog.domain.model.Restaurant;
 
 @Service
 public class OwnerDeleteProductUseCase {
 
-    private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final ProductRepositoryPort productRepositoryPort;
 
-    public OwnerDeleteProductUseCase(
-            GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
-            ProductRepositoryPort productRepositoryPort
-    ) {
-        this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
+    public OwnerDeleteProductUseCase(ProductRepositoryPort productRepositoryPort) {
         this.productRepositoryPort = productRepositoryPort;
     }
 
-    public void execute(Long userId, Long productId) {
-        Restaurant restaurant = restaurantFor(userId);
+    public void execute(Long restaurantId, Long productId) {
         Product currentProduct = productRepositoryPort.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Product not found with id: " + productId
                 ));
 
-        if (!restaurant.getId().equals(currentProduct.getRestaurantId())) {
+        if (!restaurantId.equals(currentProduct.getRestaurantId())) {
             throw new OwnershipAccessDeniedException(
-                    "El producto no pertenece al restaurante autenticado"
+                    "El producto no pertenece al local seleccionado"
             );
         }
 
@@ -45,15 +38,5 @@ public class OwnerDeleteProductUseCase {
                 currentProduct.getImage(),
                 false
         ));
-    }
-
-    private Restaurant restaurantFor(Long userId) {
-        try {
-            return getRestaurantByUserIdUseCase.execute(userId);
-        } catch (ResourceNotFoundException exception) {
-            throw new OwnershipAccessDeniedException(
-                    "No existe un restaurante asociado al usuario autenticado"
-            );
-        }
     }
 }

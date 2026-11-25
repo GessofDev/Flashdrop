@@ -139,11 +139,77 @@ class MyStoreProductControllerIT {
     }
 
     @Test
-    void userWithoutRestaurantGetsForbidden() throws Exception {
+    void userWithoutRestaurantGetsNotFound() throws Exception {
         mockMvc.perform(get("/api/catalog/my/products").with(ownerJwt(999L)))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message")
-                        .value("No existe un restaurante asociado al usuario autenticado"));
+                        .value("El usuario no tiene un restaurante asignado"));
+    }
+
+    @Test
+    void multiStoreOwner_seesDistinctProductsAndCannotMutateSiblingStoreProduct() throws Exception {
+        // User 1 creates a second store under the same merchant (gets id 3)
+        mockMvc.perform(post("/api/catalog/my/restaurants")
+                        .with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sucursal Centro\",\"address\":\"Alameda 500\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(3));
+
+        // Without header and >1 stores -> 400 LOCAL_CONTEXT_REQUIRED
+        mockMvc.perform(get("/api/catalog/my/products").with(ownerJwt(1L)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("LOCAL_CONTEXT_REQUIRED"));
+
+        // Create a product in store 3
+        mockMvc.perform(post("/api/catalog/my/products")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Producto Sucursal 3", true, null)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.restaurantId").value(3));
+
+        // Store 1 and store 3 see distinct products
+        mockMvc.perform(get("/api/catalog/my/products")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].restaurantId", hasItem(1)))
+                .andExpect(jsonPath("$[*].name", not(hasItem("Producto Sucursal 3"))));
+
+        mockMvc.perform(get("/api/catalog/my/products")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Producto Sucursal 3"));
+
+        // Product 3 belongs to store 3 -> cannot update or delete using store 1 header (403)
+        String updateBody = """
+                {
+                  "categoryId": 1,
+                  "name": "Cross-store edit",
+                  "price": 4500,
+                  "image": "%s",
+                  "available": true
+                }
+                """.formatted(IMAGE_KEY);
+
+        mockMvc.perform(put("/api/catalog/my/products/3")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+        mockMvc.perform(delete("/api/catalog/my/products/3")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
     }
 
     private RequestPostProcessor ownerJwt(Long userId) {

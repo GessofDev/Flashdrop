@@ -20,51 +20,43 @@ import com.flashdrop.catalog.application.dto.OwnerProductCommand;
 import com.flashdrop.catalog.application.port.outbound.ProductRepositoryPort;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.model.Product;
-import com.flashdrop.catalog.domain.model.Restaurant;
 import com.flashdrop.catalog.domain.valueobjects.Money;
 
 class OwnerProductUseCasesTest {
 
-    private GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
+    private static final Long RESTAURANT_ID = 10L;
+
     private ProductRepositoryPort productRepositoryPort;
     private CreateProductUseCase createProductUseCase;
     private UpdateProductUseCase updateProductUseCase;
-    private Restaurant restaurant;
 
     @BeforeEach
     void setUp() {
-        getRestaurantByUserIdUseCase = mock(GetRestaurantByUserIdUseCase.class);
         productRepositoryPort = mock(ProductRepositoryPort.class);
         createProductUseCase = mock(CreateProductUseCase.class);
         updateProductUseCase = mock(UpdateProductUseCase.class);
-        restaurant = new Restaurant(10L, 7L, "Mi local", "Direccion", LocalDateTime.now());
-        when(getRestaurantByUserIdUseCase.execute(7L)).thenReturn(restaurant);
     }
 
     @Test
-    void createDerivesRestaurantFromAuthenticatedUser() {
+    void createAssignsResolvedRestaurantId() {
         OwnerProductCommand command = command(true);
-        Product saved = product(1L, 10L, true);
-        when(createProductUseCase.execute(argThat(product -> product.getRestaurantId().equals(10L))))
+        Product saved = product(1L, RESTAURANT_ID, true);
+        when(createProductUseCase.execute(argThat(product -> product.getRestaurantId().equals(RESTAURANT_ID))))
                 .thenReturn(saved);
 
-        Product result = new OwnerCreateProductUseCase(
-                getRestaurantByUserIdUseCase,
-                createProductUseCase
-        ).execute(7L, command);
+        Product result = new OwnerCreateProductUseCase(createProductUseCase)
+                .execute(RESTAURANT_ID, command);
 
         assertThat(result).isSameAs(saved);
     }
 
     @Test
-    void listIncludesInactiveProductsForOwner() {
-        Product inactive = product(1L, 10L, false);
-        when(productRepositoryPort.findByRestaurantId(10L)).thenReturn(List.of(inactive));
+    void listIncludesInactiveProductsForResolvedRestaurant() {
+        Product inactive = product(1L, RESTAURANT_ID, false);
+        when(productRepositoryPort.findByRestaurantId(RESTAURANT_ID)).thenReturn(List.of(inactive));
 
-        List<Product> result = new OwnerListProductsUseCase(
-                getRestaurantByUserIdUseCase,
-                productRepositoryPort
-        ).execute(7L);
+        List<Product> result = new OwnerListProductsUseCase(productRepositoryPort)
+                .execute(RESTAURANT_ID);
 
         assertThat(result).containsExactly(inactive);
     }
@@ -74,43 +66,49 @@ class OwnerProductUseCasesTest {
         when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product(5L, 99L, true)));
 
         OwnerUpdateProductUseCase useCase = new OwnerUpdateProductUseCase(
-                getRestaurantByUserIdUseCase,
                 productRepositoryPort,
                 updateProductUseCase
         );
 
-        assertThatThrownBy(() -> useCase.execute(7L, 5L, command(true)))
+        assertThatThrownBy(() -> useCase.execute(RESTAURANT_ID, 5L, command(true)))
                 .isInstanceOf(OwnershipAccessDeniedException.class);
     }
 
     /** Plan de pruebas §2.3: la actualización no puede cambiar el restaurante del producto —
-     *  el comando del dueño no trae restaurantId y siempre se usa el del usuario autenticado. */
+     *  el comando del dueño no trae restaurantId y siempre se usa el del local resuelto. */
     @Test
-    void updateAlwaysUsesTheAuthenticatedUsersRestaurant() {
-        Product updated = product(5L, 10L, true);
-        when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product(5L, 10L, true)));
-        when(updateProductUseCase.execute(eq(5L), argThat(request -> Long.valueOf(10L).equals(request.restaurantId()))))
+    void updateAlwaysUsesTheResolvedRestaurantId() {
+        Product updated = product(5L, RESTAURANT_ID, true);
+        when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product(5L, RESTAURANT_ID, true)));
+        when(updateProductUseCase.execute(eq(5L), argThat(request -> RESTAURANT_ID.equals(request.restaurantId()))))
                 .thenReturn(updated);
 
         Product result = new OwnerUpdateProductUseCase(
-                getRestaurantByUserIdUseCase,
                 productRepositoryPort,
                 updateProductUseCase
-        ).execute(7L, 5L, command(true));
+        ).execute(RESTAURANT_ID, 5L, command(true));
 
         assertThat(result).isSameAs(updated);
-        verify(updateProductUseCase).execute(eq(5L), argThat(request -> Long.valueOf(10L).equals(request.restaurantId())));
+        verify(updateProductUseCase).execute(eq(5L), argThat(request -> RESTAURANT_ID.equals(request.restaurantId())));
+    }
+
+    @Test
+    void deleteRejectsProductFromAnotherRestaurant() {
+        when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product(5L, 99L, true)));
+
+        OwnerDeleteProductUseCase useCase = new OwnerDeleteProductUseCase(productRepositoryPort);
+
+        assertThatThrownBy(() -> useCase.execute(RESTAURANT_ID, 5L))
+                .isInstanceOf(OwnershipAccessDeniedException.class);
     }
 
     @Test
     void deletePerformsSoftDelete() {
-        Product product = product(5L, 10L, true);
+        Product product = product(5L, RESTAURANT_ID, true);
         when(productRepositoryPort.findById(5L)).thenReturn(Optional.of(product));
 
-        new OwnerDeleteProductUseCase(
-                getRestaurantByUserIdUseCase,
-                productRepositoryPort
-        ).execute(7L, 5L);
+        new OwnerDeleteProductUseCase(productRepositoryPort)
+                .execute(RESTAURANT_ID, 5L);
 
         verify(productRepositoryPort).update(argThat(updated -> !updated.isAvailable()));
     }

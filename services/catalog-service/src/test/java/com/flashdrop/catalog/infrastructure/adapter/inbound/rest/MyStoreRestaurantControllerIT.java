@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -217,6 +218,80 @@ class MyStoreRestaurantControllerIT {
     @Test
     void storeTimeUsesTheChileanZoneByDefault() {
         assertEquals(ZoneId.of("America/Santiago"), clock.getZone());
+    }
+
+    @Test
+    void multiStoreOwner_putEndpointsOperateOnlyOnSelectedHeaderStore() throws Exception {
+        // User 1 creates a second store (id 3, starts closed)
+        mockMvc.perform(post("/api/catalog/my/restaurants")
+                        .with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Sucursal Norte\",\"address\":\"Norte 123\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(3));
+
+        // Without header -> 400 LOCAL_CONTEXT_REQUIRED
+        mockMvc.perform(put("/api/catalog/my/restaurant/open-status")
+                        .with(ownerJwt(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acceptingOrders\":true}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("LOCAL_CONTEXT_REQUIRED"));
+
+        // Foreign store header -> 403 FORBIDDEN
+        mockMvc.perform(put("/api/catalog/my/restaurant/open-status")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acceptingOrders\":false}"))
+                .andExpect(status().isForbidden());
+
+        // Update open-status, hours, location, and delivery-radius on store 3 only
+        mockMvc.perform(put("/api/catalog/my/restaurant/open-status")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"acceptingOrders\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.acceptingOrders").value(true));
+
+        mockMvc.perform(put("/api/catalog/my/restaurant/hours")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hours\":[{\"day\":1,\"opensAt\":\"10:00\",\"closesAt\":\"20:00\"}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.hours", hasSize(1)));
+
+        mockMvc.perform(put("/api/catalog/my/restaurant/location")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"latitude\":-33.40,\"longitude\":-70.60}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.latitude").value(-33.40));
+
+        mockMvc.perform(put("/api/catalog/my/restaurant/delivery-radius")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"deliveryRadiusKm\":8}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3))
+                .andExpect(jsonPath("$.deliveryRadiusKm").value(8));
+
+        // Verify store 1 was untouched
+        mockMvc.perform(get("/api/catalog/my/restaurant")
+                        .with(ownerJwt(1L))
+                        .header("X-My-Store-Restaurant", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.hours", hasSize(0)))
+                .andExpect(jsonPath("$.latitude").value(nullValue()))
+                .andExpect(jsonPath("$.deliveryRadiusKm").value(nullValue()));
     }
 
     private static RequestPostProcessor ownerJwt(Long userId) {

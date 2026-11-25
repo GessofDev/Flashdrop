@@ -78,18 +78,22 @@ public class MyStoreRestaurantController {
     @PutMapping("/open-status")
     public RestaurantResponse updateOpenStatus(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = StoreContextResolver.STORE_HEADER, required = false) String storeHeader,
             @Valid @RequestBody UpdateStoreOpenStatusRequest request
     ) {
-        return toResponse(setStoreOpenStatusUseCase.execute(userId(jwt), request.acceptingOrders()));
+        Restaurant store = storeContextResolver.resolveActiveStore(userId(jwt), storeHeader);
+        return toResponse(setStoreOpenStatusUseCase.execute(store.getId(), request.acceptingOrders()));
     }
 
     @PutMapping("/hours")
     public RestaurantResponse updateHours(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = StoreContextResolver.STORE_HEADER, required = false) String storeHeader,
             @Valid @RequestBody UpdateStoreHoursRequest request
     ) {
+        Restaurant store = storeContextResolver.resolveActiveStore(userId(jwt), storeHeader);
         return toResponse(setStoreHoursUseCase.execute(
-                userId(jwt),
+                store.getId(),
                 request.hours().stream().map(OpeningHoursDto::toDomain).toList()
         ));
     }
@@ -97,10 +101,12 @@ public class MyStoreRestaurantController {
     @PutMapping("/location")
     public RestaurantResponse updateLocation(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = StoreContextResolver.STORE_HEADER, required = false) String storeHeader,
             @Valid @RequestBody UpdateStoreLocationRequest request
     ) {
+        Restaurant store = storeContextResolver.resolveActiveStore(userId(jwt), storeHeader);
         return toResponse(setStoreLocationUseCase.execute(
-                userId(jwt),
+                store.getId(),
                 request.latitude(),
                 request.longitude()
         ));
@@ -109,9 +115,11 @@ public class MyStoreRestaurantController {
     @PutMapping("/delivery-radius")
     public RestaurantResponse updateDeliveryRadius(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = StoreContextResolver.STORE_HEADER, required = false) String storeHeader,
             @Valid @RequestBody UpdateStoreDeliveryRadiusRequest request
     ) {
-        return toResponse(setStoreDeliveryRadiusUseCase.execute(userId(jwt), request.deliveryRadiusKm()));
+        Restaurant store = storeContextResolver.resolveActiveStore(userId(jwt), storeHeader);
+        return toResponse(setStoreDeliveryRadiusUseCase.execute(store.getId(), request.deliveryRadiusKm()));
     }
 
     private RestaurantResponse toResponse(Restaurant restaurant) {

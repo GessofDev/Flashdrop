@@ -7,8 +7,7 @@ import org.junit.jupiter.api.Test;
 
 class SetStoreDeliveryRadiusUseCaseTest {
     private final InMemoryRestaurantRepositoryAdapter repository = new InMemoryRestaurantRepositoryAdapter();
-    private final SetStoreDeliveryRadiusUseCase useCase = new SetStoreDeliveryRadiusUseCase(
-            new GetRestaurantByUserIdUseCase(repository), repository);
+    private final SetStoreDeliveryRadiusUseCase useCase = new SetStoreDeliveryRadiusUseCase(repository);
 
     @Test
     void execute_ownedStore_updatesOnlyAuthenticatedOwnerAndPreservesAcrossChanges() {

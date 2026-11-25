@@ -156,8 +156,9 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
   `GET my/merchant`, `POST my/restaurants`, `RestaurantResponse.merchantName`
   (`StoreContextResolverTest` 8/8 y `MyStoreMerchantControllerIT` 7/7 verdes).
   *Riesgo medio.*
-- **WU-3** — T3: los 9 use cases de dueño operados sobre el local resuelto.
-  *Riesgo medio.*
+- **WU-3** — T3: los use cases de dueño operados sobre el local resuelto
+  (`GetRestaurantByUserIdUseCase` conservado para compatibilidad interna de
+  `InternalCatalogController`; 38 suites / 199 tests verdes). *Riesgo medio.*
 - **WU-4** — T4: `owner/restaurants` + `membership` + `merchantId` en
   `InternalRestaurantResponse`. *Riesgo bajo.*
 - **WU-5** — T5: `orders-service` a pertenencia (IDOR, scopes, ventas, borrado de
@@ -234,4 +235,15 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   merchant y `acceptingOrders=false`), `RestaurantResponse.merchantName` y
   `LocalContextRequiredResponse`. Verificado con `./gradlew.bat test --no-daemon`
   en `catalog-service` (`StoreContextResolverTest` 8/8,
-  `MyStoreMerchantControllerIT` 7/7).
+  `MyStoreMerchantControllerIT` 7/7). Commit `0d10392`.
+- **L15** (WU-3): migrados los 8 use cases de dueño/productos a `Long restaurantId`
+  (`SetStoreOpenStatusUseCase`, `SetStoreHoursUseCase`, `SetStoreLocationUseCase`,
+  `SetStoreDeliveryRadiusUseCase`, `OwnerCreateProductUseCase`,
+  `OwnerListProductsUseCase`, `OwnerUpdateProductUseCase`,
+  `OwnerDeleteProductUseCase`); `GetRestaurantByUserIdUseCase` se mantiene para
+  el endpoint interno legacy `GET /api/internal/restaurants?userId=`.
+  `MyStoreRestaurantController` y `MyStoreProductController` resuelven el local
+  activo vía `StoreContextResolver` con `X-My-Store-Restaurant`, y
+  `OwnerUpdateProductUseCase`/`OwnerDeleteProductUseCase` devuelven 403 si el
+  producto pertenece a otro local. Verificado con `./gradlew.bat test --no-daemon`
+  (38 suites, 199 tests, 0 fallos, 0 skipped).

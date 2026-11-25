@@ -9,21 +9,13 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 @Service
 public class SetStoreOpenStatusUseCase {
 
-    private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final RestaurantRepositoryPort restaurants;
 
-    public SetStoreOpenStatusUseCase(
-            GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
-            RestaurantRepositoryPort restaurants
-    ) {
-        this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
+    public SetStoreOpenStatusUseCase(RestaurantRepositoryPort restaurants) {
         this.restaurants = restaurants;
     }
 
-    public Restaurant execute(Long userId, boolean acceptingOrders) {
-        // El local siempre se deriva del usuario autenticado, nunca de la solicitud.
-        Long restaurantId = getRestaurantByUserIdUseCase.execute(userId).getId();
-
+    public Restaurant execute(Long restaurantId, boolean acceptingOrders) {
         return restaurants.updateAcceptingOrders(restaurantId, acceptingOrders)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Restaurant not found with id: " + restaurantId));

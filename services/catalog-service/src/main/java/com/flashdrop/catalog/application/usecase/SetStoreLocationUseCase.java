@@ -12,22 +12,15 @@ import com.flashdrop.catalog.domain.valueobjects.Coordinates;
 @Service
 public class SetStoreLocationUseCase {
 
-    private final GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase;
     private final RestaurantRepositoryPort restaurants;
 
-    public SetStoreLocationUseCase(
-            GetRestaurantByUserIdUseCase getRestaurantByUserIdUseCase,
-            RestaurantRepositoryPort restaurants
-    ) {
-        this.getRestaurantByUserIdUseCase = getRestaurantByUserIdUseCase;
+    public SetStoreLocationUseCase(RestaurantRepositoryPort restaurants) {
         this.restaurants = restaurants;
     }
 
     /** Updates the store coordinates. Passing both null clears the stored pin. */
-    public Restaurant execute(Long userId, BigDecimal latitude, BigDecimal longitude) {
+    public Restaurant execute(Long restaurantId, BigDecimal latitude, BigDecimal longitude) {
         Coordinates.ofNullable(latitude, longitude);
-
-        Long restaurantId = getRestaurantByUserIdUseCase.execute(userId).getId();
 
         return restaurants.updateLocation(restaurantId, latitude, longitude)
                 .orElseThrow(() -> new ResourceNotFoundException(
