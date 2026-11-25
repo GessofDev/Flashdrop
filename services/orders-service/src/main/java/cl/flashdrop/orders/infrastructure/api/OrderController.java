@@ -278,7 +278,6 @@ public class OrderController {
         String clientPhone = order.getClientInfo() != null ? order.getClientInfo().getPhone() : "";
         String clientEmail = order.getClientInfo() != null ? order.getClientInfo().getEmail() : "";
         String restaurantName = order.getRestaurantInfo() != null ? order.getRestaurantInfo().getName() : "";
-        UUID deliveryId = order.getDeliveryInfo() != null ? order.getDeliveryInfo().getDeliveryId() : null;
 
         return OrderListResponse.builder()
                 .id(order.getId())
@@ -297,7 +296,7 @@ public class OrderController {
                 .clientPhone(clientPhone)
                 .clientEmail(clientEmail)
                 .restaurantName(restaurantName)
-                .deliveryId(deliveryId)
+                .deliveryId(order.getDeliveryId())
                 .receptionMode(order.getReceptionMode().name())
                 .createdAt(order.getCreatedAt())
                 .build();
