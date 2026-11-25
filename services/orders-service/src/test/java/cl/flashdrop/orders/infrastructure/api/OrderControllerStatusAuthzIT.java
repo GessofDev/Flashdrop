@@ -119,8 +119,8 @@ class OrderControllerStatusAuthzIT {
     }
 
     private void usuarioEsDuenoDe(UUID restaurantId) {
-        when(catalogPort.findRestaurantIdByUserId(IdConverter.toUuid(USER_ID)))
-                .thenReturn(Optional.of(restaurantId));
+        when(catalogPort.checkRestaurantMembership(IdConverter.toUuid(USER_ID), RESTAURANT_ID))
+                .thenReturn(RESTAURANT_ID.equals(restaurantId));
     }
 
     private ResultActions cambiarEstadoA(String nuevoEstado) throws Exception {

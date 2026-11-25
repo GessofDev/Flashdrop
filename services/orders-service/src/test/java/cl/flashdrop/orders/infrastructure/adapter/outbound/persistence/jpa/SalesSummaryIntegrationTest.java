@@ -77,7 +77,7 @@ class SalesSummaryIntegrationTest extends PostgresIntegrationTestSupport {
         restaurantId = IdConverter.toUuid(2_000_000L + (System.nanoTime() % 1_000_000L));
 
         CatalogPort catalogPort = mock(CatalogPort.class);
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(restaurantId));
+        when(catalogPort.checkRestaurantMembership(USER_ID, restaurantId)).thenReturn(true);
         useCase = new GetRestaurantSalesSummaryUseCase(adapter, catalogPort, Clock.fixed(now, ZoneOffset.UTC));
     }
 

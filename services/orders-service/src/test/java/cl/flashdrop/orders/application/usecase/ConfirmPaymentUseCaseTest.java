@@ -85,7 +85,7 @@ class ConfirmPaymentUseCaseTest {
         stubFound(payment, order(OrderStatus.PENDIENTE_PAGO));
         when(orderRepository.confirmPayment(orderId)).thenReturn(true);
         when(catalogPort.findRestaurantById(restaurantId)).thenReturn(Optional.of(RestaurantInfo.builder()
-                .restaurantId(restaurantId).name("Burgers House").address("Los Leones 300")
+                .restaurantId(restaurantId).merchantId(88L).name("Burgers House").address("Los Leones 300")
                 .latitude(new BigDecimal("-33.4")).longitude(new BigDecimal("-70.6")).build()));
         when(clientPort.findUserIdByClientId(clientId)).thenReturn(Optional.of(clientUserId));
 
@@ -101,6 +101,7 @@ class ConfirmPaymentUseCaseTest {
         assertEquals(0, new BigDecimal("4.50").compareTo(route.getValue().getDistanceKm()));
         assertEquals(25, route.getValue().getEstimatedMinutes());
         assertEquals(clientUserId, route.getValue().getClientUserId());
+        assertEquals(88L, route.getValue().getMerchantId());
         ArgumentCaptor<cl.flashdrop.orders.infrastructure.messaging.event.OrderCreatedEvent> event =
                 ArgumentCaptor.forClass(cl.flashdrop.orders.infrastructure.messaging.event.OrderCreatedEvent.class);
         verify(eventPublisher).publish(eq("order.created"), event.capture());

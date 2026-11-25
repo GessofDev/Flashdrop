@@ -79,16 +79,18 @@ public class OrderController {
     @GetMapping
     public ApiResponse<List<OrderListResponse>> listOrders(
             @RequestParam(value = "user_id", required = false) Long userIdLong,
-            @RequestParam(value = "view", required = false) String view) {
+            @RequestParam(value = "view", required = false) String view,
+            @RequestHeader(value = "X-My-Store-Restaurant", required = false) Long restaurantIdLong) {
         UUID authenticatedUserId = currentUserResolver.requireCurrentUserId();
         Set<Role> authenticatedRoles = currentUserResolver.requireCurrentRoles();
-        log.debug("GET /api/orders, user_id={}, view={}", userIdLong, view);
+        log.debug("GET /api/orders, user_id={}, view={}, restaurantHeader={}", userIdLong, view, restaurantIdLong);
         if (userIdLong != null && !authenticatedUserId.equals(IdConverter.toUuid(userIdLong))) {
             throw new AccessDeniedException("No puedes consultar pedidos de otro usuario");
         }
-        List<Order> orders = listOrdersUseCase.execute(
-                authenticatedUserId,
-                rolesForView(authenticatedRoles, view));
+        Set<Role> roles = rolesForView(authenticatedRoles, view);
+        List<Order> orders = restaurantIdLong != null
+                ? listOrdersUseCase.execute(authenticatedUserId, roles, IdConverter.toUuid(restaurantIdLong))
+                : listOrdersUseCase.execute(authenticatedUserId, roles);
         List<OrderListResponse> response = orders.stream()
                 .map(this::toListResponse)
                 .collect(Collectors.toList());

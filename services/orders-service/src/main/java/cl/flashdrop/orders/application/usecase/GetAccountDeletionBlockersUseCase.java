@@ -35,8 +35,9 @@ public class GetAccountDeletionBlockersUseCase {
     @Transactional(readOnly = true)
     public Blockers execute(UUID userId) {
         int asClient = clientPort.findClientIdByUserId(userId).map(orderRepository::countActiveByClient).orElse(0);
-        int asRestaurant = catalogPort.findRestaurantIdByUserId(userId)
-                .map(orderRepository::countActiveByRestaurant).orElse(0);
+        int asRestaurant = catalogPort.findOperableRestaurantIdsByUserId(userId).stream()
+                .mapToInt(orderRepository::countActiveByRestaurant)
+                .sum();
         int asCourier = deliveryPort.findDeliveryIdByUserId(userId)
                 .map(orderRepository::countActiveByDeliveryPerson).orElse(0);
         return new Blockers(asClient, asRestaurant, asCourier);

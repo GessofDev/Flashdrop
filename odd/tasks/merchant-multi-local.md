@@ -162,8 +162,8 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
 - **WU-4** — T4: `owner/restaurants` + `membership` + `merchantId` en
   `InternalRestaurantResponse` (203/203 tests verdes). *Riesgo bajo.*
 - **WU-5** — T5: `orders-service` a pertenencia (IDOR, scopes, ventas, borrado de
-  cuenta) + `merchantId` en el snapshot de pickup. *Riesgo **alto** — commit
-  propio.*
+  cuenta) + `merchantId` en el snapshot de pickup (`.\mvnw.cmd test` 600/600
+  verdes; `gentle-ai-verify` no disponible). *Riesgo **alto** — commit propio.*
 - **WU-6** — T6: `delivery-service` — `merchant_id` en `delivery_routes`.
   *Riesgo medio.*
 - **WU-7** — T7: `reviews-service` a pertenencia. *Riesgo bajo.*
@@ -252,4 +252,16 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   y `GET /api/internal/owner/restaurants/{restaurantId}/membership?userId=`),
   manteniendo `GET /api/internal/restaurants?userId=`. Verificado con RED→GREEN
   en `InternalCatalogControllerTest` y suite completa de `catalog-service`
-  (203 tests, 0 fallos, 0 ignorados).
+  (203 tests, 0 fallos, 0 ignorados). Commit `d20e0c2`.
+- **L17** (WU-5): migrado `orders-service` a pertenencia contra `catalog-service`
+  (`CatalogPort.checkRestaurantMembership` y `findOperableRestaurantIdsByUserId`
+  en `CatalogHttpClientAdapter`): `UpdateOrderStatusUseCase`,
+  `GetOrderDetailUseCase`, `ListOrdersUseCase` (con filtro opcional
+  `X-My-Store-Restaurant`), `GetRestaurantSalesSummaryUseCase` +
+  `GET /api/orders/store/summary` (por local o agregado),
+  `GetAccountDeletionBlockersUseCase` (suma en todos los locales) y
+  `merchantId` en `InternalRestaurantDto` → `RestaurantInfo` → `DeliveryRoute` →
+  `DeliveryHttpClientAdapter.saveRoute`. Verificado con `.\mvnw.cmd test` (JDK 21):
+  600 tests, 0 fallos, 0 errores, 0 skipped (incluye
+  `CatalogHttpClientAdapterContractTest` con `MockRestServiceServer`).
+  `gentle-ai-verify` reportado como no disponible.

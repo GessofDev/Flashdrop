@@ -48,9 +48,24 @@ public class SalesSummaryController {
         return ApiResponse.success(toResponse(summary));
     }
 
+    @GetMapping("/store/summary")
+    public ApiResponse<SalesSummaryResponse> getStoreSummary(
+            @RequestParam(value = "restaurantId", required = false) Long restaurantIdLong,
+            @RequestParam(value = "range", defaultValue = "week") String range) {
+        log.debug("GET /api/orders/store/summary, restaurantId={}, range={}", restaurantIdLong, range);
+        if (!currentUserResolver.hasRole(Role.RESTAURANTE)) {
+            throw new AccessDeniedException("Solo los restaurantes pueden consultar sus ventas");
+        }
+        UUID currentUserId = currentUserResolver.requireCurrentUserId();
+        UUID restaurantId = restaurantIdLong != null ? IdConverter.toUuid(restaurantIdLong) : null;
+        SalesSummary summary = getRestaurantSalesSummaryUseCase.executeStoreSummary(
+                currentUserId, restaurantId, range);
+        return ApiResponse.success(toResponse(summary));
+    }
+
     private static SalesSummaryResponse toResponse(SalesSummary summary) {
         return SalesSummaryResponse.builder()
-                .restaurantId(IdConverter.toLong(summary.restaurantId()))
+                .restaurantId(summary.restaurantId() != null ? IdConverter.toLong(summary.restaurantId()) : null)
                 .range(summary.range())
                 .from(summary.from())
                 .to(summary.to())

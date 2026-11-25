@@ -85,6 +85,9 @@ public class DeliveryHttpClientAdapter implements DeliveryPort {
         if (route.getClientUserId() != null) {
             body.put("clientUserId", String.valueOf(IdConverter.toLong(route.getClientUserId())));
         }
+        if (route.getMerchantId() != null) {
+            body.put("merchantId", route.getMerchantId());
+        }
         try {
             deliveryInternalRestClient.post()
                     .uri("/api/internal/routes")

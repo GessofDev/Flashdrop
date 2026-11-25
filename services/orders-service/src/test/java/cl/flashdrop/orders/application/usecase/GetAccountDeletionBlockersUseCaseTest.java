@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,7 +36,7 @@ class GetAccountDeletionBlockersUseCaseTest {
     @Test
     void execute_countsTheActiveOrdersInEachRoleTheUserHas() {
         when(clients.findClientIdByUserId(USER)).thenReturn(Optional.of(CLIENT));
-        when(catalog.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(RESTAURANT));
+        when(catalog.findOperableRestaurantIdsByUserId(USER)).thenReturn(List.of(RESTAURANT));
         when(delivery.findDeliveryIdByUserId(USER)).thenReturn(Optional.of(COURIER));
         when(orders.countActiveByClient(CLIENT)).thenReturn(2);
         when(orders.countActiveByRestaurant(RESTAURANT)).thenReturn(3);
@@ -48,9 +49,24 @@ class GetAccountDeletionBlockersUseCaseTest {
     }
 
     @Test
+    void execute_sumsActiveOrdersAcrossAllOperableRestaurants() {
+        UUID secondRestaurant = UUID.randomUUID();
+        when(clients.findClientIdByUserId(USER)).thenReturn(Optional.empty());
+        when(catalog.findOperableRestaurantIdsByUserId(USER)).thenReturn(List.of(RESTAURANT, secondRestaurant));
+        when(delivery.findDeliveryIdByUserId(USER)).thenReturn(Optional.empty());
+        when(orders.countActiveByRestaurant(RESTAURANT)).thenReturn(3);
+        when(orders.countActiveByRestaurant(secondRestaurant)).thenReturn(4);
+
+        Blockers result = useCase.execute(USER);
+
+        assertEquals(new Blockers(0, 7, 0), result);
+        assertEquals(7, result.total());
+    }
+
+    @Test
     void execute_userWithoutAnyProfile_hasNoBlockers() {
         when(clients.findClientIdByUserId(USER)).thenReturn(Optional.empty());
-        when(catalog.findRestaurantIdByUserId(USER)).thenReturn(Optional.empty());
+        when(catalog.findOperableRestaurantIdsByUserId(USER)).thenReturn(List.of());
         when(delivery.findDeliveryIdByUserId(USER)).thenReturn(Optional.empty());
 
         assertEquals(0, useCase.execute(USER).total());
@@ -59,7 +75,7 @@ class GetAccountDeletionBlockersUseCaseTest {
     @Test
     void execute_whenAnotherServiceFails_theErrorPropagates_neverReportingNoBlockers() {
         when(clients.findClientIdByUserId(USER)).thenReturn(Optional.empty());
-        when(catalog.findRestaurantIdByUserId(USER))
+        when(catalog.findOperableRestaurantIdsByUserId(USER))
                 .thenThrow(new ExternalServiceException(HttpStatus.SERVICE_UNAVAILABLE, "Catalog no disponible"));
 
         assertThrows(ExternalServiceException.class, () -> useCase.execute(USER));

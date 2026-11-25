@@ -161,8 +161,7 @@ public class UpdateOrderStatusUseCase {
     }
 
     private void validateRestaurantOwnership(Order order, UUID currentUserId) {
-        UUID ownedRestaurantId = catalogPort.findRestaurantIdByUserId(currentUserId).orElse(null);
-        if (ownedRestaurantId == null || !ownedRestaurantId.equals(order.getRestaurantId())) {
+        if (!catalogPort.checkRestaurantMembership(currentUserId, order.getRestaurantId())) {
             throw new StatusTransitionForbiddenException("No puedes modificar pedidos de otro restaurante");
         }
     }

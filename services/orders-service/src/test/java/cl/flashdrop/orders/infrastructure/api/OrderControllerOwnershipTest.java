@@ -216,4 +216,16 @@ class OrderControllerOwnershipTest {
 
         verify(getOrderDetailUseCase).execute(ORDER_ID, Set.of(Role.RESTAURANTE), USER_UUID);
     }
+
+    @Test
+    void misPedidos_conHeaderXMyStoreRestaurant_entregaLocalSolicitadoAlCasoDeUso() throws Exception {
+        autenticadoComo("Restaurante");
+        UUID requestedStore = IdConverter.toUuid(7L);
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE), requestedStore)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/orders").header("X-My-Store-Restaurant", "7"))
+                .andExpect(status().isOk());
+
+        verify(listOrdersUseCase).execute(USER_UUID, Set.of(Role.RESTAURANTE), requestedStore);
+    }
 }

@@ -168,4 +168,48 @@ class SalesSummaryControllerTest {
 
         verify(getRestaurantSalesSummaryUseCase, never()).execute(any(), any(), any());
     }
+
+    @Test
+    void storeSummary_conRestaurantId_delegaAlCasoDeUsoConEseLocal() throws Exception {
+        autenticadoComo("Restaurante");
+        when(getRestaurantSalesSummaryUseCase.executeStoreSummary(USER_UUID, RESTAURANT_ID, "week"))
+                .thenReturn(resumen("week"));
+
+        mockMvc.perform(get("/api/orders/store/summary").param("restaurantId", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.restaurantId").value(7))
+                .andExpect(jsonPath("$.data.totalOrders").value(2));
+
+        verify(getRestaurantSalesSummaryUseCase).executeStoreSummary(USER_UUID, RESTAURANT_ID, "week");
+    }
+
+    @Test
+    void storeSummary_sinRestaurantId_agregaTodosLosLocalesConRestaurantIdNulo() throws Exception {
+        autenticadoComo("Restaurante");
+        SalesSummary aggregate = new SalesSummary(null, "month", TO.minusDays(30), TO, 5,
+                BigDecimal.valueOf(35000), BigDecimal.valueOf(7000), List.of());
+        when(getRestaurantSalesSummaryUseCase.executeStoreSummary(USER_UUID, null, "month"))
+                .thenReturn(aggregate);
+
+        mockMvc.perform(get("/api/orders/store/summary").param("range", "month"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.restaurantId").isEmpty())
+                .andExpect(jsonPath("$.data.totalOrders").value(5))
+                .andExpect(jsonPath("$.data.totalRevenue").value(35000));
+
+        verify(getRestaurantSalesSummaryUseCase).executeStoreSummary(USER_UUID, null, "month");
+    }
+
+    @Test
+    void storeSummary_sinRolRestaurante_403() throws Exception {
+        autenticadoComo("Cliente");
+
+        mockMvc.perform(get("/api/orders/store/summary"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+        verify(getRestaurantSalesSummaryUseCase, never()).executeStoreSummary(any(), any(), any());
+    }
 }

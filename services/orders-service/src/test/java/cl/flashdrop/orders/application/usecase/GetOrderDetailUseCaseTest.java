@@ -153,7 +153,7 @@ class GetOrderDetailUseCaseTest {
     @Test
     void pedidoSinPagar_laTiendaNoLoVe_403() {
         pedido(OrderStatus.PENDIENTE_PAGO, null);
-        lenient().when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(RESTAURANT));
+        lenient().when(catalogPort.checkRestaurantMembership(USER, RESTAURANT)).thenReturn(true);
 
         assertThrows(ForbiddenOperationException.class,
                 () -> build().execute(ORDER, Set.of(Role.RESTAURANTE), USER));
@@ -179,7 +179,7 @@ class GetOrderDetailUseCaseTest {
     @Test
     void duenoDelRestauranteDelPedido_puedeVerlo() {
         pedido(OrderStatus.NUEVO_PEDIDO, null);
-        when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(RESTAURANT));
+        when(catalogPort.checkRestaurantMembership(USER, RESTAURANT)).thenReturn(true);
 
         assertEquals(ORDER, build().execute(ORDER, Set.of(Role.RESTAURANTE), USER).getId());
     }
@@ -187,7 +187,7 @@ class GetOrderDetailUseCaseTest {
     @Test
     void restauranteDeOtroLocal_403() {
         pedido(OrderStatus.NUEVO_PEDIDO, null);
-        when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(IdConverter.toUuid(99L)));
+        when(catalogPort.checkRestaurantMembership(USER, RESTAURANT)).thenReturn(false);
 
         assertThrows(ForbiddenOperationException.class,
                 () -> build().execute(ORDER, Set.of(Role.RESTAURANTE), USER));
@@ -282,7 +282,7 @@ class GetOrderDetailUseCaseTest {
         UUID orderId = IdConverter.toUuid(603L), clientId = IdConverter.toUuid(10L);
         UUID restaurantId = IdConverter.toUuid(8L);
         secureOrder(orderId, clientId, restaurantId, OrderStatus.RETIRADO);
-        when(catalogPort.findRestaurantIdByUserId(USER)).thenReturn(Optional.of(restaurantId));
+        when(catalogPort.checkRestaurantMembership(USER, restaurantId)).thenReturn(true);
 
         Order result = build().execute(orderId, Set.of(Role.RESTAURANTE), USER);
 

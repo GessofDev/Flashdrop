@@ -52,8 +52,7 @@ public class GetRestaurantSalesSummaryUseCase {
     public SalesSummary execute(UUID currentUserId, UUID restaurantId, String rawRange) {
         SalesRange range = parseRange(rawRange);
 
-        UUID ownedRestaurantId = catalogPort.findRestaurantIdByUserId(currentUserId).orElse(null);
-        if (ownedRestaurantId == null || !ownedRestaurantId.equals(restaurantId)) {
+        if (!catalogPort.checkRestaurantMembership(currentUserId, restaurantId)) {
             throw new ForbiddenOperationException("No puedes consultar las ventas de otro restaurante");
         }
 
@@ -62,6 +61,33 @@ public class GetRestaurantSalesSummaryUseCase {
         List<Order> orders = orderRepository.findByRestaurantAndStatusAndCreatedAtBetween(
                 restaurantId, List.of(OrderStatus.ENTREGADO), from, to);
 
+        log.debug("Resumen de ventas restaurante {} ({}): {} pedidos", restaurantId, range.getValue(), orders.size());
+        return buildSummary(restaurantId, range, from, to, orders);
+    }
+
+    @Transactional(readOnly = true)
+    public SalesSummary executeStoreSummary(UUID currentUserId, UUID restaurantId, String rawRange) {
+        if (restaurantId != null) {
+            return execute(currentUserId, restaurantId, rawRange);
+        }
+        SalesRange range = parseRange(rawRange);
+        List<UUID> operableIds = catalogPort.findOperableRestaurantIdsByUserId(currentUserId);
+        OffsetDateTime to = OffsetDateTime.now(clock);
+        OffsetDateTime from = to.minus(range.getLength());
+        Map<UUID, Order> byId = new LinkedHashMap<>();
+        for (UUID id : operableIds) {
+            orderRepository.findByRestaurantAndStatusAndCreatedAtBetween(
+                    id, List.of(OrderStatus.ENTREGADO), from, to)
+                    .forEach(o -> byId.putIfAbsent(o.getId(), o));
+        }
+        List<Order> orders = List.copyOf(byId.values());
+        log.debug("Resumen de ventas agregado usuario {} ({} locales, {}): {} pedidos",
+                currentUserId, operableIds.size(), range.getValue(), orders.size());
+        return buildSummary(null, range, from, to, orders);
+    }
+
+    private static SalesSummary buildSummary(UUID restaurantId, SalesRange range,
+                                             OffsetDateTime from, OffsetDateTime to, List<Order> orders) {
         BigDecimal totalRevenue = orders.stream()
                 .map(Order::getSubtotal)
                 .filter(Objects::nonNull)
@@ -70,7 +96,6 @@ public class GetRestaurantSalesSummaryUseCase {
                 ? BigDecimal.ZERO
                 : totalRevenue.divide(BigDecimal.valueOf(orders.size()), 0, RoundingMode.HALF_UP);
 
-        log.debug("Resumen de ventas restaurante {} ({}): {} pedidos", restaurantId, range.getValue(), orders.size());
         return new SalesSummary(restaurantId, range.getValue(), from, to,
                 orders.size(), totalRevenue, averageTicket, topProducts(orders));
     }

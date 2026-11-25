@@ -53,4 +53,7 @@ public class DeliveryRoute {
 
     /** ID del usuario cliente dueño del pedido para autorizar el polling de ubicación en Delivery */
     private final UUID clientUserId;
+
+    /** ID de la marca (merchant) a la que pertenece el local del pickup (nullable) */
+    private final Long merchantId;
 }

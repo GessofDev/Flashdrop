@@ -75,7 +75,7 @@ public class GetOrderDetailUseCase {
             return false;
         }
         if (roles.contains(Role.RESTAURANTE)
-                && catalogPort.findRestaurantIdByUserId(userId).filter(r -> r.equals(order.getRestaurantId())).isPresent()) {
+                && catalogPort.checkRestaurantMembership(userId, order.getRestaurantId())) {
             return true;
         }
         if (roles.contains(Role.REPARTIDOR)) {
