@@ -151,9 +151,10 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
 
 ## Work units (cada uno cierra con commit + tests + docs)
 
-- **WU-1** — T1: migraciones V11-V13 + backfill + test de migración (`MerchantMigrationIT` verde). *Riesgo bajo.*
+- **WU-1** — T1: migraciones V11-V13 + backfill + test de migración (`7dec230`). *Riesgo bajo.*
 - **WU-2** — T2: `StoreContextResolver`, `merchant_members`, `GET my/restaurants`,
-  `GET my/merchant`, `POST my/restaurants`, `RestaurantResponse.merchantName`.
+  `GET my/merchant`, `POST my/restaurants`, `RestaurantResponse.merchantName`
+  (`StoreContextResolverTest` 8/8 y `MyStoreMerchantControllerIT` 7/7 verdes).
   *Riesgo medio.*
 - **WU-3** — T3: los 9 use cases de dueño operados sobre el local resuelto.
   *Riesgo medio.*
@@ -224,4 +225,13 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   `V12__add_restaurant_merchant_id.sql`, `V13__backfill_merchant.sql` (itera por
   restaurante para no fusionar dueños distintos con locales homónimos) y
   `MerchantMigrationIT.java`. Verificado con Testcontainers PostgreSQL 16.15
-  (`MerchantMigrationIT` y `JpaRestaurantRepositoryAdapterIT` verdes).
+  (`MerchantMigrationIT` y `JpaRestaurantRepositoryAdapterIT` verdes). Commit `7dec230`.
+- **L14** (WU-2): creados `Merchant`, `MerchantMember`, `MerchantRole`,
+  `LocalContextRequiredException`, puertos `MerchantRepositoryPort` /
+  `MerchantMemberRepositoryPort`, adaptadores JPA (`postgres`) y en memoria
+  (`local`), `StoreContextResolver`, `MyStoreMerchantController` (`GET my/merchant`,
+  `GET my/restaurants`, `POST my/restaurants` solo `DUEÑO` con auto-creación de
+  merchant y `acceptingOrders=false`), `RestaurantResponse.merchantName` y
+  `LocalContextRequiredResponse`. Verificado con `./gradlew.bat test --no-daemon`
+  en `catalog-service` (`StoreContextResolverTest` 8/8,
+  `MyStoreMerchantControllerIT` 7/7).

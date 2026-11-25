@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.flashdrop.catalog.application.port.outbound.MerchantRepositoryPort;
 import com.flashdrop.catalog.application.usecase.GetRestaurantRatingStatsUseCase;
 import com.flashdrop.catalog.application.usecase.ListRestaurantsUseCase;
 import com.flashdrop.catalog.domain.model.RatingSummary;
@@ -36,15 +37,19 @@ class RestaurantControllerRatingTest {
 
     private ListRestaurantsUseCase listRestaurantsUseCase;
     private GetRestaurantRatingStatsUseCase getRestaurantRatingStatsUseCase;
+    private MerchantRepositoryPort merchantRepositoryPort;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         listRestaurantsUseCase = mock(ListRestaurantsUseCase.class);
         getRestaurantRatingStatsUseCase = mock(GetRestaurantRatingStatsUseCase.class);
+        merchantRepositoryPort = mock(MerchantRepositoryPort.class);
+        when(merchantRepositoryPort.findByIds(org.mockito.ArgumentMatchers.any())).thenReturn(Map.of());
         RestaurantController controller = new RestaurantController(
                 listRestaurantsUseCase,
                 getRestaurantRatingStatsUseCase,
+                merchantRepositoryPort,
                 Clock.fixed(LocalDateTime.of(2026, 1, 1, 12, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

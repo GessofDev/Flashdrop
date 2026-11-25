@@ -20,13 +20,23 @@ public record RestaurantResponse(
         long ratingCount,
         BigDecimal latitude,
         BigDecimal longitude,
-        BigDecimal deliveryRadiusKm
+        BigDecimal deliveryRadiusKm,
+        String merchantName
 ) {
     /**
      * @param rating promedio cacheado de las calificaciones del local; sin
      *               calificaciones el promedio es {@code null} y el conteo 0
      */
     public static RestaurantResponse fromDomain(Restaurant restaurant, LocalDateTime now, RatingSummary rating) {
+        return fromDomain(restaurant, now, rating, null);
+    }
+
+    public static RestaurantResponse fromDomain(
+            Restaurant restaurant,
+            LocalDateTime now,
+            RatingSummary rating,
+            String merchantName
+    ) {
         RatingSummary summary = rating == null ? RatingSummary.none() : rating;
         return new RestaurantResponse(
                 restaurant.getId(),
@@ -41,7 +51,8 @@ public record RestaurantResponse(
                 summary.count(),
                 restaurant.getLatitude(),
                 restaurant.getLongitude(),
-                restaurant.getDeliveryRadiusKm()
+                restaurant.getDeliveryRadiusKm(),
+                merchantName
         );
     }
 }

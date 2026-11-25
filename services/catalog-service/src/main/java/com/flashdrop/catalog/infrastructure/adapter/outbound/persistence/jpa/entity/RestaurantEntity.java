@@ -33,6 +33,9 @@ public class RestaurantEntity {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "merchant_id")
+    private Long merchantId;
+
     @Column(nullable = false)
     private String name;
 
@@ -69,19 +72,31 @@ public class RestaurantEntity {
 
     public static RestaurantEntity create(String name, String address, Long userId, boolean acceptingOrders,
                                           BigDecimal latitude, BigDecimal longitude) {
+        return createInMerchant(name, address, userId, null, acceptingOrders, latitude, longitude, null);
+    }
+
+    public static RestaurantEntity createInMerchant(String name, String address, Long userId, Long merchantId,
+                                                    boolean acceptingOrders, BigDecimal latitude,
+                                                    BigDecimal longitude, BigDecimal deliveryRadiusKm) {
         RestaurantEntity entity = new RestaurantEntity();
         entity.name = name;
         entity.address = address;
         entity.userId = userId;
+        entity.merchantId = merchantId;
         entity.acceptingOrders = acceptingOrders;
         entity.latitude = latitude;
         entity.longitude = longitude;
+        entity.deliveryRadiusKm = deliveryRadiusKm;
         entity.createdAt = LocalDateTime.now();
         return entity;
     }
 
     public void changeOwner(Long userId) {
         this.userId = userId;
+    }
+
+    public void changeMerchant(Long merchantId) {
+        this.merchantId = merchantId;
     }
 
     public void changeAcceptingOrders(boolean acceptingOrders) {
@@ -99,7 +114,7 @@ public class RestaurantEntity {
     }
 
     public Restaurant toDomain() {
-        return new Restaurant(id, userId, name, address, createdAt, acceptingOrders,
+        return new Restaurant(id, userId, merchantId, name, address, createdAt, acceptingOrders,
                 hours.stream().map(RestaurantHoursEmbeddable::toDomain).toList(),
                 latitude, longitude, deliveryRadiusKm);
     }

@@ -3,6 +3,7 @@ package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.supaba
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -109,6 +110,23 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
             return Optional.empty();
         }
         return Optional.of(rows[0].toDomain());
+    }
+
+    @Override
+    public List<Restaurant> findByMerchantIds(Collection<Long> merchantIds) {
+        throw new UnsupportedOperationException("La consulta por merchant requiere el perfil postgres");
+    }
+
+    @Override
+    public Optional<Restaurant> assignMerchant(Long restaurantId, Long merchantId) {
+        throw new UnsupportedOperationException("La asignacion de merchant requiere el perfil postgres");
+    }
+
+    @Override
+    public Restaurant createInMerchant(String name, String address, Long ownerUserId, Long merchantId,
+                                       boolean acceptingOrders, BigDecimal latitude, BigDecimal longitude,
+                                       BigDecimal deliveryRadiusKm) {
+        throw new UnsupportedOperationException("El alta de locales requiere el perfil postgres");
     }
 
     // Perfil legado: la eliminacion de cuenta requiere el perfil postgres.
