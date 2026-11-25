@@ -227,6 +227,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
         route.setCommune(entity.getCommune());
         route.setPickupCoordinates(entity.getPickupLatitude(), entity.getPickupLongitude());
         route.setClientUserId(entity.getClientUserId());
+        route.setMerchantId(entity.getMerchantId());
         return route;
     }
 
@@ -247,6 +248,7 @@ public class JpaRouteRepositoryAdapter implements RouteRepository {
         entity.setPickupLatitude(route.getPickupLatitude());
         entity.setPickupLongitude(route.getPickupLongitude());
         entity.setClientUserId(route.getClientUserId());
+        entity.setMerchantId(route.getMerchantId());
         return entity;
     }
 }

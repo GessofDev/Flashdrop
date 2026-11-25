@@ -59,6 +59,7 @@ public class InternalRoutesController {
         route.setCommune(request.commune());
         route.setPickupCoordinates(request.pickupLatitude(), request.pickupLongitude());
         route.setClientUserId(request.clientUserId());
+        route.setMerchantId(request.merchantId());
 
         DeliveryRoute saved = routeRepository.save(route);
         return new ResponseEntity<>(
@@ -151,7 +152,8 @@ public class InternalRoutesController {
                 route.isDeliveryPinRequired(),
                 route.getCommune(),
                 route.getPickupLatitude(),
-                route.getPickupLongitude()
+                route.getPickupLongitude(),
+                route.getMerchantId()
         );
     }
 

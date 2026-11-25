@@ -55,6 +55,7 @@ class ListDeliveryRoutesUseCaseImplTest {
         @DisplayName("filterByDeliveryPersonId_returnsOnlyMatchingRoutes")
         void filterByDeliveryPersonId_returnsOnlyMatchingRoutes() {
             DeliveryRoute routeA1 = newRoute(1L, 101L, 7L, "PickupA1", "DeliveryA1");
+            routeA1.setMerchantId(88L);
             DeliveryRoute routeA2 = newRoute(2L, 102L, 7L, "PickupA2", "DeliveryA2");
             DeliveryRoute routeB = newRoute(3L, 103L, 99L, "PickupB", "DeliveryB");
             when(routeRepository.findByDeliveryPersonId(7L)).thenReturn(List.of(routeA1, routeA2));
@@ -67,7 +68,9 @@ class ListDeliveryRoutesUseCaseImplTest {
 
             assertThat(result).hasSize(2);
             assertThat(result.get(0).id()).isEqualTo(1L);
+            assertThat(result.get(0).merchantId()).isEqualTo(88L);
             assertThat(result.get(1).id()).isEqualTo(2L);
+            assertThat(result.get(1).merchantId()).isNull();
         }
 
         @Test

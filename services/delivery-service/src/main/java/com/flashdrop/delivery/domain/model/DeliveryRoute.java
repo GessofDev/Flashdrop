@@ -17,6 +17,7 @@ public class DeliveryRoute {
     private Long id;
     private Long orderId;
     private Long deliveryPersonId;
+    private Long merchantId;
     private String pickupAddress;
     private String deliveryAddress;
     private String commune;
@@ -184,5 +185,13 @@ public class DeliveryRoute {
 
     public void setClientUserId(String clientUserId) {
         this.clientUserId = clientUserId == null || clientUserId.isBlank() ? null : clientUserId.trim();
+    }
+
+    public Long getMerchantId() {
+        return merchantId;
+    }
+
+    public void setMerchantId(Long merchantId) {
+        this.merchantId = merchantId;
     }
 }

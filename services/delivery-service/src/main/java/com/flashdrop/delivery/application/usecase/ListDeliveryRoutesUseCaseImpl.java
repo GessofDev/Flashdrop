@@ -69,7 +69,8 @@ public class ListDeliveryRoutesUseCaseImpl implements ListDeliveryRoutesUseCase 
                 route.isDeliveryPinRequired(),
                 route.getCommune(),
                 route.getPickupLatitude(),
-                route.getPickupLongitude()
+                route.getPickupLongitude(),
+                route.getMerchantId()
         );
     }
 }

@@ -101,6 +101,10 @@ class DeliveryRouteTest {
             assertThat(route.getEstimatedMinutes().minutes()).isEqualTo(45);
             assertThat(route.getStatus()).isEqualTo(RouteStatus.EN_CAMINO);
             assertThat(route.getCreatedAt()).isEqualTo(createdAt);
+            assertThat(route.getMerchantId()).isNull();
+
+            route.setMerchantId(88L);
+            assertThat(route.getMerchantId()).isEqualTo(88L);
         }
     }
 }

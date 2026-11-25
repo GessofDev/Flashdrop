@@ -317,4 +317,37 @@ class JpaRouteRepositoryIT {
     void existsByOrderIdFalse() {
         assertThat(adapter.existsByOrderId(9999L)).isFalse();
     }
+
+    @Test
+    @DisplayName("T6: save and retrieve route with merchantId")
+    void saveAndFindRouteWithMerchantId() {
+        DeliveryRoute route = new DeliveryRoute(
+                null, 1006L, "Pickup K", "Delivery L",
+                Distance.of(BigDecimal.valueOf(2.5)), EstimatedTime.of(12),
+                RouteStatus.PENDIENTE, Instant.now()
+        );
+        route.setMerchantId(88L);
+
+        DeliveryRoute saved = adapter.save(route);
+
+        Optional<DeliveryRoute> reloaded = adapter.findByOrderId(1006L);
+        assertThat(reloaded).isPresent();
+        assertThat(reloaded.get().getId()).isEqualTo(saved.getId());
+        assertThat(reloaded.get().getMerchantId()).isEqualTo(88L);
+    }
+
+    @Test
+    @DisplayName("T6: pre-migration route with null merchantId reads cleanly")
+    void preMigrationRouteWithNullMerchantIdReadsCleanly() {
+        DeliveryRouteJpaEntity legacyEntity = new DeliveryRouteJpaEntity(
+                null, 1007L, "Pickup M", "Delivery N",
+                BigDecimal.valueOf(1.5), 8,
+                "Pendiente", Instant.now()
+        );
+        jpaRouteRepository.save(legacyEntity);
+
+        Optional<DeliveryRoute> reloaded = adapter.findByOrderId(1007L);
+        assertThat(reloaded).isPresent();
+        assertThat(reloaded.get().getMerchantId()).isNull();
+    }
 }

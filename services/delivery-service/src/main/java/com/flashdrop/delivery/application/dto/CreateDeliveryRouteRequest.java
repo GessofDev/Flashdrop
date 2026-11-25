@@ -32,26 +32,27 @@ public record CreateDeliveryRouteRequest(
         @DecimalMax(value = "180.0", message = "pickupLongitude must be between -180 and 180")
         BigDecimal pickupLongitude,
         @Size(max = 64, message = "clientUserId must be at most 64 characters")
-        String clientUserId
+        String clientUserId,
+        Long merchantId
 ) {
 
     public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
                                       Double distanceKm, Integer estimatedMinutes, String status) {
         this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
                                       Double distanceKm, Integer estimatedMinutes, String status,
                                       String receptionMode) {
         this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, receptionMode,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     public CreateDeliveryRouteRequest(Long orderId, String pickupAddress, String deliveryAddress,
                                       Double distanceKm, Integer estimatedMinutes, String status,
                                       String receptionMode, String commune) {
         this(orderId, pickupAddress, deliveryAddress, distanceKm, estimatedMinutes, status, receptionMode,
-                commune, null, null, null);
+                commune, null, null, null, null);
     }
 }

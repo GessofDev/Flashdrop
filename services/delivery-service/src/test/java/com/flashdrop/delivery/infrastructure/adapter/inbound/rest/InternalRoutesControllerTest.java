@@ -95,6 +95,37 @@ class InternalRoutesControllerTest {
         }
 
         @Test
+        @DisplayName("merchantId is stored on the route and exposed in RouteResponse")
+        void createRoute_withMerchantId_persistsAndExposesMerchantId() throws Exception {
+            when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> {
+                DeliveryRoute r = inv.getArgument(0);
+                r.setId(55L);
+                return r;
+            });
+
+            String body = """
+                {
+                  "orderId": 1002,
+                  "pickupAddress": "Pickup A",
+                  "deliveryAddress": "Delivery B",
+                  "distanceKm": 3.5,
+                  "estimatedMinutes": 20,
+                  "status": "Pendiente",
+                  "merchantId": 88
+                }
+                """;
+
+            mockMvc.perform(post("/api/internal/routes")
+                            .header(INTERNAL_KEY_HEADER, VALID_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.id").value(55))
+                    .andExpect(jsonPath("$.data.merchantId").value(88));
+        }
+
+        @Test
         @DisplayName("receptionMode SEGURO is stored on the route and exposed as deliveryPinRequired")
         void createRoute_seguro_exposesDeliveryPinRequired() throws Exception {
             when(routeRepository.save(any(DeliveryRoute.class))).thenAnswer(inv -> {
