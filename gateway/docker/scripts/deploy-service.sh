@@ -74,6 +74,26 @@ wait_for_health() {
   return 1
 }
 
+# print_health_diagnostics — says why the service is not healthy.
+#
+# A health check that only says "timed out" leaves the diagnosis to whoever
+# reads the log. The body of the health endpoint names the indicator that is
+# down (a database, a cache), the state of the container says whether the
+# service crashed or is running, and its log says why.
+print_health_diagnostics() {
+  log "the health endpoint answered:"
+  curl -s --max-time 5 "$HEALTH_URL" 2>&1 | head -c 2000 || true
+  printf '\n'
+  if [ -n "$SERVICE_CONTAINER" ]; then
+    log "the state of the container $SERVICE_CONTAINER:"
+    docker inspect --format \
+      '{{.State.Status}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+      "$SERVICE_CONTAINER" 2>&1 || true
+  fi
+  log "the last lines of the log of $SERVICE_COMPOSE:"
+  compose logs --tail 50 "$SERVICE_COMPOSE" 2>&1 || true
+}
+
 rollback() {
   if [ -z "$PREVIOUS_SHA" ]; then
     log "ROLLBACK SKIPPED: there is no known previous version of $SERVICE"
@@ -86,6 +106,7 @@ rollback() {
   compose up -d --no-deps --build "$SERVICE_COMPOSE" || return 1
   if ! wait_for_health; then
     log "ROLLBACK FAILED: $PREVIOUS_SHA did not become healthy"
+    print_health_diagnostics
     return 1
   fi
   log "rolled $SERVICE back to $PREVIOUS_SHA"
@@ -132,6 +153,18 @@ if [ -n "$SERVICE_PRE_DEPLOY" ]; then
   fi
 fi
 
+# The dependencies (the Redis containers) are started before the service, not
+# with it: the deploy brings up only the service it deploys (`--no-deps`), so
+# a dependency that is not started here is a dependency that does not exist on
+# the server.
+if [ -n "$SERVICE_DEPENDENCIES" ]; then
+  log "starting the dependencies of $SERVICE: $SERVICE_DEPENDENCIES"
+  # shellcheck disable=SC2086  # the dependencies are a list of compose services
+  if ! compose up -d $SERVICE_DEPENDENCIES; then
+    fail "the dependencies of $SERVICE could not be started; the running version was left untouched"
+  fi
+fi
+
 log "rebuilding $SERVICE ($SERVICE_COMPOSE)"
 if ! compose up -d --no-deps --build "$SERVICE_COMPOSE"; then
   log "the container of $SERVICE could not be started"
@@ -141,6 +174,7 @@ fi
 
 if ! wait_for_health; then
   log "the health check of $SERVICE timed out"
+  print_health_diagnostics
   rollback || true
   exit 1
 fi

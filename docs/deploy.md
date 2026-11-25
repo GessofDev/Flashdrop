@@ -44,7 +44,8 @@ rutas, comandos, flags) van en inglés/así están en el código.
    archivos ignorados por git (por ejemplo `gateway/docker/.env` del servidor).
 8. **Hace el trabajo `gateway/docker/scripts/deploy-service.sh`**, que es el
    dueño del deploy en el servidor: aplica las migraciones que el deploy
-   tiene a su cargo, rebuildea el contenedor, espera el health check, verifica
+   tiene a su cargo, levanta las dependencias de infraestructura del
+   servicio, rebuildea el contenedor, espera el health check, verifica
    el esquema y, si algo falla, vuelve a la versión anterior.
 9. **Se registra la versión buena.** El SHA desplegado se escribe en
    `~/.flashdrop-deploy/<servicio>.sha`, que es el punto de partida del
@@ -60,12 +61,13 @@ flowchart TD
   E -->|"sí"| G["SSH al VPS (host key pinneada)"]
   G --> H["git checkout --force --detach SHA<br/>el SHA que probó la CI"]
   H --> I["migrate.sh apply<br/>solo si el deploy es dueño de las migraciones"]
-  I --> J["docker compose up -d --no-deps --build"]
-  J --> K{"health check ok?"}
-  K -->|"sí"| L["migrate.sh verify"]
-  L --> M["SHA guardado en<br/>~/.flashdrop-deploy/servicio.sha"]
-  K -->|"no"| N["rollback: SHA anterior + rebuild + health"]
-  L -->|"falta una migración"| N
+  I --> J2["docker compose up -d (dependencias)<br/>Redis y demás infraestructura"]
+  J2 --> K["docker compose up -d --no-deps --build"]
+  K --> L{"health check ok?"}
+  L -->|"sí"| M["migrate.sh verify"]
+  M --> N["SHA guardado en<br/>~/.flashdrop-deploy/servicio.sha"]
+  L -->|"no"| O["diagnóstico: health + estado + logs<br/>rollback: SHA anterior + rebuild + health"]
+  M -->|"falta una migración"| O
 ```
 
 ### Configuración por servicio
@@ -73,19 +75,42 @@ flowchart TD
 Los valores vienen de los callers (`.github/workflows/<servicio>-cd.yml`) y de
 `gateway/docker/scripts/deploy-services.conf`:
 
-| Servicio | Compose service | Health URL | Migraciones | Dueño | Esquema |
-| --- | --- | --- | --- | --- | --- |
-| auth | `auth-service` | `http://127.0.0.1:8081/actuator/health` | `services/auth-service/src/main/resources/db/migration` | la app | `public` |
-| catalog | `catalog-service` | `http://127.0.0.1:8082/actuator/health` | `services/catalog-service/src/main/resources/db/migration` | la app | `public` |
-| delivery | `delivery-service` | `http://127.0.0.1:8084/actuator/health` | `services/delivery-service/src/main/resources/db/migration` | la app | `internal` |
-| orders | `orders-service` | `http://127.0.0.1:8083/actuator/health` | `services/orders-service/src/main/resources/db/migration` | el deploy | `public` |
-| gateway | `gateway` | `http://127.0.0.1:3000/health` | — | — | — |
+| Servicio | Compose service | Health URL | Migraciones | Dueño | Esquema | Dependencias |
+| --- | --- | --- | --- | --- | --- | --- |
+| auth | `auth-service` | `http://127.0.0.1:8081/actuator/health` | `services/auth-service/src/main/resources/db/migration` | la app | `public` | — |
+| catalog | `catalog-service` | `http://127.0.0.1:8082/actuator/health` | `services/catalog-service/src/main/resources/db/migration` | la app | `public` | — |
+| delivery | `delivery-service` | `http://127.0.0.1:8084/actuator/health` | `services/delivery-service/src/main/resources/db/migration` | la app | `internal` | `redis-delivery` |
+| orders | `orders-service` | `http://127.0.0.1:8083/actuator/health` | `services/orders-service/src/main/resources/db/migration` | el deploy | `public` | — |
+| gateway | `gateway` | `http://127.0.0.1:3000/health` | — | — | — | `redis-cache` |
 
 El gateway no tiene base de datos: no tiene migraciones que aplicar ni que
 verificar. Catalog además tiene un *pre-deploy*:
 `bash infra/demo-images/upload.sh`, que sube los assets de demo antes de
 levantar el contenedor, porque su migración `V4__set_demo_product_images.sql`
 apunta a objetos que tienen que existir ya.
+
+#### Dependencias de infraestructura
+
+El deploy levanta **solo el servicio que despliega** (`--no-deps`), así que
+los contenedores de infraestructura que el servicio necesita (Redis) no se
+levantan con él. Por eso cada servicio declara sus dependencias en
+`deploy-services.conf` (última columna) y el deploy las levanta antes de
+rebuildear:
+
+```text
+docker compose up -d redis-delivery
+```
+
+Una dependencia que nadie levanta es una dependencia que no existe en el
+servidor, y el servicio que la necesita nunca queda sano. Ese es el modo de
+falla que se dio con `delivery-service` y su `redis-delivery`: el health check
+de Actuator incluye el indicador de Redis, que bajó a `DOWN`, y el deploy
+esperó los 24 intentos sin que el servicio llegara a estar sano.
+
+Cuando se agrega un `depends_on` de infraestructura en
+`docker-compose.stack.yml`, hay que declararlo también acá: el test
+`deploy: every infrastructure dependency of the stack is declared in the
+configuration` falla si se olvida.
 
 ### Qué dispara cada workflow
 
@@ -299,11 +324,15 @@ tráfico contra un esquema incompleto.
 ### Orden real dentro del deploy
 
 ```text
-migraciones (apply)  →  pre-deploy (solo catalog)  →  container arriba  →  health  →  verificación
+migraciones (apply)  →  pre-deploy (solo catalog)  →  dependencias  →
+container arriba  →  health  →  verificación
 ```
 
 Si la migración falla, el deploy corta **antes de tocar el contenedor**: la
 versión que estaba corriendo sigue corriendo y no hay nada que deshacer.
+
+Si una dependencia de infraestructura no levanta, el deploy también corta
+antes de tocar el contenedor.
 
 ---
 
@@ -314,9 +343,16 @@ versión que estaba corriendo sigue corriendo y no hay nada que deshacer.
 | Falla | Qué hace el deploy |
 | --- | --- |
 | La migración no se puede aplicar | Corta antes de tocar el contenedor. La versión anterior sigue corriendo, tal cual |
+| La dependencia de infraestructura no levanta | Corta antes de tocar el contenedor. La versión anterior sigue corriendo, tal cual |
 | El contenedor no levanta (`docker compose up` falla) | Rollback |
-| El health check no pasa | Rollback |
+| El health check no pasa | Diagnóstico y rollback |
 | La verificación del esquema falla | Rollback |
+
+Cuando el health check no pasa, el deploy imprime **por qué** antes de
+volver atrás: el cuerpo de la respuesta de `/actuator/health` (que nombra el
+indicador caído, por ejemplo `redis`), el estado del contenedor (`running`,
+`exited`, su exit code) y las últimas líneas de su log. Con eso, el diagnóstico
+no depende de adivinar.
 
 El rollback consiste en: `git checkout --force --detach <sha-anterior>`,
 rebuildear y volver a levantar el contenedor con

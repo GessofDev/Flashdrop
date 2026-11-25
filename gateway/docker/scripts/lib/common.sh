@@ -50,17 +50,18 @@ service_config() {
   SERVICE_MIGRATION_DIR=""
   SERVICE_FLYWAY_SCHEMA=""
   SERVICE_PRE_DEPLOY=""
+  SERVICE_DEPENDENCIES=""
 
   [ -f "$CONFIG_FILE" ] || fail "service configuration not found: $CONFIG_FILE"
   line="$(awk -F'|' -v id="$id" '$1 == id { print; exit }' "$CONFIG_FILE")"
   [ -n "$line" ] || return 0
 
   # shellcheck disable=SC2034  # MIGRATION_OWNER, SERVICE_MIGRATION_DIR,
-  # SERVICE_FLYWAY_SCHEMA and SERVICE_PRE_DEPLOY are read by deploy-service.sh
-  # and migrate.sh.
+  # SERVICE_FLYWAY_SCHEMA, SERVICE_PRE_DEPLOY and SERVICE_DEPENDENCIES are read
+  # by deploy-service.sh and migrate.sh.
   IFS='|' read -r _ SERVICE_COMPOSE SERVICE_CONTAINER MIGRATION_OWNER DB_KIND \
     DB_USER_ENV DB_PASS_ENV SERVICE_MIGRATION_DIR SERVICE_FLYWAY_SCHEMA \
-    SERVICE_PRE_DEPLOY <<< "$line"
+    SERVICE_PRE_DEPLOY SERVICE_DEPENDENCIES <<< "$line"
 }
 
 # compose <args...> — runs docker compose against the stack file.
