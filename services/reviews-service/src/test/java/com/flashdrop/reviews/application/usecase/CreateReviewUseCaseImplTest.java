@@ -217,7 +217,7 @@ class CreateReviewUseCaseImplTest {
         @DisplayName("TC9: el dueño de la tienda puede calificar al repartidor de su orden")
         void storeOwnerCanRateTheCourier() {
             givenOrder(deliveredOrder());
-            when(restaurantLookup.findRestaurantIdByOwner(CLIENT_ID)).thenReturn(Optional.of(RESTAURANT_ID));
+            when(restaurantLookup.checkRestaurantMembership(CLIENT_ID, RESTAURANT_ID)).thenReturn(true);
             givenNoExistingReview();
             givenSavedReview();
 
@@ -230,11 +230,34 @@ class CreateReviewUseCaseImplTest {
         @DisplayName("TC10: el dueño de otra tienda no puede calificar en esta orden (403)")
         void ownerOfAnotherStoreIsRejected() {
             givenOrder(deliveredOrder());
-            when(restaurantLookup.findRestaurantIdByOwner(CLIENT_ID)).thenReturn(Optional.of(999L));
+            when(restaurantLookup.checkRestaurantMembership(CLIENT_ID, RESTAURANT_ID)).thenReturn(false);
 
             assertThatThrownBy(() -> useCase.execute(command("REPARTIDOR", 3, Set.of(AuthorRole.RESTAURANTE))))
                     .isInstanceOf(ReviewForbiddenException.class);
             verify(reviewRepository, never()).save(any(Review.class));
+        }
+
+        @Test
+        @DisplayName("TC10b: el dueño de dos locales puede calificar pedidos de cualquiera de los dos")
+        void twoStoreOwnerCanRateEitherStore() {
+            Long secondRestaurantId = 8L;
+            Long secondOrderId = 502L;
+            OrderSnapshot firstOrder = new OrderSnapshot(ORDER_ID, "ENTREGADO", 99L, RESTAURANT_ID, COURIER_ID);
+            OrderSnapshot secondOrder = new OrderSnapshot(secondOrderId, "ENTREGADO", 99L, secondRestaurantId, COURIER_ID);
+            when(orderLookup.findOrder(ORDER_ID)).thenReturn(firstOrder);
+            when(orderLookup.findOrder(secondOrderId)).thenReturn(secondOrder);
+            when(restaurantLookup.checkRestaurantMembership(CLIENT_ID, RESTAURANT_ID)).thenReturn(true);
+            when(restaurantLookup.checkRestaurantMembership(CLIENT_ID, secondRestaurantId)).thenReturn(true);
+            givenNoExistingReview();
+            givenSavedReview();
+
+            Review firstReview = useCase.execute(
+                    new CreateReviewCommand(ORDER_ID, "REPARTIDOR", 5, "excelente", CLIENT_ID, Set.of(AuthorRole.RESTAURANTE)));
+            Review secondReview = useCase.execute(
+                    new CreateReviewCommand(secondOrderId, "REPARTIDOR", 4, "bien", CLIENT_ID, Set.of(AuthorRole.RESTAURANTE)));
+
+            assertThat(firstReview.getTargetId()).isEqualTo(COURIER_ID);
+            assertThat(secondReview.getTargetId()).isEqualTo(COURIER_ID);
         }
 
         @Test
@@ -250,7 +273,7 @@ class CreateReviewUseCaseImplTest {
                     EnumSet.of(AuthorRole.CLIENTE, AuthorRole.REPARTIDOR, AuthorRole.RESTAURANTE)));
 
             assertThat(review.getTargetId()).isEqualTo(RESTAURANT_ID);
-            verify(restaurantLookup, never()).findRestaurantIdByOwner(anyLong());
+            verify(restaurantLookup, never()).checkRestaurantMembership(anyLong(), anyLong());
         }
 
         @Test

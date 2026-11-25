@@ -67,4 +67,33 @@ public class HttpRestaurantLookupClientAdapter implements RestaurantLookupPort {
             throw new InternalServiceUnavailableException(SERVICE, ex.getMessage(), ex);
         }
     }
+
+    @Override
+    public boolean checkRestaurantMembership(Long userId, Long restaurantId) {
+        if (userId == null || restaurantId == null) {
+            return false;
+        }
+        try {
+            restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/internal/owner/restaurants/{restaurantId}/membership")
+                            .queryParam("userId", userId)
+                            .build(restaurantId))
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (HttpClientErrorException.NotFound ex) {
+            log.debug("catalog-service: el usuario {} no opera el restaurante {}", userId, restaurantId);
+            return false;
+        } catch (RestClientResponseException ex) {
+            log.error("catalog-service devolvio {} para membership userId={} restaurantId={}: {}",
+                    ex.getStatusCode().value(), userId, restaurantId, ex.getResponseBodyAsString());
+            throw new InternalServiceUnavailableException(SERVICE,
+                    "respondio " + ex.getStatusCode().value(), ex);
+        } catch (ResourceAccessException ex) {
+            log.error("catalog-service no responde para membership userId={} restaurantId={}: {}",
+                    userId, restaurantId, ex.getMessage());
+            throw new InternalServiceUnavailableException(SERVICE, ex.getMessage(), ex);
+        }
+    }
 }

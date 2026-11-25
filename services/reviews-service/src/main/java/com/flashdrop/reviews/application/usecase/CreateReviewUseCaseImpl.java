@@ -174,9 +174,10 @@ public class CreateReviewUseCaseImpl implements CreateReviewUseCase {
     }
 
     private boolean ownsRestaurant(OrderSnapshot order, Long authorUserId) {
-        return restaurantLookup.findRestaurantIdByOwner(authorUserId)
-                .map(restaurantId -> restaurantId.equals(order.restaurantId()))
-                .orElse(false);
+        if (authorUserId == null || order.restaurantId() == null) {
+            return false;
+        }
+        return restaurantLookup.checkRestaurantMembership(authorUserId, order.restaurantId());
     }
 
     /**

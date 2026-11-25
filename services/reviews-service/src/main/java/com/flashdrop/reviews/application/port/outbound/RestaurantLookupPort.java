@@ -20,4 +20,14 @@ public interface RestaurantLookupPort {
      * @return el id del restaurante (catalog) del dueño, o vacío si no tiene ninguno.
      */
     Optional<Long> findRestaurantIdByOwner(Long ownerUserId);
+
+    /**
+     * Verifica si el usuario opera el restaurante indicado (dueño o encargado
+     * del merchant al que pertenece el local).
+     *
+     * @param userId id de usuario (auth).
+     * @param restaurantId id del restaurante (catalog).
+     * @return {@code true} si el usuario opera ese local, {@code false} en caso contrario.
+     */
+    boolean checkRestaurantMembership(Long userId, Long restaurantId);
 }

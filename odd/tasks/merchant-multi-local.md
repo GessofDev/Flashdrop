@@ -162,11 +162,12 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
 - **WU-4** — T4: `owner/restaurants` + `membership` + `merchantId` en
   `InternalRestaurantResponse` (203/203 tests verdes). *Riesgo bajo.*
 - **WU-5** — T5: `orders-service` a pertenencia (IDOR, scopes, ventas, borrado de
-  cuenta) + `merchantId` en el snapshot de pickup (`.\mvnw.cmd test` 600/600
-  verdes; `gentle-ai-verify` no disponible). *Riesgo **alto** — commit propio.*
-- **WU-6** — T6: `delivery-service` — `merchant_id` en `delivery_routes`.
-  *Riesgo medio.*
-- **WU-7** — T7: `reviews-service` a pertenencia. *Riesgo bajo.*
+  cuenta) + `merchantId` en el snapshot de pickup (`e80ae17`). *Riesgo **alto** — commit propio.*
+- **WU-6** — T6: `delivery-service` — `merchant_id` en `delivery_routes`
+  (`V11__add_route_merchant_id.sql`, `DeliveryMigrationIT` 3/3 y
+  `JpaRouteRepositoryIT` 16/16 verdes). *Riesgo medio.*
+- **WU-7** — T7: `reviews-service` a pertenencia (`CreateReviewUseCaseImplTest`
+  y `HttpRestaurantLookupClientAdapterContractTest`, 98/98 verdes). *Riesgo bajo.*
 - **WU-8** — T8: selector de local en el panel web. *Riesgo bajo.*
 - **WU-9** — T9: `V14` (drop del `UNIQUE`) + retiro de los guards
   `OwnerAlreadyAssigned`. *Riesgo **alto** — commit propio, único punto
@@ -264,4 +265,17 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   `DeliveryHttpClientAdapter.saveRoute`. Verificado con `.\mvnw.cmd test` (JDK 21):
   600 tests, 0 fallos, 0 errores, 0 skipped (incluye
   `CatalogHttpClientAdapterContractTest` con `MockRestServiceServer`).
-  `gentle-ai-verify` reportado como no disponible.
+  `gentle-ai-verify` reportado como no disponible. Commit `e80ae17`.
+- **L18** (WU-6): agregada columna nullable `merchant_id` en `internal.delivery_routes`
+  (`V11__add_route_merchant_id.sql`) y propagada en `DeliveryRoute`,
+  `DeliveryRouteJpaEntity`, `CreateDeliveryRouteRequest`, `RouteResponse`,
+  `JpaRouteRepositoryAdapter`, `InternalRoutesController`,
+  `ListDeliveryRoutesUseCaseImpl` y `UpdateRouteStatusUseCaseImpl`. Verificado
+  con `.\gradlew.bat :delivery-service:test --no-daemon` (BUILD SUCCESSFUL,
+  `DeliveryMigrationIT` 3/3 y `JpaRouteRepositoryIT` 16/16).
+- **L19** (WU-7): migrado `reviews-service` (`RestaurantLookupPort`,
+  `HttpRestaurantLookupClientAdapter.checkRestaurantMembership`,
+  `CreateReviewUseCaseImpl.ownsRestaurant`) al endpoint de membership de
+  `catalog-service` (`204`/`404`, fail-closed 503 en error). Verificado con
+  `.\gradlew.bat :reviews-service:test --no-daemon` (98/98 tests verdes,
+  incluyendo `HttpRestaurantLookupClientAdapterContractTest` con `MockRestServiceServer`).
