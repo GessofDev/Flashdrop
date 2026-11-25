@@ -7,6 +7,7 @@ import cl.flashdrop.orders.application.usecase.ListOrdersUseCase;
 import cl.flashdrop.orders.application.usecase.UpdateOrderStatusUseCase;
 import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.model.Order;
+import cl.flashdrop.orders.domain.model.DeliveryInfo;
 import cl.flashdrop.orders.domain.model.OrderStatus;
 import cl.flashdrop.orders.domain.model.PaymentMethod;
 import cl.flashdrop.orders.domain.model.Role;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -75,6 +78,62 @@ class OrderControllerOwnershipTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 String.valueOf(USER_ID), null,
                 Arrays.stream(roles).map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList()));
+    }
+
+    private Order storeOrder(OrderStatus status, UUID deliveryId) {
+        return Order.builder().id(ORDER_ID).clientId(IdConverter.toUuid(10L))
+                .restaurantId(IdConverter.toUuid(20L)).status(status).address("Direccion QA")
+                .paymentMethod(PaymentMethod.TARJETA).deliveryId(deliveryId).build();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OrderStatus.class, names = {"LISTO_PARA_RETIRO", "RETIRADO", "EN_CAMINO"})
+    void listOrders_assignedCourierWithoutProfile_exposesStoredAssignment(OrderStatus orderStatus) throws Exception {
+        autenticadoComo("Restaurante");
+        UUID deliveryId = IdConverter.toUuid(12L);
+        Order assigned = storeOrder(orderStatus, deliveryId);
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE))).thenReturn(List.of(assigned));
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].deliveryId").value(deliveryId.toString()))
+                .andExpect(jsonPath("$.data[0].status").value(orderStatus.getValue()));
+    }
+
+    @Test
+    void listOrders_staleCourierProfile_preservesStoredAssignment() throws Exception {
+        autenticadoComo("Restaurante");
+        UUID deliveryId = IdConverter.toUuid(12L);
+        Order assigned = storeOrder(OrderStatus.LISTO_PARA_RETIRO, deliveryId);
+        assigned.setDeliveryInfo(DeliveryInfo.builder().deliveryId(IdConverter.toUuid(99L)).build());
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE))).thenReturn(List.of(assigned));
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].deliveryId").value(deliveryId.toString()));
+    }
+
+    @Test
+    void listOrders_unassignedOrder_exposesNoAssignment() throws Exception {
+        autenticadoComo("Restaurante");
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE)))
+                .thenReturn(List.of(storeOrder(OrderStatus.LISTO_PARA_RETIRO, null)));
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].deliveryId").isEmpty());
+    }
+
+    @Test
+    void listOrders_releasedOrderWithStaleProfile_doesNotInventAssignment() throws Exception {
+        autenticadoComo("Restaurante");
+        Order released = storeOrder(OrderStatus.LISTO_PARA_RETIRO, null);
+        released.setDeliveryInfo(DeliveryInfo.builder().deliveryId(IdConverter.toUuid(12L)).build());
+        when(listOrdersUseCase.execute(USER_UUID, Set.of(Role.RESTAURANTE))).thenReturn(List.of(released));
+
+        mockMvc.perform(get("/api/orders").param("view", "restaurant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].deliveryId").isEmpty());
     }
 
     /** F5: el cliente eliminado no existe mas; la lista no muestra ningun nombre sustituto. */
