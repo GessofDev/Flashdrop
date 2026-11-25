@@ -2,26 +2,30 @@ package com.flashdrop.catalog.application.usecase;
 
 import org.springframework.stereotype.Service;
 
-import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
+import com.flashdrop.catalog.application.port.outbound.MerchantMemberRepositoryPort;
 
 /**
- * Eliminacion de cuenta (F5): el dueno deja de estar vinculado a su restaurante y este queda cerrado,
- * pero el restaurante y su catalogo se conservan para poder asignarlo a otro dueno. Idempotente.
+ * Account deletion (FR-15): removes the user's memberships in merchant_members while preserving
+ * the merchant, its stores, and its catalog even if the merchant now has zero members. Idempotent.
  */
 @Service
 public class EraseRestaurantOwnerUseCase {
 
-    private final RestaurantRepositoryPort restaurants;
+    private final MerchantMemberRepositoryPort merchantMembers;
 
-    public EraseRestaurantOwnerUseCase(RestaurantRepositoryPort restaurants) {
-        this.restaurants = restaurants;
+    public EraseRestaurantOwnerUseCase(MerchantMemberRepositoryPort merchantMembers) {
+        this.merchantMembers = merchantMembers;
     }
 
-    /** @return true si el usuario tenia un restaurante y se desvinculo; false si no habia nada que hacer. */
+    /** @return true if the user had at least one merchant membership that was deleted; false otherwise. */
     public boolean execute(Long userId) {
         if (userId == null || userId <= 0) {
             throw new IllegalArgumentException("userId debe ser positivo");
         }
-        return restaurants.clearOwner(userId).isPresent();
+        if (merchantMembers.findByUserId(userId).isEmpty()) {
+            return false;
+        }
+        merchantMembers.deleteByUserId(userId);
+        return true;
     }
 }

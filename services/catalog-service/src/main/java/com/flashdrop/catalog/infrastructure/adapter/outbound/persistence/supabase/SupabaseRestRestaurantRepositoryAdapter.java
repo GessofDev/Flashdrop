@@ -9,7 +9,6 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -76,43 +75,6 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
     }
 
     @Override
-    public Optional<Restaurant> findByUserId(Long userId) {
-        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
-                .path("/rest/v1/restaurant")
-                .queryParam("select", RESTAURANT_SELECT)
-                .queryParam("user_id", "eq." + userId)
-                .queryParam("limit", 1)
-                .build()
-                .toUriString();
-
-        return fetchRestaurants(url).stream()
-                .findFirst()
-                .map(RestaurantRow::toDomain);
-    }
-
-    @Override
-    public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
-        String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl)
-                .path("/rest/v1/restaurant")
-                .queryParam("id", "eq." + restaurantId)
-                .build()
-                .toUriString();
-
-        RestaurantRow[] rows = restClient.patch()
-                .uri(url)
-                .header("Prefer", "return=representation")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new AssignOwnerRequest(userId))
-                .retrieve()
-                .body(RestaurantRow[].class);
-
-        if (rows == null || rows.length == 0) {
-            return Optional.empty();
-        }
-        return Optional.of(rows[0].toDomain());
-    }
-
-    @Override
     public List<Restaurant> findByMerchantIds(Collection<Long> merchantIds) {
         throw new UnsupportedOperationException("La consulta por merchant requiere el perfil postgres");
     }
@@ -123,21 +85,15 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
     }
 
     @Override
-    public Restaurant createInMerchant(String name, String address, Long ownerUserId, Long merchantId,
+    public Restaurant createInMerchant(String name, String address, Long merchantId,
                                        boolean acceptingOrders, BigDecimal latitude, BigDecimal longitude,
                                        BigDecimal deliveryRadiusKm) {
         throw new UnsupportedOperationException("El alta de locales requiere el perfil postgres");
     }
 
-    // Perfil legado: la eliminacion de cuenta requiere el perfil postgres.
-    @Override
-    public Optional<Restaurant> clearOwner(Long userId) {
-        throw new UnsupportedOperationException("La eliminacion de cuenta requiere el perfil postgres");
-    }
-
     // Perfil legado: el alta administrativa requiere el perfil postgres.
     @Override
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+    public Restaurant create(String name, String address, boolean acceptingOrders,
                              BigDecimal latitude, BigDecimal longitude) {
         throw new UnsupportedOperationException("El alta de locales requiere el perfil postgres");
     }
@@ -193,8 +149,5 @@ public class SupabaseRestRestaurantRepositoryAdapter implements RestaurantReposi
                     createdAt == null ? null : createdAt.toLocalDateTime()
             );
         }
-    }
-
-    private record AssignOwnerRequest(@JsonProperty("user_id") Long userId) {
     }
 }

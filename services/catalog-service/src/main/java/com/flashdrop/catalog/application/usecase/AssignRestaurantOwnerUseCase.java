@@ -37,13 +37,11 @@ public class AssignRestaurantOwnerUseCase {
 
         if (restaurant.getMerchantId() != null) {
             merchantMembers.addMember(restaurant.getMerchantId(), userId, MerchantRole.DUEÑO);
-        } else {
-            Long merchantId = MerchantOwnershipSupport.resolveOrCreateMerchantId(
-                    restaurants, merchants, merchantMembers, userId, restaurant.getName());
-            restaurants.assignMerchant(restaurant.getId(), merchantId);
+            return restaurant;
         }
-
-        return restaurants.assignOwner(restaurant.getId(), userId)
+        Long merchantId = MerchantOwnershipSupport.resolveOrCreateMerchantId(
+                merchants, merchantMembers, userId, restaurant.getName());
+        return restaurants.assignMerchant(restaurant.getId(), merchantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Restaurant not found with id: " + restaurantId));
     }

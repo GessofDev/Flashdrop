@@ -77,7 +77,7 @@ class JpaProductRepositoryAdapterIT {
     @BeforeEach
     void setUp() {
         jdbc.update("insert into categories (id, name) values (10, 'Category A'), (20, 'Category B')");
-        jdbc.update("insert into restaurant (id, user_id, name) values (100, 1, 'Store A'), (200, 2, 'Store B')");
+        jdbc.update("insert into restaurant (id, name) values (100, 'Store A'), (200, 'Store B')");
         activeProduct = saveProduct(10L, 100L, "active-a", true);
         saveProduct(10L, 100L, "inactive-a", false);
         saveProduct(20L, 100L, "active-b", true);

@@ -20,9 +20,9 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepositoryPort {
 
     private final List<Restaurant> restaurants = new ArrayList<>(List.of(
-            new Restaurant(1L, 1L, 1L, "Flash Restaurant Demo", "Av. Providencia 1200, Santiago",
+            new Restaurant(1L, null, 1L, "Flash Restaurant Demo", "Av. Providencia 1200, Santiago",
                     LocalDateTime.now(), true, List.of(), null, null, null),
-            new Restaurant(2L, 2L, 2L, "Urban Burger Demo", "Los Leones 850, Santiago",
+            new Restaurant(2L, null, 2L, "Urban Burger Demo", "Los Leones 850, Santiago",
                     LocalDateTime.now(), true, List.of(), null, null, null)
     ));
 
@@ -45,13 +45,6 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     }
 
     @Override
-    public Optional<Restaurant> findByUserId(Long userId) {
-        return restaurants.stream()
-                .filter(restaurant -> java.util.Objects.equals(restaurant.getUserId(), userId))
-                .findFirst();
-    }
-
-    @Override
     public List<Restaurant> findByMerchantIds(Collection<Long> merchantIds) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -63,14 +56,6 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     }
 
     @Override
-    public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
-        return replace(restaurantId, restaurant -> new Restaurant(
-                restaurant.getId(), userId, restaurant.getMerchantId(), restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), restaurant.isAcceptingOrders(), restaurant.getHours(),
-                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm()));
-    }
-
-    @Override
     public Optional<Restaurant> assignMerchant(Long restaurantId, Long merchantId) {
         return replace(restaurantId, restaurant -> new Restaurant(
                 restaurant.getId(), restaurant.getUserId(), merchantId, restaurant.getName(), restaurant.getAddress(),
@@ -79,25 +64,17 @@ public class InMemoryRestaurantRepositoryAdapter implements RestaurantRepository
     }
 
     @Override
-    public Optional<Restaurant> clearOwner(Long userId) {
-        return findByUserId(userId).flatMap(owned -> replace(owned.getId(), restaurant -> new Restaurant(
-                restaurant.getId(), null, restaurant.getMerchantId(), restaurant.getName(), restaurant.getAddress(),
-                restaurant.getCreatedAt(), false, restaurant.getHours(),
-                restaurant.getLatitude(), restaurant.getLongitude(), restaurant.getDeliveryRadiusKm())));
-    }
-
-    @Override
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+    public Restaurant create(String name, String address, boolean acceptingOrders,
                              BigDecimal latitude, BigDecimal longitude) {
-        return createInMerchant(name, address, ownerUserId, null, acceptingOrders, latitude, longitude, null);
+        return createInMerchant(name, address, null, acceptingOrders, latitude, longitude, null);
     }
 
     @Override
-    public Restaurant createInMerchant(String name, String address, Long ownerUserId, Long merchantId,
+    public Restaurant createInMerchant(String name, String address, Long merchantId,
                                        boolean acceptingOrders, BigDecimal latitude, BigDecimal longitude,
                                        BigDecimal deliveryRadiusKm) {
         long nextId = restaurants.stream().mapToLong(Restaurant::getId).max().orElse(0L) + 1;
-        Restaurant created = new Restaurant(nextId, ownerUserId, merchantId, name, address, LocalDateTime.now(),
+        Restaurant created = new Restaurant(nextId, null, merchantId, name, address, LocalDateTime.now(),
                 acceptingOrders, List.of(), latitude, longitude, deliveryRadiusKm);
         restaurants.add(created);
         return created;

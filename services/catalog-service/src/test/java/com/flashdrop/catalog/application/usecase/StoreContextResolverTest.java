@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,6 @@ class StoreContextResolverTest {
         when(merchantMembers.findByUserId(1L))
                 .thenReturn(List.of(new MerchantMember(1L, 5L, 1L, MerchantRole.DUEÑO, LocalDateTime.now())));
         when(restaurants.findByMerchantIds(List.of(5L))).thenReturn(List.of(s1, s2));
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.of(s1));
         when(restaurants.existsById(11L)).thenReturn(true);
 
         Restaurant resolved = resolver.resolveActiveStore(1L, "11");
@@ -60,7 +58,6 @@ class StoreContextResolverTest {
         when(merchantMembers.findByUserId(1L))
                 .thenReturn(List.of(new MerchantMember(1L, 5L, 1L, MerchantRole.DUEÑO, LocalDateTime.now())));
         when(restaurants.findByMerchantIds(List.of(5L))).thenReturn(List.of(s1));
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.of(s1));
         when(restaurants.existsById(99L)).thenReturn(true);
 
         assertThrows(OwnershipAccessDeniedException.class,
@@ -70,7 +67,6 @@ class StoreContextResolverTest {
     @Test
     void resolveActiveStore_headerPresentAndMissingStore_throwsResourceNotFound() {
         when(merchantMembers.findByUserId(1L)).thenReturn(List.of());
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.empty());
         when(restaurants.existsById(999L)).thenReturn(false);
 
         assertThrows(ResourceNotFoundException.class,
@@ -80,7 +76,6 @@ class StoreContextResolverTest {
     @Test
     void resolveActiveStore_headerInvalidNumber_throwsIllegalArgument() {
         when(merchantMembers.findByUserId(1L)).thenReturn(List.of());
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
                 () -> resolver.resolveActiveStore(1L, "not-a-number"));
@@ -92,7 +87,6 @@ class StoreContextResolverTest {
         when(merchantMembers.findByUserId(1L))
                 .thenReturn(List.of(new MerchantMember(1L, 5L, 1L, MerchantRole.ENCARGADO, LocalDateTime.now())));
         when(restaurants.findByMerchantIds(List.of(5L))).thenReturn(List.of(s1));
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.empty());
 
         Restaurant resolved = resolver.resolveActiveStore(1L, null);
 
@@ -106,7 +100,6 @@ class StoreContextResolverTest {
         when(merchantMembers.findByUserId(1L))
                 .thenReturn(List.of(new MerchantMember(1L, 5L, 1L, MerchantRole.DUEÑO, LocalDateTime.now())));
         when(restaurants.findByMerchantIds(List.of(5L))).thenReturn(List.of(s1, s2));
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.of(s1));
 
         LocalContextRequiredException exception = assertThrows(
                 LocalContextRequiredException.class,
@@ -118,21 +111,17 @@ class StoreContextResolverTest {
     @Test
     void resolveActiveStore_headerAbsentAndNoStores_throwsResourceNotFound() {
         when(merchantMembers.findByUserId(99L)).thenReturn(List.of());
-        when(restaurants.findByUserId(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> resolver.resolveActiveStore(99L, null));
     }
 
     @Test
-    void resolveOperableStores_legacyFallbackWithoutMembership_resolvesAndDeduplicates() {
-        Restaurant legacy = store(10L, 1L, null, "Legacy");
+    void resolveOperableStores_withoutMembership_returnsEmptyList() {
         when(merchantMembers.findByUserId(1L)).thenReturn(List.of());
-        when(restaurants.findByUserId(1L)).thenReturn(Optional.of(legacy));
 
         List<Restaurant> result = resolver.resolveOperableStores(1L);
 
-        assertEquals(1, result.size());
-        assertEquals(10L, result.get(0).getId());
+        assertEquals(0, result.size());
     }
 }

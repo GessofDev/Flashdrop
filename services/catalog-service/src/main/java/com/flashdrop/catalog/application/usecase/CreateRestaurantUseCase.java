@@ -47,11 +47,11 @@ public class CreateRestaurantUseCase {
         String trimmedName = name.trim();
         String normalizedAddress = address == null || address.isBlank() ? null : address.trim();
         if (ownerUserId == null) {
-            return restaurants.create(trimmedName, normalizedAddress, null, false, latitude, longitude);
+            return restaurants.create(trimmedName, normalizedAddress, false, latitude, longitude);
         }
         Long merchantId = MerchantOwnershipSupport.resolveOrCreateMerchantId(
-                restaurants, merchants, merchantMembers, ownerUserId, trimmedName);
+                merchants, merchantMembers, ownerUserId, trimmedName);
         return restaurants.createInMerchant(
-                trimmedName, normalizedAddress, ownerUserId, merchantId, false, latitude, longitude, null);
+                trimmedName, normalizedAddress, merchantId, false, latitude, longitude, null);
     }
 }

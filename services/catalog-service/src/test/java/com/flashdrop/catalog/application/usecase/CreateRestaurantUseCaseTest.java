@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
@@ -40,18 +39,17 @@ class CreateRestaurantUseCaseTest {
     @Test
     void execute_withNameAndOwner_autoCreatesMerchantAndClosedRestaurant() {
         when(merchantMembers.findByUserId(5L)).thenReturn(List.of());
-        when(restaurants.findByUserId(5L)).thenReturn(Optional.empty());
         when(merchants.create("Local")).thenReturn(
                 new Merchant(30L, "Local", null, null, null, null, "ACTIVO", LocalDateTime.now(), LocalDateTime.now()));
-        when(restaurants.createInMerchant("Local", "Calle 1", 5L, 30L, false, null, null, null))
-                .thenReturn(stored(5L, 30L));
+        when(restaurants.createInMerchant("Local", "Calle 1", 30L, false, null, null, null))
+                .thenReturn(stored(null, 30L));
 
         Restaurant result = useCase.execute("  Local ", " Calle 1 ", 5L);
 
         assertThat(result.getId()).isEqualTo(9L);
         assertThat(result.getMerchantId()).isEqualTo(30L);
         verify(merchantMembers).addMember(30L, 5L, MerchantRole.DUEÑO);
-        verify(restaurants).createInMerchant("Local", "Calle 1", 5L, 30L, false, null, null, null);
+        verify(restaurants).createInMerchant("Local", "Calle 1", 30L, false, null, null, null);
     }
 
     @Test
@@ -59,22 +57,21 @@ class CreateRestaurantUseCaseTest {
         BigDecimal lat = new BigDecimal("-33.448900");
         BigDecimal lng = new BigDecimal("-70.669300");
         Restaurant saved = new Restaurant(9L, null, "Local", "Calle 1", LocalDateTime.now(), false, List.of(), lat, lng);
-        when(restaurants.create("Local", "Calle 1", null, false, lat, lng)).thenReturn(saved);
+        when(restaurants.create("Local", "Calle 1", false, lat, lng)).thenReturn(saved);
 
         Restaurant result = useCase.execute("Local", "Calle 1", null, lat, lng);
 
         assertThat(result.getLatitude()).isEqualByComparingTo(lat);
         assertThat(result.getLongitude()).isEqualByComparingTo(lng);
-        verify(restaurants).create("Local", "Calle 1", null, false, lat, lng);
+        verify(restaurants).create("Local", "Calle 1", false, lat, lng);
     }
 
     @Test
     void execute_withoutOwner_createsWithoutCheckingOwnership() {
-        when(restaurants.create("Local", null, null, false, null, null)).thenReturn(stored(null, null));
+        when(restaurants.create("Local", null, false, null, null)).thenReturn(stored(null, null));
 
         useCase.execute("Local", "  ", null);
 
-        verify(restaurants, never()).findByUserId(any());
         verify(merchantMembers, never()).findByUserId(any());
     }
 
@@ -82,14 +79,14 @@ class CreateRestaurantUseCaseTest {
     void execute_withHalfCoordinates_isRejected() {
         assertThatThrownBy(() -> useCase.execute("Local", "Calle 1", null, new BigDecimal("-33.45"), null))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
+        verify(restaurants, never()).create(any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
     void execute_withBlankName_isRejected() {
         assertThatThrownBy(() -> useCase.execute("  ", "Calle", null))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
+        verify(restaurants, never()).create(any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -102,13 +99,13 @@ class CreateRestaurantUseCaseTest {
     void execute_whenOwnerAlreadyHasMerchant_createsSecondStoreInSameMerchant() {
         when(merchantMembers.findByUserId(5L)).thenReturn(List.of(
                 new MerchantMember(1L, 30L, 5L, MerchantRole.DUEÑO, LocalDateTime.now())));
-        when(restaurants.createInMerchant("Otro", "Calle", 5L, 30L, false, null, null, null))
-                .thenReturn(stored(5L, 30L));
+        when(restaurants.createInMerchant("Otro", "Calle", 30L, false, null, null, null))
+                .thenReturn(stored(null, 30L));
 
         Restaurant result = useCase.execute("Otro", "Calle", 5L);
 
         assertThat(result.getMerchantId()).isEqualTo(30L);
         verify(merchants, never()).create(any());
-        verify(restaurants).createInMerchant("Otro", "Calle", 5L, 30L, false, null, null, null);
+        verify(restaurants).createInMerchant("Otro", "Calle", 30L, false, null, null, null);
     }
 }

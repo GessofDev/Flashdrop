@@ -48,9 +48,6 @@ public class StoreContextResolver {
             }
         }
 
-        // Dual-read fallback for legacy stores not yet linked via merchant_members.
-        restaurants.findByUserId(userId).ifPresent(store -> byId.putIfAbsent(store.getId(), store));
-
         return List.copyOf(byId.values());
     }
 

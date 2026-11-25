@@ -4,15 +4,13 @@ import java.util.List;
 
 import com.flashdrop.catalog.application.port.outbound.MerchantMemberRepositoryPort;
 import com.flashdrop.catalog.application.port.outbound.MerchantRepositoryPort;
-import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
 import com.flashdrop.catalog.domain.model.Merchant;
 import com.flashdrop.catalog.domain.model.MerchantMember;
 import com.flashdrop.catalog.domain.model.MerchantRole;
-import com.flashdrop.catalog.domain.model.Restaurant;
 
 /**
  * Shared D11 helper: resolves an owner's existing merchant or auto-creates one with a DUEÑO
- * membership, linking any legacy store that lacks a merchant.
+ * membership.
  */
 final class MerchantOwnershipSupport {
 
@@ -20,7 +18,6 @@ final class MerchantOwnershipSupport {
     }
 
     static Long resolveOrCreateMerchantId(
-            RestaurantRepositoryPort restaurants,
             MerchantRepositoryPort merchants,
             MerchantMemberRepositoryPort merchantMembers,
             Long ownerUserId,
@@ -35,18 +32,8 @@ final class MerchantOwnershipSupport {
                     .getMerchantId();
         }
 
-        Restaurant legacyStore = restaurants.findByUserId(ownerUserId).orElse(null);
-        if (legacyStore != null && legacyStore.getMerchantId() != null) {
-            merchantMembers.addMember(legacyStore.getMerchantId(), ownerUserId, MerchantRole.DUEÑO);
-            return legacyStore.getMerchantId();
-        }
-
-        String merchantName = legacyStore != null ? legacyStore.getName() : fallbackMerchantName;
-        Merchant createdMerchant = merchants.create(merchantName);
+        Merchant createdMerchant = merchants.create(fallbackMerchantName);
         merchantMembers.addMember(createdMerchant.getId(), ownerUserId, MerchantRole.DUEÑO);
-        if (legacyStore != null) {
-            restaurants.assignMerchant(legacyStore.getId(), createdMerchant.getId());
-        }
         return createdMerchant.getId();
     }
 }

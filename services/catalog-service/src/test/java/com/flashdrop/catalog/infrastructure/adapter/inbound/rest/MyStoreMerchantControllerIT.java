@@ -102,21 +102,19 @@ class MyStoreMerchantControllerIT {
     }
 
     @Test
-    void createRestaurant_userWithoutMerchant_autoCreatesMerchantAndLinksLegacyStore() throws Exception {
-        Restaurant legacy = restaurantRepository.create("Legacy Store", "Calle Vieja 10", 77L, true, null, null);
-
+    void createRestaurant_userWithoutMerchant_autoCreatesMerchantAndCreatesStore() throws Exception {
         mockMvc.perform(post("/api/catalog/my/restaurants")
                         .with(ownerJwt(77L))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Legacy Sucursal 2\",\"address\":\"Calle Nueva 20\"}"))
+                        .content("{\"name\":\"Nueva Marca Sucursal 1\",\"address\":\"Calle Nueva 20\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.merchantName").value("Legacy Store"))
+                .andExpect(jsonPath("$.merchantName").value("Nueva Marca Sucursal 1"))
                 .andExpect(jsonPath("$.acceptingOrders").value(false));
 
-        Restaurant updatedLegacy = restaurantRepository.findById(legacy.getId()).orElseThrow();
-        assertNotNull(updatedLegacy.getMerchantId());
-        assertEquals(2, restaurantRepository.findByMerchantIds(
-                java.util.List.of(updatedLegacy.getMerchantId())).size());
+        assertEquals(1, merchantMemberRepository.findByUserId(77L).size());
+        Long merchantId = merchantMemberRepository.findByUserId(77L).get(0).getMerchantId();
+        assertNotNull(merchantId);
+        assertEquals(1, restaurantRepository.findByMerchantIds(java.util.List.of(merchantId)).size());
     }
 
     @Test

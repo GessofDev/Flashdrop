@@ -177,7 +177,6 @@ class InternalCatalogControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.userId").value(1))
                 .andExpect(jsonPath("$.merchantId").value(1))
                 .andExpect(jsonPath("$.name").value("Flash Restaurant Demo"))
                 .andExpect(jsonPath("$.address").value("Av. Providencia 1200, Santiago"));
@@ -190,7 +189,6 @@ class InternalCatalogControllerTest {
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(2))
-                .andExpect(jsonPath("$.userId").value(2))
                 .andExpect(jsonPath("$.merchantId").value(2))
                 .andExpect(jsonPath("$.name").value("Urban Burger Demo"));
     }
@@ -221,7 +219,7 @@ class InternalCatalogControllerTest {
                         .content("{\"userId\":42}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.userId").value(42))
+                .andExpect(jsonPath("$.merchantId").value(1))
                 .andExpect(jsonPath("$.name").value("Flash Restaurant Demo"));
 
         mockMvc.perform(get("/api/internal/restaurants")
@@ -239,7 +237,7 @@ class InternalCatalogControllerTest {
                         .content("{\"userId\":2}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.userId").value(2));
+                .andExpect(jsonPath("$.merchantId").value(1));
 
         mockMvc.perform(get("/api/internal/owner/restaurants/1/membership")
                         .param("userId", "2")
@@ -277,7 +275,7 @@ class InternalCatalogControllerTest {
     @Test
     void ownerRestaurantsReturnsAllOperableStoresWithMerchantId() throws Exception {
         Restaurant branch = restaurantRepository.createInMerchant(
-                "Flash Sucursal Norte", "Av. Kennedy 300", null, 1L, true, null, null, null);
+                "Flash Sucursal Norte", "Av. Kennedy 300", 1L, true, null, null, null);
 
         mockMvc.perform(get("/api/internal/owner/restaurants")
                         .param("userId", "1")
@@ -303,7 +301,7 @@ class InternalCatalogControllerTest {
     @Test
     void membershipReturnsNoContentForOperableStoreAndNotFoundOtherwise() throws Exception {
         Restaurant branch = restaurantRepository.createInMerchant(
-                "Flash Sucursal Norte", "Av. Kennedy 300", null, 1L, true, null, null, null);
+                "Flash Sucursal Norte", "Av. Kennedy 300", 1L, true, null, null, null);
         merchantMemberRepository.addMember(1L, 50L, MerchantRole.ENCARGADO);
 
         // Owner operates both primary and branch store

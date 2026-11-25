@@ -66,22 +66,13 @@ public class MyStoreMerchantController {
     public MerchantResponse getMerchant(@AuthenticationPrincipal Jwt jwt) {
         Long userId = userId(jwt);
         List<MerchantMember> memberships = merchantMemberRepository.findByUserId(userId);
-        if (!memberships.isEmpty()) {
-            MerchantMember member = memberships.get(0);
-            Merchant merchant = merchantRepository.findById(member.getMerchantId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Marca no encontrada"));
-            return MerchantResponse.fromDomain(merchant, member.getRole());
-        }
-
-        // Legacy fallback when store has merchantId without merchant_members row.
-        Restaurant legacyStore = restaurantRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("El usuario no tiene una marca asignada"));
-        if (legacyStore.getMerchantId() == null) {
+        if (memberships.isEmpty()) {
             throw new ResourceNotFoundException("El usuario no tiene una marca asignada");
         }
-        Merchant merchant = merchantRepository.findById(legacyStore.getMerchantId())
+        MerchantMember member = memberships.get(0);
+        Merchant merchant = merchantRepository.findById(member.getMerchantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Marca no encontrada"));
-        return MerchantResponse.fromDomain(merchant, MerchantRole.DUEÑO);
+        return MerchantResponse.fromDomain(merchant, member.getRole());
     }
 
     @GetMapping("/restaurants")
@@ -125,7 +116,6 @@ public class MyStoreMerchantController {
         Restaurant created = restaurantRepository.createInMerchant(
                 request.name().trim(),
                 request.address(),
-                userId,
                 merchant.getId(),
                 false,
                 request.latitude(),
@@ -154,21 +144,9 @@ public class MyStoreMerchantController {
                     .orElseThrow(() -> new ResourceNotFoundException("Marca no encontrada"));
         }
 
-        // Auto-create merchant if user has none (D11), linking any legacy store first.
-        Restaurant legacyStore = restaurantRepository.findByUserId(userId).orElse(null);
-        if (legacyStore != null && legacyStore.getMerchantId() != null) {
-            Merchant existing = merchantRepository.findById(legacyStore.getMerchantId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Marca no encontrada"));
-            merchantMemberRepository.addMember(existing.getId(), userId, MerchantRole.DUEÑO);
-            return existing;
-        }
-
-        String merchantName = legacyStore != null ? legacyStore.getName() : fallbackMerchantName.trim();
-        Merchant createdMerchant = merchantRepository.create(merchantName);
+        // Auto-create merchant if user has none (D11).
+        Merchant createdMerchant = merchantRepository.create(fallbackMerchantName.trim());
         merchantMemberRepository.addMember(createdMerchant.getId(), userId, MerchantRole.DUEÑO);
-        if (legacyStore != null) {
-            restaurantRepository.assignMerchant(legacyStore.getId(), createdMerchant.getId());
-        }
         return createdMerchant;
     }
 

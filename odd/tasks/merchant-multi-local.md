@@ -1,6 +1,6 @@
 # Feature: merchant-multi-local — una marca (merchant) con N locales
 
-> Estado: **en progreso** (WU-1 listo para commit).
+> Estado: **completado** (WU-1..WU-10 implementados y verificados; WU-10 listo para commit).
 > Base: `main` @ `553aaf3`.
 > Rama de trabajo: `feat/merchant-multi-local`.
 > Change folder: `openspec/changes/merchant-multi-local/` (`proposal.md`,
@@ -172,10 +172,9 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
   en gateway (`apps/web` typecheck + 352 tests y `gateway` 355 unit tests
   verdes). *Riesgo bajo.*
 - **WU-9** — T9: `V14` (drop del `UNIQUE`) + retiro de los guards
-  `OwnerAlreadyAssigned` (`V14__drop_restaurant_user_id_unique.sql` con ambos
-  pre-checks `DO $$`, `MerchantOwnershipSupport`, 208/208 tests verdes).
-  *Riesgo **alto** — commit propio, único punto irreversible.*
-- **WU-10** — T10: fase 4, deprecar `restaurant.user_id`. *Riesgo medio.*
+  `OwnerAlreadyAssigned` (`e70b8d4`). *Riesgo **alto** — commit propio, único punto irreversible.*
+- **WU-10** — T10: fase 4, deprecar `restaurant.user_id` (`V15__drop_restaurant_user_id.sql`,
+  `EraseRestaurantOwnerUseCase` sobre `merchant_members`, 39 suites / 208 tests verdes). *Riesgo medio.*
 
 WU-5 y WU-9 van sueltos, cada uno en su propio commit, para que la revisión
 nativa los tome por separado: WU-5 toca autorización (un error ahí es un IDOR)
@@ -298,4 +297,12 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   retirados los guards `OwnerAlreadyAssignedException` en
   `CreateRestaurantUseCase` y `AssignRestaurantOwnerUseCase`. Verificado con
   `.\gradlew.bat test --no-daemon` en `catalog-service`: 208 tests, 0 fallos,
-  0 ignorados (incluye Testcontainers `MerchantMigrationIT`).
+  0 ignorados (incluye Testcontainers `MerchantMigrationIT`). Commit `e70b8d4`.
+- **L22** (WU-10): creada `V15__drop_restaurant_user_id.sql` (drop de
+  `idx_restaurant_user_id` y `restaurant.user_id`), migrado
+  `EraseRestaurantOwnerUseCase` a `MerchantMemberRepositoryPort.deleteByUserId`
+  (preservando merchant, locales y catálogo), `GetRestaurantByUserIdUseCase`
+  resuelto vía `StoreContextResolver`, y removidos `findByUserId` /
+  `assignOwner` / `clearOwner` de `RestaurantRepositoryPort` y adaptadores.
+  Verificado con `.\gradlew.bat test --no-daemon --console=plain` en
+  `catalog-service`: 39 suites, 208 tests, 0 fallos, 0 ignorados.
