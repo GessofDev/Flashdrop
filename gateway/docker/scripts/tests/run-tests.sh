@@ -28,11 +28,29 @@ OUT="$WORK_DIR/output.log"
 mkdir -p "$STATE_DIR"
 
 ORDERS_SHA="1111111111111111111111111111111111111111"
+DELIVERY_SHA="3333333333333333333333333333333333333333"
 PREVIOUS_SHA="2222222222222222222222222222222222222222"
 
 ORDERS_ENV="DB_URL=jdbc:postgresql://172.16.1.2:7002/flashdrop_orders
 DB_USERNAME=orders_app
 DB_PASSWORD=secret"
+
+DELIVERY_ENV="DELIVERY_DB_HOST=172.16.1.2
+DELIVERY_DB_PORT=7005
+DELIVERY_DB_NAME=delivery_db
+DELIVERY_DB_USER=delivery_svc
+DELIVERY_DB_PASSWORD=secret"
+
+# The configuration and the stack that the deploy works with. The paths are
+# resolved without "..": some awk builds refuse to open a file whose path
+# contains it.
+STACK_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
+CONF_FILE="$SCRIPTS_DIR/deploy-services.conf"
+COMPOSE_FILE="$STACK_DIR/docker-compose.stack.yml"
+
+# The services the CD deploys. They are never started as the dependency of
+# another service: a deploy only touches the service it deploys.
+CD_SERVICES="auth-service catalog-service delivery-service reviews-service orders-service gateway"
 
 ALL_MIGRATIONS=""
 MISSING_V4=""
@@ -50,6 +68,47 @@ ALL_MIGRATIONS="${ALL_MIGRATIONS% }"
 v4_version="$(ls "$MIGRATION_DIR" | sed -n 's/^V\([0-9][0-9]*\)__order_delivery_operations\.sql$/\1/p')"
 MISSING_V4="$(printf '%s\n' "$all_versions" | grep -vx "$v4_version" | tr '\n' ' ')"
 MISSING_V4="${MISSING_V4% }"
+
+DELIVERY_MIGRATION_DIR="$SCRIPTS_DIR/../../../services/delivery-service/src/main/resources/db/migration"
+if [ ! -d "$DELIVERY_MIGRATION_DIR" ]; then
+  printf 'the delivery migration directory is missing: %s\n' "$DELIVERY_MIGRATION_DIR" >&2
+  exit 1
+fi
+delivery_versions="$(ls "$DELIVERY_MIGRATION_DIR" | sed -n 's/^V\([0-9][0-9]*\)__.*$/\1/p' | sort -n)"
+DELIVERY_MIGRATIONS="$(printf '%s\n' "$delivery_versions" | tr '\n' ' ')"
+DELIVERY_MIGRATIONS="${DELIVERY_MIGRATIONS% }"
+
+# missing_infrastructure_dependencies — the infrastructure containers that the
+# stack makes a service depend on and that deploy-services.conf does not
+# declare. A dependency that the deploy does not know about is a dependency
+# that never gets started on the VPS, which is how a service ends up running
+# without the container it needs.
+missing_infrastructure_dependencies() {
+  local svc dep deps missing=""
+  while read -r svc dep; do
+    [ -n "$svc" ] || continue
+    # The dependencies are the last column of the configuration.
+    deps="$(awk -F'|' -v svc="$svc" '$2 == svc { print $11 }' "$CONF_FILE")"
+    case " $deps " in
+      *" $dep "*) ;;
+      *) missing="$missing $svc->$dep" ;;
+    esac
+  done < <(
+    awk -v managed="$CD_SERVICES" '
+      BEGIN { n = split(managed, m, " "); for (i = 1; i <= n; i++) is_cd[m[i]] = 1 }
+      /^  [a-z0-9-]+:$/ { svc = substr($0, 3, length($0) - 3); next }
+      /^    depends_on:$/ { in_dep = 1; next }
+      in_dep && /^      [a-z0-9-]+:/ {
+        dep = substr($0, 7, length($0) - 7)
+        if (!(dep in is_cd)) print svc, dep
+        next
+      }
+      in_dep && /^        / { next }
+      in_dep { in_dep = 0 }
+    ' "$COMPOSE_FILE"
+  )
+  printf '%s' "$missing"
+}
 
 PASSED=0
 FAILED=0
@@ -150,11 +209,12 @@ run_deploy() {
   PATH="$BIN_DIR:$PATH" \
     FAKE_LOG="$LOG" \
     FAKE_GIT_STATE="$GIT_STATE" \
-    FAKE_SERVICE_ENV="$ORDERS_ENV" \
+    FAKE_SERVICE_ENV="${FAKE_SERVICE_ENV_OVERRIDE:-$ORDERS_ENV}" \
     FAKE_PSQL_OUT="$FAKE_PSQL_OUT" \
     FAKE_CURL_RC="$FAKE_CURL_RC" \
     FAKE_FLYWAY_RC="$FAKE_FLYWAY_RC" \
     FAKE_COMPOSE_RC="$FAKE_COMPOSE_RC" \
+    DEPLOY_SERVICES_CONF="${DEPLOY_SERVICES_CONF:-$CONF_FILE}" \
     DEPLOY_STATE_DIR="$STATE_DIR" \
     HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-1}" \
     HEALTH_INTERVAL=0 \
@@ -224,6 +284,43 @@ run_deploy --service orders --compose-service orders-service \
 if [ "$?" -ne 0 ]; then pass "the deploy fails"; else failure "the deploy should fail"; fi
 assert_not_contains "the container is not rebuilt" "$LOG" "up -d --no-deps --build orders-service"
 assert_not_contains "no rollback is attempted" "$LOG" "checkout --force --detach $PREVIOUS_SHA"
+
+echo "deploy: the infrastructure dependencies of a service are started before the rebuild"
+FAKE_PSQL_OUT="$DELIVERY_MIGRATIONS"; FAKE_CURL_RC=0; FAKE_FLYWAY_RC=0; FAKE_COMPOSE_RC=0
+printf '%s\n' "$PREVIOUS_SHA" > "$GIT_STATE"
+rm -f "$STATE_DIR/delivery.sha"
+FAKE_SERVICE_ENV_OVERRIDE="$DELIVERY_ENV" \
+  run_deploy --service delivery --compose-service delivery-service \
+    --health-url http://127.0.0.1:8084/actuator/health --sha "$DELIVERY_SHA"
+assert_equals "the deploy succeeds" "0" "$?"
+assert_contains "the dependency container is started" "$LOG" "up -d redis-delivery"
+assert_order "the dependency starts before the container is rebuilt" \
+  "$LOG" "up -d redis-delivery" "up -d --no-deps --build delivery-service"
+assert_equals "the deployed SHA is recorded" "$DELIVERY_SHA" "$(cat "$STATE_DIR/delivery.sha" 2>/dev/null)"
+
+echo "deploy: a service without infrastructure dependencies starts nothing else"
+FAKE_PSQL_OUT="$ALL_MIGRATIONS"; FAKE_CURL_RC=0; FAKE_FLYWAY_RC=0; FAKE_COMPOSE_RC=0
+printf '%s\n' "$PREVIOUS_SHA" > "$GIT_STATE"
+rm -f "$STATE_DIR/orders.sha"
+run_deploy --service orders --compose-service orders-service \
+  --health-url http://127.0.0.1:8083/actuator/health --sha "$ORDERS_SHA"
+assert_equals "the deploy succeeds" "0" "$?"
+assert_not_contains "no other container is started" "$LOG" "up -d redis"
+
+echo "deploy: a failed health check says why the service is not healthy"
+FAKE_PSQL_OUT="$ALL_MIGRATIONS"; FAKE_CURL_RC=1; FAKE_FLYWAY_RC=0; FAKE_COMPOSE_RC=0
+printf '%s\n' "$PREVIOUS_SHA" > "$GIT_STATE"
+printf '%s\n' "$PREVIOUS_SHA" > "$STATE_DIR/orders.sha"
+run_deploy --service orders --compose-service orders-service \
+  --health-url http://127.0.0.1:8083/actuator/health --sha "$ORDERS_SHA"
+if [ "$?" -ne 0 ]; then pass "the deploy fails"; else failure "the deploy should fail"; fi
+assert_contains "the health response is printed" "$OUT" "the health endpoint answered"
+assert_contains "the state of the container is printed" "$OUT" "the state of the container"
+assert_contains "the log of the container is printed" "$OUT" "the last lines of the log"
+
+echo "deploy: every infrastructure dependency of the stack is declared in the configuration"
+assert_equals "no dependency of the stack is missing from deploy-services.conf" \
+  "" "$(missing_infrastructure_dependencies)"
 
 echo "migrate: verify accepts a database that has every migration"
 FAKE_PSQL_OUT="$ALL_MIGRATIONS"
