@@ -1,11 +1,14 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -13,19 +16,30 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-/** Verifies V11-V13 merchant schema creation and ownership backfill against real PostgreSQL. */
+/** Verifies V11-V14 merchant schema, backfill, and UNIQUE(user_id) removal against real PostgreSQL. */
 @Testcontainers(disabledWithoutDocker = true)
 class MerchantMigrationIT {
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Test
-    void migrateV11ToV13_backfillsOwnedStoresAndLeavesOrphansNull() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    private DriverManagerDataSource dataSource;
+    private JdbcTemplate jdbc;
 
+    @BeforeEach
+    void setUp() {
+        dataSource = new DriverManagerDataSource(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        jdbc = new JdbcTemplate(dataSource);
+        Flyway.configure()
+                .dataSource(dataSource)
+                .cleanDisabled(false)
+                .load()
+                .clean();
+    }
+
+    @Test
+    void migrateV11ToV14_backfillsOwnedStoresAndDropsUserIdUniqueConstraint() {
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
@@ -72,5 +86,33 @@ class MerchantMigrationIT {
         assertThat(rows.get(0).get("merchant_id")).isNotEqualTo(rows.get(1).get("merchant_id"));
         assertThat(rows.get(0).get("role")).isEqualTo("DUEÑO");
         assertThat(rows.get(1).get("role")).isEqualTo("DUEÑO");
+
+        // V14 dropped UNIQUE(user_id): inserting a second store for user_id 1001 succeeds
+        Long merchantId = ((Number) rows.get(0).get("merchant_id")).longValue();
+        jdbc.update(
+                "insert into public.restaurant (id, user_id, merchant_id, name, address) values (104, 1001, ?, 'Pizza Norte', 'Av. 4')",
+                merchantId);
+        Integer ownerStoreCount = jdbc.queryForObject(
+                "select count(*) from public.restaurant where user_id = 1001", Integer.class);
+        assertThat(ownerStoreCount).isEqualTo(2);
+    }
+
+    @Test
+    void migrateV14_failsPreCheckWhenOwnedStoreHasNullMerchant() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .target("13")
+                .load()
+                .migrate();
+
+        jdbc.update("insert into public.restaurant (id, user_id, merchant_id, name, address) values (201, 2001, null, 'Broken Store', 'Av. 9')");
+
+        assertThatThrownBy(() -> Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .load()
+                .migrate())
+                .isInstanceOf(FlywayException.class);
     }
 }

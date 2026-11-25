@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -17,28 +16,42 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
+import com.flashdrop.catalog.application.port.outbound.MerchantMemberRepositoryPort;
+import com.flashdrop.catalog.application.port.outbound.MerchantRepositoryPort;
 import com.flashdrop.catalog.application.port.outbound.RestaurantRepositoryPort;
-import com.flashdrop.catalog.domain.exception.OwnerAlreadyAssignedException;
+import com.flashdrop.catalog.domain.model.Merchant;
+import com.flashdrop.catalog.domain.model.MerchantMember;
+import com.flashdrop.catalog.domain.model.MerchantRole;
 import com.flashdrop.catalog.domain.model.Restaurant;
 
 class CreateRestaurantUseCaseTest {
 
     private final RestaurantRepositoryPort restaurants = mock(RestaurantRepositoryPort.class);
-    private final CreateRestaurantUseCase useCase = new CreateRestaurantUseCase(restaurants);
+    private final MerchantRepositoryPort merchants = mock(MerchantRepositoryPort.class);
+    private final MerchantMemberRepositoryPort merchantMembers = mock(MerchantMemberRepositoryPort.class);
+    private final CreateRestaurantUseCase useCase = new CreateRestaurantUseCase(
+            restaurants, merchants, merchantMembers);
 
-    private static Restaurant stored(Long owner) {
-        return new Restaurant(9L, owner, "Local", "Calle 1", LocalDateTime.now(), false, List.of());
+    private static Restaurant stored(Long owner, Long merchantId) {
+        return new Restaurant(9L, owner, merchantId, "Local", "Calle 1",
+                LocalDateTime.now(), false, List.of(), null, null, null);
     }
 
     @Test
-    void execute_withNameAndOwner_createsAClosedRestaurant() {
+    void execute_withNameAndOwner_autoCreatesMerchantAndClosedRestaurant() {
+        when(merchantMembers.findByUserId(5L)).thenReturn(List.of());
         when(restaurants.findByUserId(5L)).thenReturn(Optional.empty());
-        when(restaurants.create("Local", "Calle 1", 5L, false, null, null)).thenReturn(stored(5L));
+        when(merchants.create("Local")).thenReturn(
+                new Merchant(30L, "Local", null, null, null, null, "ACTIVO", LocalDateTime.now(), LocalDateTime.now()));
+        when(restaurants.createInMerchant("Local", "Calle 1", 5L, 30L, false, null, null, null))
+                .thenReturn(stored(5L, 30L));
 
         Restaurant result = useCase.execute("  Local ", " Calle 1 ", 5L);
 
         assertThat(result.getId()).isEqualTo(9L);
-        verify(restaurants).create("Local", "Calle 1", 5L, false, null, null);
+        assertThat(result.getMerchantId()).isEqualTo(30L);
+        verify(merchantMembers).addMember(30L, 5L, MerchantRole.DUEÑO);
+        verify(restaurants).createInMerchant("Local", "Calle 1", 5L, 30L, false, null, null, null);
     }
 
     @Test
@@ -56,19 +69,20 @@ class CreateRestaurantUseCaseTest {
     }
 
     @Test
-    void execute_withHalfCoordinates_isRejected() {
-        assertThatThrownBy(() -> useCase.execute("Local", "Calle 1", null, new BigDecimal("-33.45"), null))
-                .isInstanceOf(IllegalArgumentException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
-    }
-
-    @Test
     void execute_withoutOwner_createsWithoutCheckingOwnership() {
-        when(restaurants.create("Local", null, null, false, null, null)).thenReturn(stored(null));
+        when(restaurants.create("Local", null, null, false, null, null)).thenReturn(stored(null, null));
 
         useCase.execute("Local", "  ", null);
 
         verify(restaurants, never()).findByUserId(any());
+        verify(merchantMembers, never()).findByUserId(any());
+    }
+
+    @Test
+    void execute_withHalfCoordinates_isRejected() {
+        assertThatThrownBy(() -> useCase.execute("Local", "Calle 1", null, new BigDecimal("-33.45"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -85,11 +99,16 @@ class CreateRestaurantUseCaseTest {
     }
 
     @Test
-    void execute_whenOwnerAlreadyHasARestaurant_isConflict() {
-        when(restaurants.findByUserId(eq(5L))).thenReturn(Optional.of(stored(5L)));
+    void execute_whenOwnerAlreadyHasMerchant_createsSecondStoreInSameMerchant() {
+        when(merchantMembers.findByUserId(5L)).thenReturn(List.of(
+                new MerchantMember(1L, 30L, 5L, MerchantRole.DUEÑO, LocalDateTime.now())));
+        when(restaurants.createInMerchant("Otro", "Calle", 5L, 30L, false, null, null, null))
+                .thenReturn(stored(5L, 30L));
 
-        assertThatThrownBy(() -> useCase.execute("Otro", "Calle", 5L))
-                .isInstanceOf(OwnerAlreadyAssignedException.class);
-        verify(restaurants, never()).create(any(), any(), any(), anyBoolean(), any(), any());
+        Restaurant result = useCase.execute("Otro", "Calle", 5L);
+
+        assertThat(result.getMerchantId()).isEqualTo(30L);
+        verify(merchants, never()).create(any());
+        verify(restaurants).createInMerchant("Otro", "Calle", 5L, 30L, false, null, null, null);
     }
 }

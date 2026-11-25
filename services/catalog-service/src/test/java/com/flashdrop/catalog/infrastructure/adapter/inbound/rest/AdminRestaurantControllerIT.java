@@ -109,15 +109,21 @@ class AdminRestaurantControllerIT {
     }
 
     @Test
-    void create_withAnOwnerWhoAlreadyHasAStore_isConflict() throws Exception {
+    void create_withAnOwnerWhoAlreadyHasAStore_createsSecondStoreInSameMerchant() throws Exception {
         mockMvc.perform(post("/api/catalog/admin/restaurants").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Otra\",\"ownerUserId\":1}"))
-                .andExpect(status().isConflict());
+                        .content("{\"name\":\"Otra Sucursal\",\"ownerUserId\":1}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Otra Sucursal"))
+                .andExpect(jsonPath("$.ownerUserId").value(1));
+
+        mockMvc.perform(get("/api/catalog/my/restaurants").with(user(1L, "Restaurante")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
-    void assignOwner_toAnOwnerlessStore_works_andUnknownStoreIs404() throws Exception {
+    void assignOwner_toAnOwnerlessStore_worksForNewAndExistingOwners_andUnknownStoreIs404() throws Exception {
         mockMvc.perform(post("/api/catalog/admin/restaurants").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Sin dueno\"}"))
                 .andExpect(status().isCreated())
@@ -131,8 +137,11 @@ class AdminRestaurantControllerIT {
         mockMvc.perform(put("/api/catalog/admin/restaurants/999/owner").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":61}"))
                 .andExpect(status().isNotFound());
+
+        // Assigning an owner who already owns another store succeeds without OwnerAlreadyAssignedException
         mockMvc.perform(put("/api/catalog/admin/restaurants/3/owner").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":1}"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ownerUserId").value(1));
     }
 }

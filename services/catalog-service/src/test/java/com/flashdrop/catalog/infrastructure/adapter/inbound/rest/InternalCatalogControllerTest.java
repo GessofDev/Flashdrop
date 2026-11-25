@@ -232,13 +232,19 @@ class InternalCatalogControllerTest {
     }
 
     @Test
-    void assignRestaurantOwnerRejectsUserAlreadyLinkedToAnotherCommerce() throws Exception {
+    void assignRestaurantOwnerAllowsUserAlreadyLinkedToAnotherCommerce() throws Exception {
         mockMvc.perform(put("/api/internal/restaurants/1/owner")
                         .header("X-Internal-Api-Key", INTERNAL_API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":2}"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("El usuario ya tiene asignado otro comercio"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.userId").value(2));
+
+        mockMvc.perform(get("/api/internal/owner/restaurants/1/membership")
+                        .param("userId", "2")
+                        .header("X-Internal-Api-Key", INTERNAL_API_KEY))
+                .andExpect(status().isNoContent());
     }
 
     @Test

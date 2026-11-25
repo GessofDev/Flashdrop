@@ -172,8 +172,9 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
   en gateway (`apps/web` typecheck + 352 tests y `gateway` 355 unit tests
   verdes). *Riesgo bajo.*
 - **WU-9** — T9: `V14` (drop del `UNIQUE`) + retiro de los guards
-  `OwnerAlreadyAssigned`. *Riesgo **alto** — commit propio, único punto
-  irreversible.*
+  `OwnerAlreadyAssigned` (`V14__drop_restaurant_user_id_unique.sql` con ambos
+  pre-checks `DO $$`, `MerchantOwnershipSupport`, 208/208 tests verdes).
+  *Riesgo **alto** — commit propio, único punto irreversible.*
 - **WU-10** — T10: fase 4, deprecar `restaurant.user_id`. *Riesgo medio.*
 
 WU-5 y WU-9 van sueltos, cada uno en su propio commit, para que la revisión
@@ -290,4 +291,11 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   `StoreAnalyticsPage`, y recarga por cambio de local en catálogo, horarios,
   ubicación, analíticas y KDS. Verificado con `pnpm --dir apps/web typecheck`,
   `pnpm --dir apps/web test` (39 archivos, 352 tests) y
-  `pnpm --dir gateway test:unit` (31 archivos, 355 tests).
+  `pnpm --dir gateway test:unit` (31 archivos, 355 tests). Commit `ab7eccf`.
+- **L21** (WU-9): creada `V14__drop_restaurant_user_id_unique.sql` con los dos
+  pre-checks obligatorios en bloque `DO $$` antes de dropear
+  `restaurant_user_id_key`; extraído `MerchantOwnershipSupport` (invariante D11);
+  retirados los guards `OwnerAlreadyAssignedException` en
+  `CreateRestaurantUseCase` y `AssignRestaurantOwnerUseCase`. Verificado con
+  `.\gradlew.bat test --no-daemon` en `catalog-service`: 208 tests, 0 fallos,
+  0 ignorados (incluye Testcontainers `MerchantMigrationIT`).
