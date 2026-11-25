@@ -59,7 +59,7 @@ function salesSummaryResponse(call: RecordedCall, summary: SalesSummaryResponse 
     ]);
   }
 
-  if (pathname === '/api/orders/restaurants/1/sales-summary') {
+  if (pathname === '/api/orders/store/summary') {
     const range = searchParams.get('range') ?? 'week';
     return jsonResponse({
       success: true,
@@ -132,7 +132,7 @@ describe('store sales analytics (spec S14 and S17)', () => {
 
     await waitFor(() => {
       const summaryCall = calls.find(
-        (c) => c.url.includes('/api/orders/restaurants/1/sales-summary') && c.url.includes('range=day'),
+        (c) => c.url.includes('/api/orders/store/summary') && c.url.includes('range=day'),
       );
       expect(summaryCall).toBeDefined();
     });
@@ -141,7 +141,7 @@ describe('store sales analytics (spec S14 and S17)', () => {
 
     await waitFor(() => {
       const summaryCall = calls.find(
-        (c) => c.url.includes('/api/orders/restaurants/1/sales-summary') && c.url.includes('range=month'),
+        (c) => c.url.includes('/api/orders/store/summary') && c.url.includes('range=month'),
       );
       expect(summaryCall).toBeDefined();
     });
@@ -155,7 +155,7 @@ describe('store sales analytics (spec S14 and S17)', () => {
         return jsonResponse([{ id: 10, restaurantId: 1, name: 'Burger', price: 1000, available: true }]);
       }
 
-      if (pathname.includes('/sales-summary')) {
+      if (pathname.includes('/store/summary') || pathname.includes('/sales-summary')) {
         return jsonResponse(
           {
             success: false,
@@ -184,7 +184,7 @@ describe('store sales analytics (spec S14 and S17)', () => {
         return jsonResponse([{ id: 10, restaurantId: 99, name: 'Burger', price: 1000, available: true }]);
       }
 
-      if (pathname.includes('/sales-summary')) {
+      if (pathname.includes('/store/summary') || pathname.includes('/sales-summary')) {
         return jsonResponse(
           {
             success: false,

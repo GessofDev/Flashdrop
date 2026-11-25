@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import { asApiError, catalogApi, ordersApi, storeCatalogApi } from '@/api';
+import { asApiError, ordersApi } from '@/api';
 import type { ApiError, SalesRange, SalesSummaryResponse } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { Skeleton } from '@/components/ui';
 import { formatClp, formatOrderDate } from '@/lib/format';
+
+import { useStoreContext } from './StoreContext';
 
 const RANGE_OPTIONS: ReadonlyArray<{ value: SalesRange; label: string }> = [
   { value: 'day', label: 'Día' },
@@ -15,7 +17,7 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: SalesRange; label: string }> = [
 /**
  * Store sales analytics (spec S14 and S17).
  *
- * Exposes the four canonical metrics of `GET /api/orders/restaurants/{id}/sales-summary`:
+ * Exposes the four canonical metrics of `GET /api/orders/store/summary`:
  * total orders, total revenue, average ticket, and the top products list.
  *
  * Prohibited items (margins, hourly curves, daily series, bank settlements,
@@ -23,63 +25,22 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: SalesRange; label: string }> = [
  * strictly excluded.
  */
 export function StoreAnalyticsPage() {
+  const { selectedStoreId } = useStoreContext();
   const [range, setRange] = useState<SalesRange>('week');
-  const [restaurantId, setRestaurantId] = useState<number | null>(null);
-  const [restaurantError, setRestaurantError] = useState<ApiError | null>(null);
-  const [restaurantLoading, setRestaurantLoading] = useState(true);
 
   const [summary, setSummary] = useState<SalesSummaryResponse | null>(null);
   const [summaryError, setSummaryError] = useState<ApiError | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
 
-  // Resolve the restaurant ID of the authenticated store owner.
+  // Fetch the store summary when selectedStoreId, range or reloadToken changes.
   useEffect(() => {
-    let active = true;
-
-    async function loadRestaurant(): Promise<void> {
-      try {
-        const products = await storeCatalogApi.listMyProducts();
-        if (!active) return;
-        const ownedId = products[0]?.restaurantId ?? null;
-        if (ownedId !== null) {
-          setRestaurantId(ownedId);
-          setRestaurantLoading(false);
-          return;
-        }
-        const restaurants = await catalogApi.listRestaurants();
-        if (!active) return;
-        setRestaurantId(restaurants[0]?.id ?? 1);
-        setRestaurantLoading(false);
-      } catch (cause: unknown) {
-        if (!active) return;
-        setRestaurantError(asApiError(cause));
-        setRestaurantLoading(false);
-      }
-    }
-
-    void loadRestaurant();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Fetch the sales summary when restaurantId, range or reloadToken changes.
-  useEffect(() => {
-    if (restaurantId === null) {
-      if (!restaurantLoading) {
-        setSummaryLoading(false);
-      }
-      return;
-    }
-
     let active = true;
     setSummaryLoading(true);
     setSummaryError(null);
 
     ordersApi
-      .getSalesSummary(restaurantId, range)
+      .getStoreSummary(selectedStoreId ?? undefined, range)
       .then((data) => {
         if (active) {
           setSummary(data);
@@ -98,10 +59,10 @@ export function StoreAnalyticsPage() {
     return () => {
       active = false;
     };
-  }, [range, reloadToken, restaurantId, restaurantLoading]);
+  }, [range, reloadToken, selectedStoreId]);
 
-  const activeError = restaurantError ?? summaryError;
-  const isLoading = restaurantLoading || summaryLoading;
+  const activeError = summaryError;
+  const isLoading = summaryLoading;
 
   return (
     <div className="mx-auto w-full max-w-app px-4 py-6 md:px-8">

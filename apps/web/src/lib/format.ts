@@ -32,6 +32,26 @@ export function formatRatingAverage(average: number): string {
 export const MISSING_VALUE = '—';
 
 /**
+ * Visible name of a restaurant in the marketplace and store selector.
+ *
+ * Shows `"Marca — Sucursal"` when `merchantName` is present and differs from
+ * `restaurant.name`, otherwise `restaurant.name`.
+ */
+export function formatRestaurantName(restaurant: {
+  name: string;
+  merchantName?: string | null;
+}): string {
+  const branchName = restaurant.name.trim();
+  const brandName = restaurant.merchantName?.trim() ?? '';
+
+  if (brandName.length > 0 && brandName !== branchName) {
+    return `${brandName} — ${branchName}`;
+  }
+
+  return branchName;
+}
+
+/**
  * Instant of the backend, in the Chilean time zone.
  *
  * `orders-service` answers with an ISO-8601 offset date time. The interface

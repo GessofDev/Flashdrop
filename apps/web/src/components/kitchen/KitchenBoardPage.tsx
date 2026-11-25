@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { asApiError, ordersApi } from '@/api';
 import type { ApiError, OrderDetail, OrderListItem } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
+import { useStoreContext } from '@/components/store';
 import { Button, Skeleton } from '@/components/ui';
 import { createKitchenChime } from '@/lib/kitchenChime';
 import type { KitchenChime } from '@/lib/kitchenChime';
@@ -76,6 +77,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
  */
 export function KitchenBoardPage() {
   const { activeRole } = useSession();
+  const { selectedStoreId } = useStoreContext();
   const role: Role = activeRole ?? 'CLIENTE';
 
   const [state, setState] = useState<KitchenState>({ orders: [], error: null, loading: true });
@@ -107,6 +109,10 @@ export function KitchenBoardPage() {
 
   useEffect(() => {
     let active = true;
+    requestedDetails.current.clear();
+    setDetails({});
+    setDetailErrors({});
+    setState((current) => ({ ...current, loading: true, error: null }));
 
     ordersApi
       .listOrders('restaurant')
@@ -128,7 +134,7 @@ export function KitchenBoardPage() {
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, selectedStoreId]);
 
   /**
    * Read the detail of every order the board shows.

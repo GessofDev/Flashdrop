@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { AppRoutes } from '@/app/AppRoutes';
 import { SessionRedirectBridge } from '@/app/SessionRedirectBridge';
 import { CartProvider } from '@/cart';
+import { StoreProvider } from '@/components/store';
 import { SessionProvider, sessionStore } from '@/session';
 import type { Role, Session } from '@/session';
 
@@ -55,13 +56,15 @@ function LocationProbe() {
 export function renderApp(path = '/'): RenderResult {
   return render(
     <SessionProvider>
-      <CartProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <SessionRedirectBridge />
-          <LocationProbe />
-          <AppRoutes />
-        </MemoryRouter>
-      </CartProvider>
+      <StoreProvider>
+        <CartProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <SessionRedirectBridge />
+            <LocationProbe />
+            <AppRoutes />
+          </MemoryRouter>
+        </CartProvider>
+      </StoreProvider>
     </SessionProvider>,
   );
 }

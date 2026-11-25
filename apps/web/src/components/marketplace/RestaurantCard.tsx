@@ -4,6 +4,7 @@ import type { RestaurantResponse } from '@/api';
 import { restaurantPath } from '@/app/routePaths';
 import { RatingAverage } from '@/components/ratings';
 import { Badge } from '@/components/ui';
+import { formatRestaurantName } from '@/lib/format';
 
 import { CatalogImage } from './CatalogImage';
 
@@ -25,17 +26,19 @@ export interface RestaurantCardProps {
  * customer sees its dishes.
  */
 export function RestaurantCard({ restaurant }: RestaurantCardProps) {
+  const displayName = formatRestaurantName(restaurant);
+
   return (
     <Link
       to={restaurantPath(restaurant.id)}
       className="flex flex-col overflow-hidden rounded-container border border-border bg-surface shadow-card transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
     >
       <div className="aspect-video w-full overflow-hidden">
-        <CatalogImage src={restaurant.image} alt={restaurant.name} />
+        <CatalogImage src={restaurant.image} alt={displayName} />
       </div>
       <div className="flex flex-col gap-1 p-4">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-display text-base font-bold text-foreground">{restaurant.name}</h3>
+          <h3 className="font-display text-base font-bold text-foreground">{displayName}</h3>
           {restaurant.open === false ? <Badge variant="destructive">Cerrado</Badge> : null}
         </div>
         <p className="text-sm text-foreground-secondary">{restaurant.address}</p>

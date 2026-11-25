@@ -2,6 +2,7 @@ import type { TokenPair } from '@/api/types';
 
 import { isRememberSessionEnabled } from './rememberSession';
 import { resolveActiveRole } from './roles';
+import { storeContextStore } from './storeContextStore';
 import { isRole } from './types';
 import type { Role, Session } from './types';
 
@@ -205,11 +206,16 @@ export const sessionStore = {
       return;
     }
 
+    if (session.activeRole !== role) {
+      storeContextStore.clear();
+    }
+
     update({ ...currentState(), session: { ...session, activeRole: role } });
   },
 
   /** Forget the session and the tokens. */
   clear(): void {
+    storeContextStore.clear();
     update(EMPTY_STATE);
   },
 
@@ -218,6 +224,7 @@ export const sessionStore = {
    * in the storage. It exists for the tests, which need a clean store.
    */
   reset(): void {
+    storeContextStore.reset();
     cachedState = null;
     writeStorage(EMPTY_STATE);
 

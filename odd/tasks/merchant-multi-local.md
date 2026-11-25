@@ -168,7 +168,9 @@ Y las comparaciones de igualdad pasan a consultas de pertenencia:
   `JpaRouteRepositoryIT` 16/16 verdes). *Riesgo medio.*
 - **WU-7** — T7: `reviews-service` a pertenencia (`CreateReviewUseCaseImplTest`
   y `HttpRestaurantLookupClientAdapterContractTest`, 98/98 verdes). *Riesgo bajo.*
-- **WU-8** — T8: selector de local en el panel web. *Riesgo bajo.*
+- **WU-8** — T8: selector de local en el panel web + CORS `X-My-Store-Restaurant`
+  en gateway (`apps/web` typecheck + 352 tests y `gateway` 355 unit tests
+  verdes). *Riesgo bajo.*
 - **WU-9** — T9: `V14` (drop del `UNIQUE`) + retiro de los guards
   `OwnerAlreadyAssigned`. *Riesgo **alto** — commit propio, único punto
   irreversible.*
@@ -279,3 +281,13 @@ Detalle de archivos, verificación y mensaje de commit por tarea:
   `catalog-service` (`204`/`404`, fail-closed 503 en error). Verificado con
   `.\gradlew.bat :reviews-service:test --no-daemon` (98/98 tests verdes,
   incluyendo `HttpRestaurantLookupClientAdapterContractTest` con `MockRestServiceServer`).
+  Commit `e5d9cf8`.
+- **L20** (WU-8): agregado `X-My-Store-Restaurant` a `cors.allowedHeaders` en
+  `gateway/config/gateway.yaml` y `gateway/docker/gateway.yaml`; implementados
+  `storeContextStore`, `StoreContext` + selector en `RoleNavigation`, prompt
+  ante `400 LOCAL_CONTEXT_REQUIRED` en `AppShell`, `formatRestaurantName`
+  ("Marca — Sucursal") en marketplace/panel, `ordersApi.getStoreSummary` en
+  `StoreAnalyticsPage`, y recarga por cambio de local en catálogo, horarios,
+  ubicación, analíticas y KDS. Verificado con `pnpm --dir apps/web typecheck`,
+  `pnpm --dir apps/web test` (39 archivos, 352 tests) y
+  `pnpm --dir gateway test:unit` (31 archivos, 355 tests).

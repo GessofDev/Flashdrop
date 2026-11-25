@@ -103,6 +103,7 @@ export interface UpdateProfileRequest {
 export interface RestaurantResponse {
   id: number;
   name: string;
+  merchantName?: string | null;
   address: string;
   phone: string | null;
   /** The catalog may answer without a picture. */
@@ -475,9 +476,46 @@ export interface TopProductSummary {
   revenue: number;
 }
 
+/** `catalog-service` — `MerchantResponse`, the answer of `GET /api/catalog/my/merchant`. */
+export interface MerchantResponse {
+  id: number;
+  name: string;
+  legalName: string | null;
+  taxId: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  role: string | null;
+}
+
+/** `catalog-service` — `LocalContextRequiredResponse.AvailableRestaurant`. */
+export interface AvailableRestaurant {
+  id: number;
+  name: string;
+  address: string;
+  merchantId: number | null;
+}
+
+/** `catalog-service` — `LocalContextRequiredResponse` (`400 LOCAL_CONTEXT_REQUIRED`). */
+export interface LocalContextRequired {
+  status: number;
+  error: string;
+  message: string;
+  availableRestaurants: AvailableRestaurant[];
+}
+
+/** `catalog-service` — `CreateMyStoreRequest`, body of `POST /api/catalog/my/restaurants`. */
+export interface CreateMyStoreRequest {
+  name: string;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  deliveryRadiusKm?: number | null;
+}
+
 /** `orders-service` — `SalesSummaryResponse`. */
 export interface SalesSummaryResponse {
-  restaurantId: number;
+  restaurantId: number | null;
   range: string;
   from: string;
   to: string;

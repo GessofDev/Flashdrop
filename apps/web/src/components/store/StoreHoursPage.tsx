@@ -4,6 +4,9 @@ import { asApiError, storeCatalogApi } from '@/api';
 import type { ApiError, OpeningHours, RestaurantResponse } from '@/api';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { Badge, Button, Card, Skeleton } from '@/components/ui';
+import { formatRestaurantName } from '@/lib/format';
+
+import { useStoreContext } from './StoreContext';
 
 /** Days of the week; the value is the ISO day the backend stores. */
 const DAYS = [
@@ -50,6 +53,7 @@ function toRows(hours: readonly OpeningHours[]): DayRow[] {
  * screen as it was. Without any day the store depends only on the switch.
  */
 export function StoreHoursPage() {
+  const { selectedStoreId } = useStoreContext();
   const [restaurant, setRestaurant] = useState<RestaurantResponse | null>(null);
   const [rows, setRows] = useState<DayRow[]>(() => toRows([]));
   const [loading, setLoading] = useState(true);
@@ -60,6 +64,10 @@ export function StoreHoursPage() {
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setLoadError(null);
+    setActionError(null);
+    setNotice(null);
 
     storeCatalogApi
       .getMyRestaurant()
@@ -71,6 +79,7 @@ export function StoreHoursPage() {
       })
       .catch((cause: unknown) => {
         if (active) {
+          setRestaurant(null);
           setLoadError(asApiError(cause));
         }
       })
@@ -83,7 +92,7 @@ export function StoreHoursPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedStoreId]);
 
   const apply = async (
     change: () => Promise<RestaurantResponse>,
@@ -154,7 +163,7 @@ export function StoreHoursPage() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <h2 className="font-display text-base font-bold text-foreground">
-                  {restaurant.name}
+                  {formatRestaurantName(restaurant)}
                 </h2>
                 <Badge variant={restaurant.open === false ? 'destructive' : 'success'}>
                   {restaurant.open === false ? 'Cerrado ahora' : 'Abierto ahora'}
