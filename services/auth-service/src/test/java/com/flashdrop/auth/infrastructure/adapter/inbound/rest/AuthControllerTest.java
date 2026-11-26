@@ -5,19 +5,24 @@ import com.flashdrop.auth.application.dto.RegisterUserResult;
 import com.flashdrop.auth.application.dto.TokenClaims;
 import com.flashdrop.auth.application.dto.UserProfile;
 import com.flashdrop.auth.application.port.inbound.AuthenticateUserUseCase;
+import com.flashdrop.auth.application.port.inbound.ConfirmEmailChangeUseCase;
 import com.flashdrop.auth.application.port.inbound.GetUserProfileUseCase;
 import com.flashdrop.auth.application.port.inbound.LogoutUseCase;
 import com.flashdrop.auth.application.port.inbound.RefreshTokenUseCase;
 import com.flashdrop.auth.application.port.inbound.RegisterUserUseCase;
+import com.flashdrop.auth.application.port.inbound.RequestEmailChangeUseCase;
 import com.flashdrop.auth.application.port.inbound.RequestPasswordResetUseCase;
 import com.flashdrop.auth.application.port.inbound.ResetPasswordUseCase;
 import com.flashdrop.auth.application.port.inbound.UpdateUserProfileUseCase;
 import com.flashdrop.auth.application.port.inbound.ValidateTokenUseCase;
+import com.flashdrop.auth.domain.exception.EmailAlreadyInUseException;
 import com.flashdrop.auth.domain.exception.EmailAlreadyRegisteredException;
 import com.flashdrop.auth.domain.exception.InvalidCredentialsException;
+import com.flashdrop.auth.domain.exception.InvalidEmailChangeTokenException;
 import com.flashdrop.auth.domain.exception.InvalidResetTokenException;
 import com.flashdrop.auth.domain.exception.InvalidTokenException;
 import com.flashdrop.auth.domain.exception.InvalidUserException;
+import com.flashdrop.auth.domain.exception.RateLimitExceededException;
 import com.flashdrop.auth.domain.exception.UserNotFoundException;
 import com.flashdrop.auth.infrastructure.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -69,13 +75,16 @@ class AuthControllerTest {
     private final UpdateUserProfileUseCase updateUserProfile = mock(UpdateUserProfileUseCase.class);
     private final RequestPasswordResetUseCase requestPasswordReset = mock(RequestPasswordResetUseCase.class);
     private final ResetPasswordUseCase resetPassword = mock(ResetPasswordUseCase.class);
+    private final RequestEmailChangeUseCase requestEmailChange = mock(RequestEmailChangeUseCase.class);
+    private final ConfirmEmailChangeUseCase confirmEmailChange = mock(ConfirmEmailChangeUseCase.class);
 
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         var controller = new AuthController(registerUser, authenticateUser, validateToken,
-                refreshToken, logout, getUserProfile, updateUserProfile, requestPasswordReset, resetPassword);
+                refreshToken, logout, getUserProfile, updateUserProfile, requestPasswordReset, resetPassword,
+                requestEmailChange, confirmEmailChange);
         mvc = standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -390,5 +399,123 @@ class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RESOURCE_ALREADY_EXISTS"))
                 .andExpect(jsonPath("$.message").value("Ya existe un registro con esos datos"));
+    }
+
+    @Test
+    void requestEmailChange_validRequest_returns202() throws Exception {
+        tokenDelUsuario(1L);
+
+        mvc.perform(post("/auth/email/change-request")
+                        .header("Authorization", "Bearer un-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"password":"Secret123"}
+                                """))
+                .andExpect(status().isAccepted());
+
+        verify(requestEmailChange).requestChange(any());
+    }
+
+    @Test
+    void requestEmailChange_missingToken_returns401() throws Exception {
+        mvc.perform(post("/auth/email/change-request")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"password":"Secret123"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void requestEmailChange_wrongPassword_returns401() throws Exception {
+        tokenDelUsuario(1L);
+        doThrow(new InvalidCredentialsException()).when(requestEmailChange).requestChange(any());
+
+        mvc.perform(post("/auth/email/change-request")
+                        .header("Authorization", "Bearer un-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"password":"wrong"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void confirmEmailChange_validRequest_returns204() throws Exception {
+        mvc.perform(post("/auth/email/confirm")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"raw-token","newEmail":"nuevo@flashdrop.cl"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        verify(confirmEmailChange).confirmChange(any());
+    }
+
+    @Test
+    void confirmEmailChange_invalidToken_returns400() throws Exception {
+        doThrow(new InvalidEmailChangeTokenException()).when(confirmEmailChange).confirmChange(any());
+
+        mvc.perform(post("/auth/email/confirm")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"bad","newEmail":"nuevo@flashdrop.cl"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_EMAIL_CHANGE_TOKEN"));
+    }
+
+    @Test
+    void confirmEmailChange_emailTaken_returns409() throws Exception {
+        doThrow(new EmailAlreadyInUseException()).when(confirmEmailChange).confirmChange(any());
+
+        mvc.perform(post("/auth/email/confirm")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"raw-token","newEmail":"taken@flashdrop.cl"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
+    }
+
+    /** Un campo que no existe en el contrato se rechaza: el cuerpo no se
+     *  ignora en silencio. */
+    @Test
+    void confirmEmailChange_unknownField_returns400() throws Exception {
+        mvc.perform(post("/auth/email/confirm")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"raw-token","newEmail":"nuevo@flashdrop.cl","hack":true}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(confirmEmailChange, never()).confirmChange(any());
+    }
+
+    @Test
+    void requestEmailChange_unknownField_returns400() throws Exception {
+        tokenDelUsuario(1L);
+
+        mvc.perform(post("/auth/email/change-request")
+                        .header("Authorization", "Bearer un-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"password":"Secret123","newEmail":"nuevo@flashdrop.cl"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(requestEmailChange, never()).requestChange(any());
+    }
+
+    @Test
+    void confirmEmailChange_rateLimited_returns429() throws Exception {
+        doThrow(new RateLimitExceededException()).when(confirmEmailChange).confirmChange(any());
+
+        mvc.perform(post("/auth/email/confirm")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"token":"raw-token","newEmail":"nuevo@flashdrop.cl"}
+                                """))
+                .andExpect(status().isTooManyRequests());
     }
 }

@@ -45,8 +45,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidEmailChangeTokenException.class)
+    public ResponseEntity<ApiError> handleInvalidEmailChangeToken(InvalidEmailChangeTokenException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage());
+    }
+
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     public ResponseEntity<ApiError> handleEmailTaken(EmailAlreadyRegisteredException ex) {
+        return build(HttpStatus.CONFLICT, ex.code(), ex.getMessage());
+    }
+
+    @ExceptionHandler(EmailAlreadyInUseException.class)
+    public ResponseEntity<ApiError> handleEmailInUse(EmailAlreadyInUseException ex) {
         return build(HttpStatus.CONFLICT, ex.code(), ex.getMessage());
     }
 

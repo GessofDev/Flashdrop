@@ -2,12 +2,16 @@ package com.flashdrop.auth;
 
 import org.junit.jupiter.api.Test;
 import com.flashdrop.auth.application.dto.TokenClaims;
+import com.flashdrop.auth.application.port.inbound.ConfirmEmailChangeUseCase;
+import com.flashdrop.auth.application.port.inbound.RequestEmailChangeUseCase;
 import com.flashdrop.auth.application.port.outbound.AccountDeletionStore;
 import com.flashdrop.auth.application.port.outbound.CredentialStore;
+import com.flashdrop.auth.application.port.outbound.EmailChangeTokenStore;
 import com.flashdrop.auth.application.port.outbound.PasswordResetTokenStore;
 import com.flashdrop.auth.application.port.outbound.RefreshTokenStore;
 import com.flashdrop.auth.application.port.outbound.RoleRepository;
 import com.flashdrop.auth.application.port.outbound.TokenService;
+import com.flashdrop.auth.application.port.outbound.TransactionalRunner;
 import com.flashdrop.auth.application.port.outbound.UserRepository;
 import com.flashdrop.auth.domain.model.User;
 import com.flashdrop.auth.domain.valueobject.Email;
@@ -66,7 +70,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @MockBean({UserRepository.class, CredentialStore.class,
            RoleRepository.class, RefreshTokenStore.class, PasswordResetTokenStore.class,
-           AccountDeletionStore.class})
+           AccountDeletionStore.class, EmailChangeTokenStore.class, TransactionalRunner.class,
+           RequestEmailChangeUseCase.class, ConfirmEmailChangeUseCase.class})
 class ApplicationStartupTest {
 
     @Autowired
@@ -159,6 +164,34 @@ class ApplicationStartupTest {
                         .content("{\"email\":\"quien-sea@flashdrop.cl\"}"))
                 .andExpect(status().isAccepted());
         mvc.perform(post("/auth/password/reset").contentType(APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** El cambio de email recorre la cadena real: con JWT valido responde 202,
+     *  sin token responde el controlador (401) y no el denyAll (403). */
+    @Test
+    void solicitarCambioDeEmailAtraviesaLaCadenaDeSeguridadConUnJwtReal() throws Exception {
+        when(credentials.isActive(1L)).thenReturn(true);
+        String jwt = tokens.issue(new TokenClaims(1L, "cliente@demo.cl", List.of("Cliente")));
+
+        mvc.perform(post("/auth/email/change-request").header("Authorization", "Bearer " + jwt)
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"password\":\"Secret123\"}"))
+                .andExpect(status().isAccepted());
+    }
+
+    @Test
+    void solicitarCambioDeEmailSinTokenDevuelve401YNo403() throws Exception {
+        mvc.perform(post("/auth/email/change-request").contentType(APPLICATION_JSON)
+                        .content("{\"password\":\"Secret123\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** El enlace llega por correo, sin sesion: la ruta tiene que ser publica
+     *  o el usuario no podria confirmar el cambio. */
+    @Test
+    void confirmarCambioDeEmailEsPublicoYNo403() throws Exception {
+        mvc.perform(post("/auth/email/confirm").contentType(APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
     }
 

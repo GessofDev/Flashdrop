@@ -17,7 +17,8 @@ info:
     ## Notas para el desarrollador
     - Los IDs son **numéricos** (bigint), no UUID
     - El JWT se emite con algoritmo **RS256** (asimétrico)
-    - El gateway valida los tokens usando la clave pública expuesta en `/.well-known/jwks.json`
+    - El gateway valida los tokens usando la clave pública expuesta en
+      `/.well-known/jwks.json`
     - El header de autenticación es `Authorization: Bearer <token>`
   version: 1.0.0
   contact:
@@ -122,7 +123,8 @@ paths:
     post:
       tags: [Auth]
       summary: Renovar access token
-      description: Intercambia un refresh token válido por un nuevo par de tokens.
+      description: >-
+        Intercambia un refresh token válido por un nuevo par de tokens.
       operationId: refreshToken
       requestBody:
         required: true
@@ -170,7 +172,8 @@ paths:
     post:
       tags: [Auth]
       summary: Solicitar el enlace de recuperación de contraseña
-      description: Responde 202 exista o no el correo; el envío ocurre en segundo plano.
+      description: >-
+        Responde 202 exista o no el correo; el envío ocurre en segundo plano.
       operationId: forgotPassword
       requestBody:
         required: true
@@ -194,7 +197,9 @@ paths:
     post:
       tags: [Auth]
       summary: Crear una nueva contraseña con el enlace del correo
-      description: El enlace es de un solo uso. Al cambiar la clave se cierran las sesiones abiertas.
+      description: >-
+        El enlace es de un solo uso. Al cambiar la clave se cierran las sesiones
+        abiertas.
       operationId: resetPassword
       requestBody:
         required: true
@@ -212,7 +217,86 @@ paths:
         '204':
           description: Contraseña actualizada
         '400':
-          description: Enlace inválido o vencido, o contraseña que no cumple la política
+          description: >-
+            Enlace inválido o vencido, o contraseña que no cumple la política
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiados intentos
+
+  /auth/email/change-request:
+    post:
+      tags: [Auth]
+      summary: Solicitar el cambio del email de acceso
+      description: |
+        Exige la contraseña actual. Envía un enlace de un solo uso al email
+        ACTUAL de la cuenta; el nuevo email se ingresa al confirmar.
+      operationId: requestEmailChange
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '202':
+          description: Enlace de confirmacion enviado al email actual
+        '400':
+          description: Cuerpo invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token invalido o contrasena incorrecta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiados intentos
+
+  /auth/email/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirmar el cambio del email de acceso
+      description: |
+        Endpoint público: lo abre el enlace enviado al email actual. Actualiza
+        users.email y login.login en una sola transacción y revoca los refresh
+        tokens del usuario. Los access tokens ya emitidos siguen siendo válidos
+        hasta su expiración (15 minutos).
+      operationId: confirmEmailChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newEmail]
+              properties:
+                token:
+                  type: string
+                newEmail:
+                  type: string
+      responses:
+        '204':
+          description: Email actualizado y refresh tokens revocados
+        '400':
+          description: Enlace inválido o vencido, o email con formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El email nuevo ya está registrado
           content:
             application/json:
               schema:
@@ -271,10 +355,14 @@ paths:
       tags: [Users]
       summary: Subir o reemplazar la foto de perfil (F10)
       description: |
-        Multipart con el campo `file`. Acepta JPEG o PNG (reconocidos por su contenido),
-        de hasta 2 MB y 4000 x 4000 px. Se guarda reducida a 512 px como JPEG y sin
-        metadatos (EXIF/GPS) en un bucket privado. Maximo 5 subidas cada 5 minutos.
-        Responde el mismo UserProfile que GET /auth/profile, con `photo` actualizado.
+        Multipart con el campo `file`. Acepta JPEG o PNG (reconocidos por su
+        contenido),
+        de hasta 2 MB y 4000 x 4000 px. Se guarda reducida a 512 px como JPEG y
+        sin
+        metadatos (EXIF/GPS) en un bucket privado. Maximo 5 subidas cada 5
+        minutos.
+        Responde el mismo UserProfile que GET /auth/profile, con `photo`
+        actualizado.
       operationId: uploadProfilePhoto
       security:
         - bearerAuth: []
@@ -297,7 +385,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
         '400':
-          description: "No es JPEG ni PNG, el tipo declarado no coincide, la imagen esta danada o falta el campo `file` (AUTH_PHOTO_INVALID / VALIDATION_ERROR)"
+          description: >-
+            No es JPEG ni PNG, el tipo declarado no coincide, la imagen esta
+            danada o falta el campo `file` (AUTH_PHOTO_INVALID /
+            VALIDATION_ERROR)
           content:
             application/json:
               schema:
@@ -321,7 +412,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
-          description: Almacenamiento de fotos no configurado o sin respuesta; la foto anterior se mantiene
+          description: >-
+            Almacenamiento de fotos no configurado o sin respuesta; la foto
+            anterior se mantiene
           content:
             application/json:
               schema:
@@ -330,8 +423,10 @@ paths:
       tags: [Users]
       summary: Leer la foto de perfil propia (F10)
       description: |
-        Devuelve el JPEG. Usar la URL que entrega `UserProfile.photo` (lleva `?v=`, que cambia
-        con cada foto). Se puede guardar un dia en la cache del dispositivo (`Cache-Control: private`).
+        Devuelve el JPEG. Usar la URL que entrega `UserProfile.photo` (lleva
+        `?v=`, que cambia
+        con cada foto). Se puede guardar un dia en la cache del dispositivo
+        (`Cache-Control: private`).
       operationId: getProfilePhoto
       security:
         - bearerAuth: []
@@ -339,7 +434,8 @@ paths:
         - name: v
           in: query
           required: false
-          description: Version de la foto; solo sirve para invalidar la cache del cliente.
+          description: >-
+            Version de la foto; solo sirve para invalidar la cache del cliente.
           schema:
             type: string
       responses:
@@ -390,11 +486,16 @@ paths:
       tags: [Users]
       summary: Eliminar la cuenta propia
       description: >-
-        Google Play y la Ley 21.719 exigen poder eliminar la cuenta. Requiere el token y la contrasena
-        del usuario. Si la persona tiene pedidos o rutas en curso (como cliente, tienda o repartidor) se
-        rechaza con 409: nada se cancela automaticamente, debe cancelarlos o esperar a que terminen.
-        Al aceptar (202) la cuenta queda inhabilitada al instante y sin sesiones; Auth completa en segundo
-        plano el borrado de datos en Orders, Delivery y Catalog con reintentos y al final borra al usuario.
+        Google Play y la Ley 21.719 exigen poder eliminar la cuenta. Requiere el
+        token y la contrasena
+        del usuario. Si la persona tiene pedidos o rutas en curso (como cliente,
+        tienda o repartidor) se
+        rechaza con 409: nada se cancela automaticamente, debe cancelarlos o
+        esperar a que terminen.
+        Al aceptar (202) la cuenta queda inhabilitada al instante y sin
+        sesiones; Auth completa en segundo
+        plano el borrado de datos en Orders, Delivery y Catalog con reintentos y
+        al final borra al usuario.
       operationId: deleteAccount
       security:
         - bearerAuth: []
@@ -416,19 +517,24 @@ paths:
         '401':
           description: Token invalido o contrasena incorrecta
         '409':
-          description: Pedidos en curso (ACCOUNT_HAS_ACTIVE_PROCESSES) o eliminacion ya en curso (ACCOUNT_DELETION_IN_PROGRESS)
+          description: >-
+            Pedidos en curso (ACCOUNT_HAS_ACTIVE_PROCESSES) o eliminacion ya en
+            curso (ACCOUNT_DELETION_IN_PROGRESS)
         '429':
           description: Demasiados intentos con contrasena incorrecta
         '503':
-          description: Orders no responde y no se pudo comprobar si hay pedidos en curso
+          description: >-
+            Orders no responde y no se pudo comprobar si hay pedidos en curso
 
   /auth/admin/users:
     get:
       tags: [Admin]
       summary: Buscar un usuario por correo (administrador)
       description: >-
-        Solo administradores: usuarios con los roles Cliente, Restaurante y Repartidor a la vez
-        (no existe un rol Admin aparte). Devuelve identidad minima y roles, sin datos sensibles.
+        Solo administradores: usuarios con los roles Cliente, Restaurante y
+        Repartidor a la vez
+        (no existe un rol Admin aparte). Devuelve identidad minima y roles, sin
+        datos sensibles.
       operationId: adminFindUserByEmail
       security:
         - bearerAuth: []
@@ -452,9 +558,12 @@ paths:
       tags: [Admin]
       summary: Reemplazar los roles de un usuario (administrador)
       description: >-
-        Solo administradores. Roles asignables: Cliente, Restaurante, Repartidor y Soporte. Soporte (intervencion
-        de pedidos ya retirados, F17) no vuelve administrador a nadie: el administrador sigue siendo quien tiene
-        Cliente, Restaurante y Repartidor a la vez. Un administrador no puede cambiar sus propios roles. La accion
+        Solo administradores. Roles asignables: Cliente, Restaurante, Repartidor
+        y Soporte. Soporte (intervencion
+        de pedidos ya retirados, F17) no vuelve administrador a nadie: el
+        administrador sigue siendo quien tiene
+        Cliente, Restaurante y Repartidor a la vez. Un administrador no puede
+        cambiar sus propios roles. La accion
         queda auditada con el administrador como actor.
       operationId: adminAssignRoles
       security:
@@ -538,7 +647,9 @@ paths:
     get:
       tags: [Internal]
       summary: Resolver correo a usuario
-      description: Busca un correo normalizado y devuelve su ID para operaciones administrativas internas.
+      description: >-
+        Busca un correo normalizado y devuelve su ID para operaciones
+        administrativas internas.
       operationId: getInternalUserByEmail
       security:
         - internalApiKey: []
@@ -695,7 +806,8 @@ components:
       type: apiKey
       in: header
       name: X-Internal-Api-Key
-      description: Clave compartida entre microservicios configurada con INTERNAL_API_KEY
+      description: >-
+        Clave compartida entre microservicios configurada con INTERNAL_API_KEY
 
   schemas:
     InternalUserResponse:
@@ -918,9 +1030,12 @@ components:
           type: string
           nullable: true
           description: |
-            Ruta de la foto de perfil en el gateway, o null si no tiene. Se pide con el
-            mismo token (GET /auth/profile/photo). El parametro `v` cambia con cada foto nueva.
-            No se edita por PUT /auth/profile: se sube por POST /auth/profile/photo.
+            Ruta de la foto de perfil en el gateway, o null si no tiene. Se pide
+            con el
+            mismo token (GET /auth/profile/photo). El parametro `v` cambia con
+            cada foto nueva.
+            No se edita por PUT /auth/profile: se sube por POST
+            /auth/profile/photo.
           example: "/auth/profile/photo?v=5b1f1c2e-7d3a-4c8e-9f10-2a6b4c8d0e12"
         roles:
           type: array

@@ -97,4 +97,25 @@ public class UseCaseConfiguration {
         return new ResetPasswordService(resetTokens, opaque, credentials, refreshTokens, hasher,
                 rateLimiter, audit, Clock.systemUTC());
     }
+
+    @Bean
+    RequestEmailChangeUseCase requestEmailChangeUseCase(UserRepository users, CredentialStore credentials,
+                                                        PasswordHasher hasher, EmailChangeTokenStore emailChangeTokens,
+                                                        OpaqueTokenService opaque, EmailChangeMailer mailer,
+                                                        RateLimiter rateLimiter, AuditLogger audit,
+                                                        EmailChangeProperties props) {
+        return new RequestEmailChangeService(users, credentials, hasher, emailChangeTokens, opaque, mailer,
+                rateLimiter, audit, Clock.systemUTC(),
+                Duration.ofMinutes(props.getTokenTtlMinutes()), props.getLinkBaseUrl());
+    }
+
+    @Bean
+    ConfirmEmailChangeUseCase confirmEmailChangeUseCase(EmailChangeTokenStore emailChangeTokens, OpaqueTokenService opaque,
+                                                        UserRepository users, CredentialStore credentials,
+                                                        RefreshTokenStore refreshTokens, EmailChangeMailer mailer,
+                                                        RateLimiter rateLimiter, AuditLogger audit,
+                                                        TransactionalRunner txRunner) {
+        return new ConfirmEmailChangeService(emailChangeTokens, opaque, users, credentials, refreshTokens,
+                mailer, rateLimiter, audit, txRunner, Clock.systemUTC());
+    }
 }

@@ -24,7 +24,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login",
                         "/auth/refresh", "/auth/logout",
-                        "/auth/password/forgot", "/auth/password/reset").permitAll()
+                        "/auth/password/forgot", "/auth/password/reset",
+                        "/auth/email/change-request", "/auth/email/confirm").permitAll()
                 .requestMatchers(HttpMethod.GET, "/auth/validate", "/auth/profile",
                         "/auth/.well-known/jwks.json").permitAll()
                 // Igual que el GET: el token lo valida AuthController, no esta

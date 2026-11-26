@@ -19,6 +19,13 @@ public interface UserRepository {
     boolean existsByEmail(Email email);
 
     /**
+     * Cambia solo el email del usuario. No reescribe el resto de la fila ni
+     * los roles: un perfil editado en paralelo no se pisa por un cambio de
+     * email.
+     */
+    void updateEmail(Long userId, String email);
+
+    /**
      * Reemplaza el conjunto de roles del usuario por el dado.
      *
      * <p>Es una operacion de reemplazo, no de delta: lo que no viene en la
