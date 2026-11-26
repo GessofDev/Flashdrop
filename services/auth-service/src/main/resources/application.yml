@@ -77,6 +77,10 @@ auth:
     token-ttl-minutes: ${PASSWORD_RESET_TTL_MIN:30}
     # Pagina de la web que recibe el enlace, sin el fragmento #token=.
     link-base-url: ${PASSWORD_RESET_URL:}
+  email-change:
+    token-ttl-minutes: ${EMAIL_CHANGE_TTL_MIN:30}
+    # Pagina de la web que recibe el enlace, sin el fragmento #token=.
+    link-base-url: ${EMAIL_CHANGE_URL:}
   # Apagado por defecto: sin SMTP el servicio arranca y solo deja de enviar el
   # correo de recuperacion (lo avisa en el log).
   mail:

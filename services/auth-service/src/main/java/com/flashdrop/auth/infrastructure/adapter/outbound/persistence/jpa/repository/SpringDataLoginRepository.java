@@ -13,6 +13,8 @@ public interface SpringDataLoginRepository extends JpaRepository<LoginEntity, Lo
 
     Optional<LoginEntity> findByUserId(Long userId);
 
+    boolean existsByLogin(String login);
+
     @Modifying
     @Query(value = "update login set status = :status, updated_at = now() where id_users = :userId",
             nativeQuery = true)
@@ -22,4 +24,9 @@ public interface SpringDataLoginRepository extends JpaRepository<LoginEntity, Lo
     @Query(value = "update login set password = :hash, updated_at = now() where id_users = :userId",
             nativeQuery = true)
     int updatePassword(@Param("userId") Long userId, @Param("hash") String hash);
+
+    @Modifying
+    @Query(value = "update login set login = :newLogin, updated_at = now() where id_users = :userId",
+            nativeQuery = true)
+    int updateLogin(@Param("userId") Long userId, @Param("newLogin") String newLogin);
 }

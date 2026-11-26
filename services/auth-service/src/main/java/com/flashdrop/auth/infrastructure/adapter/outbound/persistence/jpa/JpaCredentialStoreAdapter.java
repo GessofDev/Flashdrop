@@ -36,9 +36,19 @@ public class JpaCredentialStoreAdapter implements CredentialStore {
     @Override
     @Transactional(readOnly = true)
     public Optional<Credentials> findByLogin(String login) {
-        return logins.findByLogin(login).map(e -> new Credentials(
-                e.getId(), e.getUserId(), e.getLogin(), e.getPassword(),
-                Integer.valueOf(1).equals(e.getStatus()) ? ACTIVO : "INACTIVE"));
+        return logins.findByLogin(login).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Credentials> findByUserId(Long userId) {
+        return logins.findByUserId(userId).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByLogin(String login) {
+        return logins.existsByLogin(login);
     }
 
     @Override
@@ -57,5 +67,21 @@ public class JpaCredentialStoreAdapter implements CredentialStore {
     @Transactional
     public void updatePassword(Long userId, String passwordHash) {
         logins.updatePassword(userId, passwordHash);
+    }
+
+    @Override
+    @Transactional
+    public void updateLogin(Long userId, String newLogin) {
+        if (logins.updateLogin(userId, newLogin) == 0) {
+            // Sin esta fila, `users.email` quedaria con el email nuevo y
+            // `login.login` con el viejo: el usuario no podria entrar.
+            throw new IllegalStateException("El usuario " + userId + " no tiene credenciales de acceso");
+        }
+    }
+
+    private Credentials toDomain(LoginEntity e) {
+        return new Credentials(
+                e.getId(), e.getUserId(), e.getLogin(), e.getPassword(),
+                Integer.valueOf(1).equals(e.getStatus()) ? ACTIVO : "INACTIVE");
     }
 }

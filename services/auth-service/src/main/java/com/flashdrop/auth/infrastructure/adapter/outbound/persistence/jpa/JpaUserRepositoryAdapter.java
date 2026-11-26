@@ -101,6 +101,14 @@ public class JpaUserRepositoryAdapter implements UserRepository {
         return users.existsByEmail(email.value());
     }
 
+    @Override
+    @Transactional
+    public void updateEmail(Long userId, String email) {
+        if (users.updateEmail(userId, email) == 0) {
+            throw new IllegalStateException("El usuario " + userId + " no existe");
+        }
+    }
+
     /**
      * Reemplaza el conjunto de roles del usuario.
      *

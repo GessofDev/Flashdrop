@@ -3,10 +3,12 @@ package com.flashdrop.auth.infrastructure.adapter.inbound.rest;
 import com.flashdrop.auth.application.dto.*;
 import com.flashdrop.auth.application.port.inbound.*;
 import com.flashdrop.auth.domain.exception.InvalidTokenException;
+import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.ConfirmEmailChangeRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.ForgotPasswordRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.LoginRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RefreshRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RegisterRequest;
+import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.RequestEmailChangeRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.ResetPasswordRequest;
 import com.flashdrop.auth.infrastructure.adapter.inbound.rest.dto.UpdateProfileRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,13 +30,17 @@ public class AuthController {
     private final UpdateUserProfileUseCase updateUserProfile;
     private final RequestPasswordResetUseCase requestPasswordReset;
     private final ResetPasswordUseCase resetPassword;
+    private final RequestEmailChangeUseCase requestEmailChange;
+    private final ConfirmEmailChangeUseCase confirmEmailChange;
 
     public AuthController(RegisterUserUseCase registerUser, AuthenticateUserUseCase authenticateUser,
                           ValidateTokenUseCase validateToken, RefreshTokenUseCase refreshToken,
                           LogoutUseCase logout, GetUserProfileUseCase getUserProfile,
                           UpdateUserProfileUseCase updateUserProfile,
                           RequestPasswordResetUseCase requestPasswordReset,
-                          ResetPasswordUseCase resetPassword) {
+                          ResetPasswordUseCase resetPassword,
+                          RequestEmailChangeUseCase requestEmailChange,
+                          ConfirmEmailChangeUseCase confirmEmailChange) {
         this.registerUser = registerUser;
         this.authenticateUser = authenticateUser;
         this.validateToken = validateToken;
@@ -44,6 +50,8 @@ public class AuthController {
         this.updateUserProfile = updateUserProfile;
         this.requestPasswordReset = requestPasswordReset;
         this.resetPassword = resetPassword;
+        this.requestEmailChange = requestEmailChange;
+        this.confirmEmailChange = confirmEmailChange;
     }
 
     @PostMapping("/register")
@@ -110,11 +118,54 @@ public class AuthController {
         resetPassword.reset(new ResetPasswordCommand(req.token(), req.newPassword(), clientIp(http)));
     }
 
+    @PostMapping("/email/change-request")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void requestEmailChange(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                   @Valid @RequestBody RequestEmailChangeRequest req,
+                                   HttpServletRequest http) {
+        TokenClaims claims = validateToken.validate(bearer(authorization));
+        requestEmailChange.requestChange(new RequestEmailChangeCommand(
+                claims.userId(), req.password(), clientIpReal(http)));
+    }
+
+    @PostMapping("/email/confirm")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void confirmEmailChange(@Valid @RequestBody ConfirmEmailChangeRequest req, HttpServletRequest http) {
+        confirmEmailChange.confirmChange(new ConfirmEmailChangeCommand(
+                req.token(), req.newEmail(), clientIpReal(http)));
+    }
+
     private static String bearer(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new InvalidTokenException();
         }
         return authorization.substring(7);
+    }
+
+    /**
+     * IP real del cliente para el flujo de cambio de email.
+     *
+     * <p>El gateway <b>agrega</b> el peer real al final de {@code X-Forwarded-For}
+     * y publica {@code x-real-ip} sobrescribiendo el que envie el cliente, asi
+     * que el ultimo salto es la identidad fiable. Tomar el primer salto (lo que
+     * hace {@link #clientIp}) deja que cualquiera rote el encabezado y se
+     * escape del limite por IP.
+     *
+     * <p>Los demas endpoints siguen usando {@link #clientIp}: corregir el
+     * limite y la auditoria del login y del resto de flujos es un cambio aparte,
+     * con su propio analisis de regresion.
+     */
+    private static String clientIpReal(HttpServletRequest http) {
+        String realIp = http.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        String forwarded = http.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            String[] saltos = forwarded.split(",");
+            return saltos[saltos.length - 1].trim();
+        }
+        return http.getRemoteAddr();
     }
 
     private static String clientIp(HttpServletRequest http) {

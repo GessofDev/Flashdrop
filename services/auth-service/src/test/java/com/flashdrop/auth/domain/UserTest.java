@@ -49,4 +49,5 @@ class UserTest {
         assertEquals("Nombre", original.name());
         assertEquals("+56911111111", original.phone());
     }
+
 }
