@@ -113,6 +113,9 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - PASSWORD_RESET_URL=${PASSWORD_RESET_URL:-}
+      # Cambio de email de login. Sin esta URL el flujo queda sin correo, pero
+      # auth arranca igual (no tumba el servicio).
+      - EMAIL_CHANGE_URL=${EMAIL_CHANGE_URL:-}
       # Foto de perfil (F10): bucket privado de Floci. Apagado, auth arranca y
       # subir una foto responde 503. Las claves van solo en el .env.
       - AUTH_PHOTO_STORAGE_ENABLED=${AUTH_PHOTO_STORAGE_ENABLED:-false}

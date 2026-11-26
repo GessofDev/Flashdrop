@@ -62,4 +62,21 @@ describe('Gateway config desplegado (docker/gateway.yaml)', () => {
 
     expect(match?.route.prefix).not.toBe('/api/payments/fake');
   });
+
+  it('deja publico POST /auth/email/confirm para el enlace del correo', () => {
+    const override = (config.jwtOverrides ?? []).find(
+      (o) => o.path === '/auth/email/confirm',
+    );
+
+    expect(override).toBeDefined();
+    expect(override?.jwt?.enabled).toBe(false);
+  });
+
+  it('deja protegido POST /auth/email/change-request', () => {
+    const override = (config.jwtOverrides ?? []).find(
+      (o) => o.path === '/auth/email/change-request',
+    );
+
+    expect(override).toBeUndefined();
+  });
 });
