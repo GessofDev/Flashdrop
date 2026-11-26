@@ -120,6 +120,64 @@ public class CatalogHttpClientAdapter implements CatalogPort {
         }
     }
 
+    @Override
+    public boolean checkRestaurantMembership(UUID userId, UUID restaurantId) {
+        if (userId == null || restaurantId == null) {
+            return false;
+        }
+        long uid = IdConverter.toLong(userId);
+        long rid = IdConverter.toLong(restaurantId);
+        log.debug("Verificando pertenencia de userId={} en restaurantId={}", uid, rid);
+        try {
+            catalogInternalRestClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/internal/owner/restaurants/{restaurantId}/membership")
+                            .queryParam("userId", uid)
+                            .build(rid))
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (HttpStatusCodeException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return false;
+            }
+            throw InternalHttpSupport.httpError(SERVICE, e);
+        } catch (ResourceAccessException e) {
+            throw InternalHttpSupport.connectionFailure(SERVICE, e);
+        }
+    }
+
+    @Override
+    public List<UUID> findOperableRestaurantIdsByUserId(UUID userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        long uid = IdConverter.toLong(userId);
+        log.debug("Consultando restaurantes operables por userId={}", uid);
+        try {
+            InternalRestaurantDto[] dtos = catalogInternalRestClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/internal/owner/restaurants")
+                            .queryParam("userId", uid)
+                            .build())
+                    .retrieve()
+                    .body(InternalRestaurantDto[].class);
+            if (dtos == null) {
+                return List.of();
+            }
+            return Arrays.stream(dtos)
+                    .map(InternalRestaurantDto::id)
+                    .filter(Objects::nonNull)
+                    .map(IdConverter::toUuid)
+                    .distinct()
+                    .toList();
+        } catch (HttpStatusCodeException e) {
+            throw InternalHttpSupport.httpError(SERVICE, e);
+        } catch (ResourceAccessException e) {
+            throw InternalHttpSupport.connectionFailure(SERVICE, e);
+        }
+    }
+
     private ProductInfo toProductInfo(InternalProductDto d) {
         return ProductInfo.builder()
                 .id(IdConverter.toUuid(d.id()))
@@ -136,6 +194,7 @@ public class CatalogHttpClientAdapter implements CatalogPort {
     private RestaurantInfo toRestaurantInfo(InternalRestaurantDto d) {
         return RestaurantInfo.builder()
                 .restaurantId(IdConverter.toUuid(d.id()))
+                .merchantId(d.merchantId())
                 .name(d.name())
                 .address(d.address())
                 .latitude(d.latitude())

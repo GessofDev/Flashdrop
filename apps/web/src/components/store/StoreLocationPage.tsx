@@ -8,6 +8,8 @@ import { Badge, Button, Card, Skeleton } from '@/components/ui';
 import { geocodeAddress, GeocodeError } from '@/lib/geocode';
 import { LocationError, requestBrowserLocation } from '@/lib/geolocation';
 
+import { useStoreContext } from './StoreContext';
+
 /** Message shown when the browser does not answer with a position. */
 const LOCATION_FAILED_MESSAGE =
   'No se pudo obtener tu ubicación. Puedes buscar la dirección del local.';
@@ -57,6 +59,7 @@ export interface StoreLocationPageProps {
  * modules the checkout of the customer uses.
  */
 export function StoreLocationPage({ className }: StoreLocationPageProps = {}) {
+  const { selectedStoreId } = useStoreContext();
   const [restaurant, setRestaurant] = useState<OwnerRestaurantResponse | null>(null);
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -86,6 +89,12 @@ export function StoreLocationPage({ className }: StoreLocationPageProps = {}) {
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setLoadError(null);
+    setLocationError(null);
+    setRadiusError(null);
+    setLocationStatus(null);
+    setRadiusStatus(null);
 
     storeCatalogApi
       .getMyRestaurant()
@@ -96,6 +105,7 @@ export function StoreLocationPage({ className }: StoreLocationPageProps = {}) {
       })
       .catch((cause: unknown) => {
         if (active) {
+          setRestaurant(null);
           setLoadError(asApiError(cause));
         }
       })
@@ -108,7 +118,7 @@ export function StoreLocationPage({ className }: StoreLocationPageProps = {}) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedStoreId]);
 
   /** Ask the browser where the owner is. */
   const handleBrowserLocation = async (): Promise<void> => {

@@ -39,4 +39,18 @@ public interface CatalogPort {
      * @return vacío si el usuario no tiene restaurante
      */
     Optional<UUID> findRestaurantIdByUserId(UUID userId);
+
+    /**
+     * Verifica si el usuario opera el restaurante indicado (pertenencia al merchant).
+     *
+     * @return {@code true} si el usuario es miembro del merchant del restaurante; {@code false} si no
+     */
+    boolean checkRestaurantMembership(UUID userId, UUID restaurantId);
+
+    /**
+     * Obtiene los IDs de todos los restaurantes que el usuario puede operar.
+     *
+     * @return lista vacía si el usuario no opera ningún restaurante
+     */
+    List<UUID> findOperableRestaurantIdsByUserId(UUID userId);
 }

@@ -22,6 +22,7 @@ import com.flashdrop.catalog.application.usecase.AssignRestaurantOwnerUseCase;
 import com.flashdrop.catalog.application.usecase.GetProductsByIdsUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByIdUseCase;
 import com.flashdrop.catalog.application.usecase.GetRestaurantByUserIdUseCase;
+import com.flashdrop.catalog.application.usecase.StoreContextResolver;
 import com.flashdrop.catalog.application.usecase.UpdateProductUseCase;
 import com.flashdrop.catalog.domain.model.Product;
 import com.flashdrop.catalog.domain.valueobjects.Money;
@@ -43,6 +44,7 @@ public class InternalCatalogController {
     private final CreateProductUseCase createProductUseCase;
     private final UpdateProductUseCase updateProductUseCase;
     private final AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase;
+    private final StoreContextResolver storeContextResolver;
     private final Clock clock;
 
     public InternalCatalogController(
@@ -52,6 +54,7 @@ public class InternalCatalogController {
             CreateProductUseCase createProductUseCase,
             UpdateProductUseCase updateProductUseCase,
             AssignRestaurantOwnerUseCase assignRestaurantOwnerUseCase,
+            StoreContextResolver storeContextResolver,
             Clock clock
     ) {
         this.getProductsByIdsUseCase = getProductsByIdsUseCase;
@@ -60,6 +63,7 @@ public class InternalCatalogController {
         this.createProductUseCase = createProductUseCase;
         this.updateProductUseCase = updateProductUseCase;
         this.assignRestaurantOwnerUseCase = assignRestaurantOwnerUseCase;
+        this.storeContextResolver = storeContextResolver;
         this.clock = clock;
     }
 
@@ -114,6 +118,26 @@ public class InternalCatalogController {
     public InternalRestaurantResponse getRestaurantByUserId(@RequestParam Long userId) {
         return InternalRestaurantResponse.fromDomain(
                 getRestaurantByUserIdUseCase.execute(userId), LocalDateTime.now(clock));
+    }
+
+    @GetMapping("/owner/restaurants")
+    public List<InternalRestaurantResponse> getOperableRestaurants(@RequestParam Long userId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        return storeContextResolver.resolveOperableStores(userId).stream()
+                .map(restaurant -> InternalRestaurantResponse.fromDomain(restaurant, now))
+                .toList();
+    }
+
+    @GetMapping("/owner/restaurants/{restaurantId}/membership")
+    public ResponseEntity<Void> checkRestaurantMembership(
+            @PathVariable Long restaurantId,
+            @RequestParam Long userId
+    ) {
+        boolean operates = storeContextResolver.resolveOperableStores(userId).stream()
+                .anyMatch(restaurant -> restaurant.getId().equals(restaurantId));
+        return operates
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 
     @PutMapping("/restaurants/{restaurantId}/owner")

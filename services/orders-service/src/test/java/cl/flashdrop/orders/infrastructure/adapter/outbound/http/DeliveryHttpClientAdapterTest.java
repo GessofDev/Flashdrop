@@ -115,6 +115,26 @@ class DeliveryHttpClientAdapterTest {
     }
 
     @Test
+    void shouldIncludeMerchantIdInSaveRoutePayloadWhenPresent() {
+        MockDeliveryServer.stubCreateRouteOk(wireMock);
+
+        DeliveryRoute route = DeliveryRoute.builder()
+                .orderId(toUuid(502L))
+                .pickupAddress("Burgers House, Los Leones 300")
+                .deliveryAddress("Av. Providencia 1200")
+                .distanceKm(BigDecimal.valueOf(3.2))
+                .estimatedMinutes(20)
+                .status("Pendiente")
+                .merchantId(88L)
+                .build();
+
+        adapter.saveRoute(route);
+
+        wireMock.verify(postRequestedFor(urlEqualTo("/api/internal/routes"))
+                .withRequestBody(matchingJsonPath("$.merchantId", equalTo("88"))));
+    }
+
+    @Test
     void shouldForwardPickupCoordinatesAndClientUserIdWhenPresent() {
         MockDeliveryServer.stubCreateRouteOk(wireMock);
 

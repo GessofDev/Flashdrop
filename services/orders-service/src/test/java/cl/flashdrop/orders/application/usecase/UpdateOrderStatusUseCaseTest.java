@@ -105,7 +105,8 @@ class UpdateOrderStatusUseCaseTest {
     }
 
     private void givenUserOwnsRestaurant(UUID restaurantId) {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.ofNullable(restaurantId));
+        when(catalogPort.checkRestaurantMembership(USER_ID, RESTAURANT_ID))
+                .thenReturn(RESTAURANT_ID.equals(restaurantId));
     }
 
     private void assertNothingPersisted() {
@@ -362,7 +363,7 @@ class UpdateOrderStatusUseCaseTest {
         useCase.execute(ORDER_ID, "Retirado", REPARTIDOR, USER_ID);
 
         verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
-        verify(catalogPort, never()).findRestaurantIdByUserId(any());
+        verify(catalogPort, never()).checkRestaurantMembership(any(), any());
     }
 
     /**
@@ -377,7 +378,31 @@ class UpdateOrderStatusUseCaseTest {
         useCase.execute(ORDER_ID, "Retirado", Set.of(Role.RESTAURANTE, Role.REPARTIDOR), USER_ID);
 
         verify(orderRepository).updateStatusIfCurrent(ORDER_ID, OrderStatus.LISTO_PARA_RETIRO, OrderStatus.RETIRADO);
-        verify(catalogPort, never()).findRestaurantIdByUserId(any());
+        verify(catalogPort, never()).checkRestaurantMembership(any(), any());
+    }
+
+    @Test
+    void operadorConDosLocales_puedeActualizarPedidoDeSegundoLocal_yTercerLocalAjenoLanza403() {
+        UUID secondStore = UUID.randomUUID();
+        UUID secondOrderId = UUID.randomUUID();
+        Order secondStoreOrder = Order.builder().id(secondOrderId).clientId(CLIENT_ID).restaurantId(secondStore)
+                .status(OrderStatus.NUEVO_PEDIDO).receptionMode(ReceptionMode.NORMAL).build();
+        when(orderRepository.findById(secondOrderId)).thenReturn(Optional.of(secondStoreOrder));
+        when(catalogPort.checkRestaurantMembership(USER_ID, secondStore)).thenReturn(true);
+
+        useCase.execute(secondOrderId, "Preparando", RESTAURANTE, USER_ID);
+        verify(orderRepository).acceptByStore(eq(secondOrderId), eq(OrderStatus.NUEVO_PEDIDO),
+                eq(OrderStatus.PREPARANDO), any(), any());
+
+        UUID foreignStore = UUID.randomUUID();
+        UUID foreignOrderId = UUID.randomUUID();
+        Order foreignOrder = Order.builder().id(foreignOrderId).clientId(CLIENT_ID).restaurantId(foreignStore)
+                .status(OrderStatus.NUEVO_PEDIDO).receptionMode(ReceptionMode.NORMAL).build();
+        when(orderRepository.findById(foreignOrderId)).thenReturn(Optional.of(foreignOrder));
+        when(catalogPort.checkRestaurantMembership(USER_ID, foreignStore)).thenReturn(false);
+
+        assertThrows(StatusTransitionForbiddenException.class,
+                () -> useCase.execute(foreignOrderId, "Preparando", RESTAURANTE, USER_ID));
     }
 
     /** Rol autorizado para el destino, pero el estado actual no lo permite → 409 (dominio). */

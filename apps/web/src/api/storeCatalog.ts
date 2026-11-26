@@ -1,6 +1,8 @@
 import { asList } from './asList';
 import { request } from './client';
 import type {
+  CreateMyStoreRequest,
+  MerchantResponse,
   OpeningHours,
   ProductImageUpload,
   ProductResponse,
@@ -54,6 +56,34 @@ export interface OwnerRestaurantResponse extends RestaurantResponse {
  * the session: the owner is resolved from the token, never from the body.
  */
 export const storeCatalogApi = {
+  /** `GET /api/catalog/my/restaurants` — all operable stores of the merchant. */
+  listMyRestaurants(): Promise<OwnerRestaurantResponse[]> {
+    return request<unknown>({
+      path: '/api/catalog/my/restaurants',
+      method: 'GET',
+      responseShape: 'bare',
+    }).then((answer) => asList<OwnerRestaurantResponse>(answer));
+  },
+
+  /** `GET /api/catalog/my/merchant` — the brand profile of the authenticated operator. */
+  getMyMerchant(): Promise<MerchantResponse> {
+    return request<MerchantResponse>({
+      path: '/api/catalog/my/merchant',
+      method: 'GET',
+      responseShape: 'bare',
+    });
+  },
+
+  /** `POST /api/catalog/my/restaurants` — creates a new store inside the merchant group. */
+  createMyRestaurant(payload: CreateMyStoreRequest): Promise<OwnerRestaurantResponse> {
+    return request<OwnerRestaurantResponse>({
+      path: '/api/catalog/my/restaurants',
+      method: 'POST',
+      body: payload,
+      responseShape: 'bare',
+    });
+  },
+
   /** `GET /api/catalog/my/restaurant` — the local of the token, with its opening. */
   getMyRestaurant(): Promise<OwnerRestaurantResponse> {
     return request<OwnerRestaurantResponse>({

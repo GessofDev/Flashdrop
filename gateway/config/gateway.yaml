@@ -56,3 +56,6 @@ overrides:
     rateLimit:
       maxRequests: 5
       windowSeconds: 60
+
+cors:
+  allowedHeaders: [Content-Type, Authorization, X-My-Store-Restaurant]

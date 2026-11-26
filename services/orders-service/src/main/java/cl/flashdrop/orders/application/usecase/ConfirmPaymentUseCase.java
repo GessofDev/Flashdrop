@@ -140,6 +140,7 @@ public class ConfirmPaymentUseCase {
                 .pickupLatitude(restaurant != null ? restaurant.getLatitude() : null)
                 .pickupLongitude(restaurant != null ? restaurant.getLongitude() : null)
                 .clientUserId(clientUserId)
+                .merchantId(restaurant != null ? restaurant.getMerchantId() : null)
                 .build();
         deliveryPort.saveRoute(route);
     }

@@ -12,12 +12,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import com.flashdrop.catalog.domain.exception.LocalContextRequiredException;
 import com.flashdrop.catalog.domain.exception.ResourceNotFoundException;
 import com.flashdrop.catalog.domain.exception.ImageStorageException;
 import com.flashdrop.catalog.domain.exception.OwnerAlreadyAssignedException;
 import com.flashdrop.catalog.domain.exception.OwnershipAccessDeniedException;
 import com.flashdrop.catalog.domain.exception.PayloadTooLargeException;
 import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.ErrorResponse;
+import com.flashdrop.catalog.infrastructure.adapter.inbound.rest.dto.LocalContextRequiredResponse;
 
 @RestControllerAdvice
 public class RestExceptionHandler {
@@ -59,6 +61,21 @@ public class RestExceptionHandler {
             OwnershipAccessDeniedException exception
     ) {
         return error(HttpStatus.FORBIDDEN, "FORBIDDEN", exception.getMessage());
+    }
+
+    @ExceptionHandler(LocalContextRequiredException.class)
+    public ResponseEntity<LocalContextRequiredResponse> handleLocalContextRequired(
+            LocalContextRequiredException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new LocalContextRequiredResponse(
+                        HttpStatus.BAD_REQUEST.value(),
+                        "LOCAL_CONTEXT_REQUIRED",
+                        exception.getMessage(),
+                        exception.getAvailableStores().stream()
+                                .map(LocalContextRequiredResponse.AvailableRestaurant::fromDomain)
+                                .toList()
+                ));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

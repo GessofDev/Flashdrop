@@ -10,26 +10,24 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 
 @Service
 public class SetStoreDeliveryRadiusUseCase {
-    private final GetRestaurantByUserIdUseCase ownedRestaurant;
     private final RestaurantRepositoryPort restaurants;
 
-    public SetStoreDeliveryRadiusUseCase(GetRestaurantByUserIdUseCase ownedRestaurant,
-                                        RestaurantRepositoryPort restaurants) {
-        this.ownedRestaurant = ownedRestaurant;
+    public SetStoreDeliveryRadiusUseCase(RestaurantRepositoryPort restaurants) {
         this.restaurants = restaurants;
     }
 
-    public Restaurant execute(Long userId, BigDecimal radiusKm) {
+    public Restaurant execute(Long restaurantId, BigDecimal radiusKm) {
         if (radiusKm == null || radiusKm.compareTo(BigDecimal.ONE) < 0
                 || radiusKm.compareTo(BigDecimal.valueOf(50)) > 0
                 || radiusKm.stripTrailingZeros().scale() > 2) {
             throw new IllegalArgumentException("El radio debe estar entre 1 y 50 km, con hasta dos decimales");
         }
-        Restaurant restaurant = ownedRestaurant.execute(userId);
+        Restaurant restaurant = restaurants.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado"));
         if (restaurant.getLatitude() == null || restaurant.getLongitude() == null) {
             throw new IllegalArgumentException("Configura primero la ubicacion del local");
         }
-        return restaurants.updateDeliveryRadius(restaurant.getId(), radiusKm)
+        return restaurants.updateDeliveryRadius(restaurantId, radiusKm)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurante no encontrado"));
     }
 }

@@ -9,6 +9,7 @@ import { CartPanel } from '@/components/cart';
 import { ApiErrorNotice } from '@/components/errors/ApiErrorNotice';
 import { RatingAverage } from '@/components/ratings';
 import { Skeleton } from '@/components/ui';
+import { formatRestaurantName } from '@/lib/format';
 
 import { CatalogImage } from './CatalogImage';
 import { ProductCard } from './ProductCard';
@@ -54,7 +55,7 @@ export function RestaurantPage() {
     const names = new Map<number, string>();
 
     for (const item of restaurants.data ?? []) {
-      names.set(item.id, item.name);
+      names.set(item.id, formatRestaurantName(item));
     }
 
     return names;
@@ -93,11 +94,11 @@ export function RestaurantPage() {
           ) : (
             <header className="flex flex-col gap-4 rounded-container border border-border bg-surface p-5 shadow-card sm:flex-row sm:items-center">
               <div className="aspect-video w-full overflow-hidden rounded-control sm:w-56">
-                <CatalogImage src={restaurant.image} alt={restaurant.name} />
+                <CatalogImage src={restaurant.image} alt={formatRestaurantName(restaurant)} />
               </div>
               <div className="flex flex-col gap-1">
                 <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-                  {restaurant.name}
+                  {formatRestaurantName(restaurant)}
                 </h1>
                 <p className="text-sm text-foreground-secondary">{restaurant.address}</p>
                 <RatingAverage

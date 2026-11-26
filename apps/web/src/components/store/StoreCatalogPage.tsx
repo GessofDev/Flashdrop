@@ -7,6 +7,7 @@ import { Button, Card, Skeleton } from '@/components/ui';
 
 import { CatalogTable } from './CatalogTable';
 import { ProductFormDialog } from './ProductFormDialog';
+import { useStoreContext } from './StoreContext';
 
 type AvailabilityFilter = 'all' | 'available' | 'out';
 
@@ -45,6 +46,7 @@ const FILTERS: ReadonlyArray<{ value: AvailabilityFilter; label: string }> = [
  * store reactivate a dish.
  */
 export function StoreCatalogPage() {
+  const { selectedStoreId } = useStoreContext();
   const [state, setState] = useState<CatalogState>({ products: [], error: null, loading: true });
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -77,7 +79,7 @@ export function StoreCatalogPage() {
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, selectedStoreId]);
 
   useEffect(() => {
     let active = true;

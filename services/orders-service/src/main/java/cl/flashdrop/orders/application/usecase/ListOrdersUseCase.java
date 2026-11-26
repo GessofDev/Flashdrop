@@ -1,6 +1,7 @@
 package cl.flashdrop.orders.application.usecase;
 
 import cl.flashdrop.orders.application.OrderEnricher;
+import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.Role;
 import cl.flashdrop.orders.domain.port.CatalogPort;
@@ -37,13 +38,31 @@ public class ListOrdersUseCase {
 
     @Transactional(readOnly = true)
     public List<Order> execute(UUID currentUserId, Set<Role> currentRoles) {
+        return execute(currentUserId, currentRoles, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Order> execute(UUID currentUserId, Set<Role> currentRoles, UUID requestedRestaurantId) {
         Map<UUID, Order> visible = new LinkedHashMap<>();
 
         if (currentRoles.contains(Role.RESTAURANTE)) {
-            catalogPort.findRestaurantIdByUserId(currentUserId).ifPresentOrElse(
-                    restaurantId -> orderRepository.findVisibleToStore(restaurantId)
-                            .forEach(o -> visible.putIfAbsent(o.getId(), o)),
-                    () -> log.debug("Usuario {} no tiene restaurante asociado", currentUserId));
+            if (requestedRestaurantId != null) {
+                if (!catalogPort.checkRestaurantMembership(currentUserId, requestedRestaurantId)) {
+                    throw new ForbiddenOperationException("No puedes consultar pedidos de otro restaurante");
+                }
+                orderRepository.findVisibleToStore(requestedRestaurantId)
+                        .forEach(o -> visible.putIfAbsent(o.getId(), o));
+            } else {
+                List<UUID> restaurantIds = catalogPort.findOperableRestaurantIdsByUserId(currentUserId);
+                if (restaurantIds.isEmpty()) {
+                    log.debug("Usuario {} no tiene restaurante asociado", currentUserId);
+                } else {
+                    for (UUID restaurantId : restaurantIds) {
+                        orderRepository.findVisibleToStore(restaurantId)
+                                .forEach(o -> visible.putIfAbsent(o.getId(), o));
+                    }
+                }
+            }
         }
 
         if (currentRoles.contains(Role.CLIENTE)) {

@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.application.port.outbound;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,22 +17,20 @@ public interface RestaurantRepositoryPort {
 
     Optional<Restaurant> findById(Long id);
 
-    Optional<Restaurant> findByUserId(Long userId);
+    List<Restaurant> findByMerchantIds(Collection<Long> merchantIds);
 
-    Optional<Restaurant> assignOwner(Long restaurantId, Long userId);
+    Optional<Restaurant> assignMerchant(Long restaurantId, Long merchantId);
 
-    Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+    Restaurant create(String name, String address, boolean acceptingOrders,
                       BigDecimal latitude, BigDecimal longitude);
 
-    default Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders) {
-        return create(name, address, ownerUserId, acceptingOrders, null, null);
-    }
+    Restaurant createInMerchant(String name, String address, Long merchantId,
+                                boolean acceptingOrders, BigDecimal latitude, BigDecimal longitude,
+                                BigDecimal deliveryRadiusKm);
 
-    /**
-     * Elimina el vinculo del restaurante con su dueno (cuenta eliminada) y lo deja cerrado. El restaurante
-     * y su catalogo se conservan. Devuelve vacio si el usuario no tenia restaurante (idempotente).
-     */
-    Optional<Restaurant> clearOwner(Long userId);
+    default Restaurant create(String name, String address, boolean acceptingOrders) {
+        return create(name, address, acceptingOrders, null, null);
+    }
 
     Optional<Restaurant> updateAcceptingOrders(Long restaurantId, boolean acceptingOrders);
 

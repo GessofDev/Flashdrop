@@ -56,7 +56,7 @@ class GetRestaurantSalesSummaryUseCaseTest {
     }
 
     private void givenUserOwnsRestaurant() {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(RESTAURANT_ID));
+        when(catalogPort.checkRestaurantMembership(USER_ID, RESTAURANT_ID)).thenReturn(true);
     }
 
     private void givenDeliveredOrders(OffsetDateTime from, List<Order> orders) {
@@ -110,7 +110,7 @@ class GetRestaurantSalesSummaryUseCaseTest {
                 () -> useCase.execute(USER_ID, RESTAURANT_ID, "year"));
 
         assertEquals("Rango invalido: year. Valores validos: day, week, month", ex.getMessage());
-        verify(catalogPort, never()).findRestaurantIdByUserId(any());
+        verify(catalogPort, never()).checkRestaurantMembership(any(), any());
         verify(orderRepository, never()).findByRestaurantAndStatusAndCreatedAtBetween(any(), any(), any(), any());
     }
 
@@ -118,7 +118,7 @@ class GetRestaurantSalesSummaryUseCaseTest {
 
     @Test
     void restauranteDeOtroDueno_lanzaForbiddenSinConsultarVentas() {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(catalogPort.checkRestaurantMembership(USER_ID, RESTAURANT_ID)).thenReturn(false);
 
         ForbiddenOperationException ex = assertThrows(ForbiddenOperationException.class,
                 () -> useCase.execute(USER_ID, RESTAURANT_ID, "week"));
@@ -129,9 +129,42 @@ class GetRestaurantSalesSummaryUseCaseTest {
 
     @Test
     void usuarioSinRestaurante_lanzaForbidden() {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(catalogPort.checkRestaurantMembership(USER_ID, RESTAURANT_ID)).thenReturn(false);
 
         assertThrows(ForbiddenOperationException.class, () -> useCase.execute(USER_ID, RESTAURANT_ID, "week"));
+    }
+
+    @Test
+    void storeSummary_sinRestaurantId_agregaTodosLosLocalesDelMerchant() {
+        UUID secondStore = UUID.randomUUID();
+        UUID burger = UUID.randomUUID();
+        UUID pizza = UUID.randomUUID();
+        when(catalogPort.findOperableRestaurantIdsByUserId(USER_ID)).thenReturn(List.of(RESTAURANT_ID, secondStore));
+        when(orderRepository.findByRestaurantAndStatusAndCreatedAtBetween(
+                RESTAURANT_ID, List.of(OrderStatus.ENTREGADO), NOW_UTC.minusDays(7), NOW_UTC))
+                .thenReturn(List.of(order(10000, item(burger, "Burger", 2, 10000))));
+        when(orderRepository.findByRestaurantAndStatusAndCreatedAtBetween(
+                secondStore, List.of(OrderStatus.ENTREGADO), NOW_UTC.minusDays(7), NOW_UTC))
+                .thenReturn(List.of(
+                        Order.builder().id(UUID.randomUUID()).restaurantId(secondStore).status(OrderStatus.ENTREGADO)
+                                .subtotal(BigDecimal.valueOf(8000)).items(List.of(item(pizza, "Pizza", 1, 8000))).build()));
+
+        SalesSummary summary = useCase.executeStoreSummary(USER_ID, null, "week");
+
+        assertNull(summary.restaurantId());
+        assertEquals(2, summary.totalOrders());
+        assertEquals(0, BigDecimal.valueOf(18000).compareTo(summary.totalRevenue()));
+        assertEquals(0, BigDecimal.valueOf(9000).compareTo(summary.averageTicket()));
+        assertEquals(List.of(burger, pizza), summary.topProducts().stream().map(SalesSummary.TopProduct::productId).toList());
+    }
+
+    @Test
+    void storeSummary_conRestaurantIdAjeno_lanzaForbidden() {
+        UUID foreignStore = UUID.randomUUID();
+        when(catalogPort.checkRestaurantMembership(USER_ID, foreignStore)).thenReturn(false);
+
+        assertThrows(ForbiddenOperationException.class,
+                () -> useCase.executeStoreSummary(USER_ID, foreignStore, "week"));
     }
 
     // --------------------------- agregaciones ---------------------------

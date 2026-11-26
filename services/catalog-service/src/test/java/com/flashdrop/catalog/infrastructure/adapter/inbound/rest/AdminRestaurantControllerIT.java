@@ -75,7 +75,6 @@ class AdminRestaurantControllerIT {
                         .contentType(MediaType.APPLICATION_JSON).content(NEW_STORE))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Nueva Tienda"))
-                .andExpect(jsonPath("$.ownerUserId").value(50))
                 .andExpect(jsonPath("$.acceptingOrders").value(false))
                 .andExpect(jsonPath("$.open").value(false));
 
@@ -84,7 +83,7 @@ class AdminRestaurantControllerIT {
                 .andExpect(jsonPath("$[*].name", hasItem("Nueva Tienda")));
         mockMvc.perform(get("/api/catalog/admin/restaurants").with(admin()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].ownerUserId", hasItem(50)));
+                .andExpect(jsonPath("$[*].name", hasItem("Nueva Tienda")));
     }
 
     @Test
@@ -109,15 +108,20 @@ class AdminRestaurantControllerIT {
     }
 
     @Test
-    void create_withAnOwnerWhoAlreadyHasAStore_isConflict() throws Exception {
+    void create_withAnOwnerWhoAlreadyHasAStore_createsSecondStoreInSameMerchant() throws Exception {
         mockMvc.perform(post("/api/catalog/admin/restaurants").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Otra\",\"ownerUserId\":1}"))
-                .andExpect(status().isConflict());
+                        .content("{\"name\":\"Otra Sucursal\",\"ownerUserId\":1}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Otra Sucursal"));
+
+        mockMvc.perform(get("/api/catalog/my/restaurants").with(user(1L, "Restaurante")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
-    void assignOwner_toAnOwnerlessStore_works_andUnknownStoreIs404() throws Exception {
+    void assignOwner_toAnOwnerlessStore_worksForNewAndExistingOwners_andUnknownStoreIs404() throws Exception {
         mockMvc.perform(post("/api/catalog/admin/restaurants").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Sin dueno\"}"))
                 .andExpect(status().isCreated())
@@ -126,13 +130,20 @@ class AdminRestaurantControllerIT {
         mockMvc.perform(put("/api/catalog/admin/restaurants/3/owner").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":60}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ownerUserId").value(60));
+                .andExpect(jsonPath("$.id").value(3));
+
+        mockMvc.perform(get("/api/catalog/my/restaurants").with(user(60L, "Restaurante")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(3));
 
         mockMvc.perform(put("/api/catalog/admin/restaurants/999/owner").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":61}"))
                 .andExpect(status().isNotFound());
+
+        // Assigning an owner who already owns another store succeeds without OwnerAlreadyAssignedException
         mockMvc.perform(put("/api/catalog/admin/restaurants/3/owner").with(admin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":1}"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(3));
     }
 }

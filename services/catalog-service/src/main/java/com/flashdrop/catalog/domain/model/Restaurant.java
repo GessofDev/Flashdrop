@@ -10,6 +10,7 @@ public class Restaurant {
 
     private Long id;
     private Long userId;
+    private Long merchantId;
     private String name;
     private String address;
     private LocalDateTime createdAt;
@@ -36,12 +37,20 @@ public class Restaurant {
     public Restaurant(Long id, Long userId, String name, String address, LocalDateTime createdAt,
                       boolean acceptingOrders, List<OpeningHours> hours,
                       BigDecimal latitude, BigDecimal longitude, BigDecimal deliveryRadiusKm) {
+        this(id, userId, null, name, address, createdAt, acceptingOrders, hours,
+                latitude, longitude, deliveryRadiusKm);
+    }
+
+    public Restaurant(Long id, Long userId, Long merchantId, String name, String address, LocalDateTime createdAt,
+                      boolean acceptingOrders, List<OpeningHours> hours,
+                      BigDecimal latitude, BigDecimal longitude, BigDecimal deliveryRadiusKm) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre del restaurante es obligatorio");
         }
 
         this.id = id;
         this.userId = userId;
+        this.merchantId = merchantId;
         this.name = name;
         this.address = address;
         this.createdAt = createdAt;
@@ -68,6 +77,10 @@ public class Restaurant {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public Long getMerchantId() {
+        return merchantId;
     }
 
     public String getName() {

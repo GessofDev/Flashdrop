@@ -244,4 +244,22 @@ export const ordersApi = {
       query: { range },
     });
   },
+
+  /**
+   * `GET /api/orders/store/summary?restaurantId=&range=day|week|month`
+   *
+   * Sales summary for a specific store or aggregated across all stores of the
+   * merchant when `restaurantId` is omitted.
+   */
+  getStoreSummary(
+    restaurantId?: number,
+    range: SalesRange | string = 'week',
+  ): Promise<SalesSummaryResponse> {
+    return request<SalesSummaryResponse>({
+      path: '/api/orders/store/summary',
+      method: 'GET',
+      responseShape: 'envelope',
+      query: restaurantId !== undefined ? { restaurantId, range } : { range },
+    });
+  },
 };

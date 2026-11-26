@@ -1,6 +1,7 @@
 package com.flashdrop.catalog.infrastructure.adapter.outbound.persistence.jpa;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,38 +45,42 @@ public class JpaRestaurantRepositoryAdapter implements RestaurantRepositoryPort 
     }
 
     @Override
-    public Optional<Restaurant> findByUserId(Long userId) {
-        return repository.findByUserId(userId)
-                .map(restaurantEntity -> restaurantEntity.toDomain());
+    public List<Restaurant> findByMerchantIds(Collection<Long> merchantIds) {
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByMerchantIdIn(merchantIds)
+                .stream()
+                .map(RestaurantEntity::toDomain)
+                .toList();
     }
 
     @Override
     @Transactional
-    public Optional<Restaurant> assignOwner(Long restaurantId, Long userId) {
+    public Optional<Restaurant> assignMerchant(Long restaurantId, Long merchantId) {
         return repository.findById(restaurantId)
                 .map(entity -> {
-                    entity.changeOwner(userId);
+                    entity.changeMerchant(merchantId);
                     return entity.toDomain();
                 });
     }
 
     @Override
     @Transactional
-    public Optional<Restaurant> clearOwner(Long userId) {
-        return repository.findByUserId(userId)
-                .map(entity -> {
-                    entity.changeOwner(null);
-                    entity.changeAcceptingOrders(false);
-                    return entity.toDomain();
-                });
-    }
-
-    @Override
-    @Transactional
-    public Restaurant create(String name, String address, Long ownerUserId, boolean acceptingOrders,
+    public Restaurant create(String name, String address, boolean acceptingOrders,
                              BigDecimal latitude, BigDecimal longitude) {
         return repository.save(RestaurantEntity.create(
-                name, address, ownerUserId, acceptingOrders, latitude, longitude)).toDomain();
+                name, address, acceptingOrders, latitude, longitude)).toDomain();
+    }
+
+    @Override
+    @Transactional
+    public Restaurant createInMerchant(String name, String address, Long merchantId,
+                                       boolean acceptingOrders, BigDecimal latitude, BigDecimal longitude,
+                                       BigDecimal deliveryRadiusKm) {
+        return repository.save(RestaurantEntity.createInMerchant(
+                name, address, merchantId, acceptingOrders, latitude, longitude, deliveryRadiusKm))
+                .toDomain();
     }
 
     @Override

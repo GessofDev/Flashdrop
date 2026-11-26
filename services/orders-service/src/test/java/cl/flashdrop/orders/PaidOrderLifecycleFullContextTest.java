@@ -122,7 +122,7 @@ class PaidOrderLifecycleFullContextTest {
                 .restaurantId(RESTAURANT).name("Local").address("Calle 1")
                 .latitude(new BigDecimal("-33.4500")).longitude(new BigDecimal("-70.6600"))
                 .deliveryRadiusKm(new BigDecimal("10")).build()));
-        when(catalogPort.findRestaurantIdByUserId(RESTAURANT_OWNER)).thenReturn(Optional.of(RESTAURANT));
+        when(catalogPort.checkRestaurantMembership(RESTAURANT_OWNER, RESTAURANT)).thenReturn(true);
         asAdmin();
         adminTariff.replace(new AdminDeliveryTariffController.TariffBody(
                 List.of(new AdminDeliveryTariffController.DimensionRangeBody(0, 4,

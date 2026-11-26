@@ -55,6 +55,9 @@ public class DeliveryRouteJpaEntity {
     @Column(name = "client_user_id", length = 64)
     private String clientUserId;
 
+    @Column(name = "merchant_id")
+    private Long merchantId;
+
     public DeliveryRouteJpaEntity() {
     }
 
@@ -195,5 +198,13 @@ public class DeliveryRouteJpaEntity {
 
     public void setClientUserId(String clientUserId) {
         this.clientUserId = clientUserId;
+    }
+
+    public Long getMerchantId() {
+        return merchantId;
+    }
+
+    public void setMerchantId(Long merchantId) {
+        this.merchantId = merchantId;
     }
 }

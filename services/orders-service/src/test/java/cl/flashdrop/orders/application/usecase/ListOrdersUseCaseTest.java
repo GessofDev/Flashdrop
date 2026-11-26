@@ -1,6 +1,7 @@
 package cl.flashdrop.orders.application.usecase;
 
 import cl.flashdrop.orders.application.OrderEnricher;
+import cl.flashdrop.orders.domain.exception.ForbiddenOperationException;
 import cl.flashdrop.orders.domain.model.Order;
 import cl.flashdrop.orders.domain.model.RestaurantInfo;
 import cl.flashdrop.orders.domain.model.Role;
@@ -58,7 +59,7 @@ class ListOrdersUseCaseTest {
 
     @Test
     void restaurante_veLosPedidosDeSuRestaurante() {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(RESTAURANT_ID));
+        when(catalogPort.findOperableRestaurantIdsByUserId(USER_ID)).thenReturn(List.of(RESTAURANT_ID));
         when(orderRepository.findVisibleToStore(RESTAURANT_ID))
                 .thenReturn(List.of(order(UUID.randomUUID(), RESTAURANT_ID, UUID.randomUUID())));
         when(catalogPort.findRestaurantById(RESTAURANT_ID))
@@ -73,11 +74,49 @@ class ListOrdersUseCaseTest {
 
     @Test
     void restauranteSinRestaurante_recibeListaVacia_yNoSeListanTodosLosPedidos() {
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(catalogPort.findOperableRestaurantIdsByUserId(USER_ID)).thenReturn(List.of());
 
         List<Order> result = useCase.execute(USER_ID, Set.of(Role.RESTAURANTE));
 
         assertTrue(result.isEmpty());
+        verify(orderRepository, never()).findVisibleToStore(any());
+    }
+
+    @Test
+    void restauranteConDosLocales_agregaPedidosDeAmbosSinDuplicados() {
+        UUID secondStore = UUID.randomUUID();
+        Order o1 = order(UUID.randomUUID(), RESTAURANT_ID, UUID.randomUUID());
+        Order o2 = order(UUID.randomUUID(), secondStore, UUID.randomUUID());
+        when(catalogPort.findOperableRestaurantIdsByUserId(USER_ID)).thenReturn(List.of(RESTAURANT_ID, secondStore));
+        when(orderRepository.findVisibleToStore(RESTAURANT_ID)).thenReturn(List.of(o1));
+        when(orderRepository.findVisibleToStore(secondStore)).thenReturn(List.of(o2, o1));
+        when(catalogPort.findRestaurantById(any())).thenReturn(Optional.empty());
+
+        List<Order> result = useCase.execute(USER_ID, Set.of(Role.RESTAURANTE));
+
+        assertEquals(List.of(o1.getId(), o2.getId()), result.stream().map(Order::getId).toList());
+    }
+
+    @Test
+    void restauranteConLocalSolicitadoPropio_filtraSoloEseLocal() {
+        Order o1 = order(UUID.randomUUID(), RESTAURANT_ID, UUID.randomUUID());
+        when(catalogPort.checkRestaurantMembership(USER_ID, RESTAURANT_ID)).thenReturn(true);
+        when(orderRepository.findVisibleToStore(RESTAURANT_ID)).thenReturn(List.of(o1));
+        when(catalogPort.findRestaurantById(RESTAURANT_ID)).thenReturn(Optional.empty());
+
+        List<Order> result = useCase.execute(USER_ID, Set.of(Role.RESTAURANTE), RESTAURANT_ID);
+
+        assertEquals(List.of(o1.getId()), result.stream().map(Order::getId).toList());
+        verify(catalogPort, never()).findOperableRestaurantIdsByUserId(any());
+    }
+
+    @Test
+    void restauranteConLocalSolicitadoAjeno_lanzaForbidden() {
+        UUID foreignStore = UUID.randomUUID();
+        when(catalogPort.checkRestaurantMembership(USER_ID, foreignStore)).thenReturn(false);
+
+        org.junit.jupiter.api.Assertions.assertThrows(ForbiddenOperationException.class,
+                () -> useCase.execute(USER_ID, Set.of(Role.RESTAURANTE), foreignStore));
         verify(orderRepository, never()).findVisibleToStore(any());
     }
 
@@ -92,7 +131,7 @@ class ListOrdersUseCaseTest {
 
         assertEquals(List.of(mine.getId()), result.stream().map(Order::getId).toList());
         verify(orderRepository, never()).findVisibleToStore(any());
-        verify(catalogPort, never()).findRestaurantIdByUserId(any());
+        verify(catalogPort, never()).findOperableRestaurantIdsByUserId(any());
     }
 
     @Test
@@ -110,7 +149,7 @@ class ListOrdersUseCaseTest {
         UUID shared = UUID.randomUUID();
         UUID onlyRestaurant = UUID.randomUUID();
         UUID onlyClient = UUID.randomUUID();
-        when(catalogPort.findRestaurantIdByUserId(USER_ID)).thenReturn(Optional.of(RESTAURANT_ID));
+        when(catalogPort.findOperableRestaurantIdsByUserId(USER_ID)).thenReturn(List.of(RESTAURANT_ID));
         when(clientPort.findClientIdByUserId(USER_ID)).thenReturn(Optional.of(CLIENT_ID));
         when(orderRepository.findVisibleToStore(RESTAURANT_ID)).thenReturn(List.of(
                 order(shared, RESTAURANT_ID, CLIENT_ID), order(onlyRestaurant, RESTAURANT_ID, UUID.randomUUID())));

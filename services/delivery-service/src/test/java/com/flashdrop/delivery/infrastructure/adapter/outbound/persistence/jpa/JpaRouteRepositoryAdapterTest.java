@@ -70,6 +70,25 @@ class JpaRouteRepositoryAdapterTest {
             assertThat(result.get().getEstimatedMinutes().minutes()).isEqualTo(30);
             assertThat(result.get().getStatus()).isEqualTo(RouteStatus.PENDIENTE);
             assertThat(result.get().getCreatedAt()).isEqualTo(Instant.parse("2024-07-29T10:00:00Z"));
+            assertThat(result.get().getMerchantId()).isNull();
+        }
+
+        @Test
+        @DisplayName("maps merchantId when present on entity")
+        void mapsMerchantIdWhenPresent() {
+            DeliveryRouteJpaEntity entity = new DeliveryRouteJpaEntity(
+                    2L, 102L, "Pickup St", "Delivery St",
+                    new java.math.BigDecimal("5.5"), 30,
+                    "Pendiente", Instant.parse("2024-07-29T10:00:00Z")
+            );
+            entity.setMerchantId(88L);
+            when(jpaRepository.findById(2L)).thenReturn(Optional.of(entity));
+
+            JpaRouteRepositoryAdapter adapter = new JpaRouteRepositoryAdapter(jpaRepository);
+            Optional<DeliveryRoute> result = adapter.findById(2L);
+
+            assertThat(result).isPresent();
+            assertThat(result.get().getMerchantId()).isEqualTo(88L);
         }
 
         @Test

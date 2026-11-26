@@ -58,6 +58,17 @@ class DeliveryMigrationIT {
         assertTableExists("delivery_persons");
     }
 
+    @Test
+    @DisplayName("V11 migration adds nullable merchant_id column to internal.delivery_routes")
+    void v11AddsMerchantIdColumnToDeliveryRoutes() {
+        String isNullable = jdbc.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns "
+                        + "WHERE table_schema = 'internal' AND table_name = 'delivery_routes' AND column_name = 'merchant_id'",
+                String.class
+        );
+        assertThat(isNullable).isEqualTo("YES");
+    }
+
     private void assertTableExists(String tableName) {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'internal' AND table_name = ?",

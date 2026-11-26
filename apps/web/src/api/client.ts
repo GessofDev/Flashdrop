@@ -1,11 +1,12 @@
 import { notifySessionExpired } from '@/session/sessionEvents';
+import { storeContextStore } from '@/session/storeContextStore';
 import { isTokenPair, sessionStore } from '@/session/tokenStore';
 
 import { ApiError } from './ApiError';
 import { apiBaseUrl } from './baseUrl';
 import { isRecord, readErrorCode, readErrorMessage } from './errorBody';
 import { resolveApiErrorOutcome } from './errorPolicy';
-import type { QueryParams, RefreshRequest, TokenPair } from './types';
+import type { AvailableRestaurant, QueryParams, RefreshRequest, TokenPair } from './types';
 
 /** HTTP verbs the client uses. */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -114,6 +115,10 @@ function buildUrl(path: string, query: QueryParams | undefined): string {
   return search.length > 0 ? `${url}?${search}` : url;
 }
 
+function shouldAttachStoreHeader(path: string): boolean {
+  return path.startsWith('/api/catalog/my') || path.startsWith('/api/orders');
+}
+
 function buildHeaders(options: RequestOptions): Record<string, string> {
   const headers: Record<string, string> = { Accept: 'application/json' };
 
@@ -126,6 +131,13 @@ function buildHeaders(options: RequestOptions): Record<string, string> {
 
     if (tokens !== null) {
       headers.Authorization = `Bearer ${tokens.accessToken}`;
+    }
+
+    if (shouldAttachStoreHeader(options.path)) {
+      const storeId = storeContextStore.getSelectedStoreId();
+      if (storeId !== null) {
+        headers['X-My-Store-Restaurant'] = String(storeId);
+      }
     }
   }
 
@@ -166,6 +178,23 @@ async function readBody(response: Response): Promise<unknown> {
     return JSON.parse(text) as unknown;
   } catch {
     return null;
+  }
+}
+
+function captureLocalContextRequired(
+  status: number,
+  code: string | null,
+  body: unknown,
+): void {
+  if (
+    status === 400 &&
+    code === 'LOCAL_CONTEXT_REQUIRED' &&
+    isRecord(body) &&
+    Array.isArray(body.availableRestaurants)
+  ) {
+    storeContextStore.setLocalContextRequired(
+      body.availableRestaurants as AvailableRestaurant[],
+    );
   }
 }
 
@@ -215,9 +244,12 @@ async function send<T>(options: RequestOptions): Promise<T> {
   const body = await readBody(response);
 
   if (!response.ok) {
+    const code = readErrorCode(body);
+    captureLocalContextRequired(response.status, code, body);
+
     throw new ApiError(readErrorMessage(body) ?? MISSING_MESSAGE, {
       status: response.status,
-      code: readErrorCode(body),
+      code,
       body,
     });
   }

@@ -17,6 +17,7 @@ import java.util.UUID;
 public class RestaurantInfo {
 
     private final UUID restaurantId;
+    private final Long merchantId;
     private final String name;
     private final String address;
     private final BigDecimal latitude;

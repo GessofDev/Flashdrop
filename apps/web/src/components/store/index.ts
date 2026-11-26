@@ -6,5 +6,7 @@ export { ProductFormDialog } from './ProductFormDialog';
 export type { ProductFormDialogProps } from './ProductFormDialog';
 export { StoreAnalyticsPage } from './StoreAnalyticsPage';
 export { StoreCatalogPage } from './StoreCatalogPage';
+export { StoreProvider, useStoreContext } from './StoreContext';
+export type { StoreContextValue, StoreProviderProps } from './StoreContext';
 export { StoreHoursPage } from './StoreHoursPage';
 export { StoreLocationPage } from './StoreLocationPage';

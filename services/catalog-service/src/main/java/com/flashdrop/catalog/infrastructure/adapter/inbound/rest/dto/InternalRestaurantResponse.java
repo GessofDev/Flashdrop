@@ -8,6 +8,7 @@ import com.flashdrop.catalog.domain.model.Restaurant;
 public record InternalRestaurantResponse(
         Long id,
         Long userId,
+        Long merchantId,
         String name,
         String address,
         boolean open,
@@ -19,6 +20,7 @@ public record InternalRestaurantResponse(
         return new InternalRestaurantResponse(
                 restaurant.getId(),
                 restaurant.getUserId(),
+                restaurant.getMerchantId(),
                 restaurant.getName(),
                 restaurant.getAddress(),
                 restaurant.isOpenAt(now),
